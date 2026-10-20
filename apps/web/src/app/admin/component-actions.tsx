@@ -8,7 +8,7 @@ export function ComponentActions({ id }: { id: string }) {
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
-  const run = (fn: () => Promise<{ ok: boolean; error?: string; data?: { prUrl?: string | null } }>) => start(async () => { setErr(null); const r = await fn(); if (!r.ok) return setErr(r.error ?? "Error"); setOk(r.data?.prUrl ? `Aprobado. PR: ${r.data.prUrl}` : "Hecho."); router.refresh(); });
+  const run = (fn: () => Promise<{ ok: boolean; error?: string; data?: { prUrl?: string | null; prError?: string | null } }>) => start(async () => { setErr(null); const r = await fn(); if (!r.ok) return setErr(r.error ?? "Error"); setOk(r.data?.prUrl ? `Aprobado. PR: ${r.data.prUrl}` : r.data?.prError ? `Aprobado y estable. No se pudo abrir el PR automático: ${r.data.prError}` : "Hecho."); router.refresh(); });
   return (
     <div className="space-y-2 text-right">
       <div className="flex gap-2">

@@ -72,7 +72,7 @@ export default function Component({ props, size }: { props: Props; size: { width
           {iv.label && <text x={(x(iv.from) + x(iv.to)) / 2} y={y - 40} textAnchor="middle" fontSize={34} fill="var(--lm-ink)">{iv.label}</text>}
         </g>
       ))}
-      {props.caption && <g><text x={W / 2} y={H - 40} textAnchor="middle" fontSize={30} fill="var(--lm-ink)">{props.caption}</text><Latex tex="" /></g>}
+      {props.caption && <text x={W / 2} y={H - 40} textAnchor="middle" fontSize={30} fill="var(--lm-ink)">{props.caption}</text>}
     </svg>
   );
 }

@@ -127,7 +127,7 @@ export function DesignReview(props: {
             </section>
             <section className="sheet p-4" aria-labelledby="comp">
               <h2 id="comp" className="font-bold">¿Falta un componente visual?</h2>
-              <p className="hint mt-1">Si ningún componente del catálogo sirve (p. ej. una recta numérica o un diagrama de fases), pide uno nuevo. Estará disponible solo en esta presentación como «provisional», hasta que un administrador lo revise.</p>
+              <p className="hint mt-1">Si ningún componente del catálogo sirve (p. ej. una recta numérica o un diagrama de fases), pide uno nuevo. Estará disponible solo en esta presentación como «provisional», hasta que un administrador lo revise. Selecciona primero la diapositiva (de contenido) donde lo quieres usar: <strong>diapositiva {sel + 1}</strong>.</p>
               <label className="label mt-3 text-sm" htmlFor="cn">Nombre (sin espacios)</label>
               <input id="cn" className="field" value={cname} onChange={(e) => setCname(e.target.value.replace(/[^A-Za-z0-9]/g, ""))} maxLength={40} placeholder="RectaNumerica" />
               <label className="label mt-3 text-sm" htmlFor="cp">¿Qué debe mostrar?</label>

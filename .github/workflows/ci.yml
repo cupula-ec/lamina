@@ -1,0 +1,63 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_USER: lamina, POSTGRES_PASSWORD: lamina, POSTGRES_DB: lamina }
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lamina" --health-interval 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Build de la web
+        run: pnpm --filter @lamina/web build
+  e2e:
+    runs-on: ubuntu-latest
+    needs: check
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_USER: lamina, POSTGRES_PASSWORD: lamina, POSTGRES_DB: lamina }
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lamina" --health-interval 5s --health-retries 20
+      searxng:
+        image: searxng/searxng:latest
+        ports: ["58080:8080"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @lamina/e2e exec playwright install --with-deps chromium
+      - name: Sandbox de componentes (imagen)
+        run: docker build -f sandbox/Dockerfile -t lamina-sandbox:latest .
+      - name: Levantar servicios con IA fake
+        run: |
+          cat > apps/web/.env.local <<EOF
+          DATABASE_URL=postgres://lamina:lamina@127.0.0.1:55432/lamina
+          APP_URL=http://localhost:3100
+          BETTER_AUTH_SECRET=ci-secret-ci-secret-ci-secret-0123456789
+          DATA_DIR=$PWD/data
+          RENDER_SERVICE_TOKEN=ci-render-token-ci-render-token-0123
+          EOF
+          pnpm --filter @lamina/db migrate
+          (cd apps/web && DATABASE_URL=postgres://lamina:lamina@127.0.0.1:55432/lamina BETTER_AUTH_SECRET=ci-secret-ci-secret-ci-secret-0123456789 pnpm exec tsx scripts/create-user.ts docente@test.ec "Docente Prueba" ClaveDocente123)
+          (cd apps/web && DATABASE_URL=postgres://lamina:lamina@127.0.0.1:55432/lamina BETTER_AUTH_SECRET=ci-secret-ci-secret-ci-secret-0123456789 pnpm exec tsx scripts/create-user.ts esteban.morocho@cupula.com.ec "Esteban Morocho" ClaveAdmin12345 admin)
+          ./scripts/dev-up.sh
+          for i in $(seq 1 60); do curl -sf localhost:3100/api/health && break || sleep 2; done
+      - run: pnpm --filter @lamina/e2e exec playwright test
+      - if: failure()
+        run: tail -n 80 /tmp/lamina-dev/*.log
