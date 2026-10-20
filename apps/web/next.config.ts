@@ -4,7 +4,7 @@ const config: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
-  transpilePackages: ["@lamina/contracts", "@lamina/engine", "@lamina/components", "@lamina/validation", "@lamina/db", "@lamina/ai", "@lamina/research"],
+  transpilePackages: ["@lamina/contracts", "@lamina/engine", "@lamina/components", "@lamina/validation", "@lamina/db", "@lamina/ai", "@lamina/research", "@lamina/jobs"],
   serverExternalPackages: ["pg", "pg-boss", "jsdom", "nodemailer", "undici", "mammoth", "unpdf"],
   outputFileTracingRoot: new URL("../../", import.meta.url).pathname,
   async headers() {

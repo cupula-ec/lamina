@@ -16,6 +16,7 @@
     "@lamina/contracts": "workspace:*",
     "@lamina/db": "workspace:*",
     "@lamina/engine": "workspace:*",
+    "@lamina/jobs": "workspace:*",
     "@lamina/research": "workspace:*",
     "@lamina/validation": "workspace:*",
     "better-auth": "^1.7.11",

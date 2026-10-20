@@ -1,21 +1,20 @@
-@import "@fontsource-variable/source-serif-4/index.css";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource-variable/literata/index.css";
+@import "@fontsource/atkinson-hyperlegible/400.css";
+@import "@fontsource/atkinson-hyperlegible/700.css";
 @import "katex/dist/katex.min.css";
 
 /* ───────── Temas (alto contraste, pensados para proyector) ───────── */
 [data-theme="lamina-claro"], .lm-player, .lm-thumb, .lm-presenter {
-  --lm-bg: #fbfaf6; --lm-ink: #14181f; --lm-muted: #46505e; --lm-accent: #b4350e; --lm-accent2: #0b5c75;
-  --lm-panel: #f0ece0; --lm-rule: #d3cdb9; --lm-answer: #e6f1e6; --lm-answer-ink: #174d22;
-  --lm-plot1: #0b5c75; --lm-plot2: #b4350e; --lm-plot3: #5b3e96; --lm-plot4: #1f7a3a;
-  --lm-font-display: "Source Serif 4 Variable", "Source Serif 4", Georgia, serif;
-  --lm-font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --lm-bg: #fbfcf8; --lm-ink: #101b2b; --lm-muted: #44505f; --lm-accent: #1b4f9c; --lm-accent2: #0b6b5f;
+  --lm-panel: #edf2ea; --lm-rule: #cddbd4; --lm-answer: #e3f1e5; --lm-answer-ink: #17482a; --lm-mark: #ffe27a; --lm-pen: #c0301c;
+  --lm-plot1: #1b4f9c; --lm-plot2: #c0301c; --lm-plot3: #7a3fa0; --lm-plot4: #0b6b5f;
+  --lm-font-display: "Literata Variable", Literata, Georgia, serif;
+  --lm-font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
 }
 [data-theme="lamina-oscuro"] {
-  --lm-bg: #0f1724; --lm-ink: #f3efe4; --lm-muted: #bcc4d0; --lm-accent: #ff9b6b; --lm-accent2: #6cc4de;
-  --lm-panel: #172235; --lm-rule: #2f3e58; --lm-answer: #12301c; --lm-answer-ink: #a6e3b2;
-  --lm-plot1: #6cc4de; --lm-plot2: #ff9b6b; --lm-plot3: #c3a6ff; --lm-plot4: #7fd99a;
+  --lm-bg: #0e1a2b; --lm-ink: #f1f4f8; --lm-muted: #b9c4d2; --lm-accent: #8db8ff; --lm-accent2: #6fd6c4;
+  --lm-panel: #16263c; --lm-rule: #2c4060; --lm-answer: #12301f; --lm-answer-ink: #a6e3b8; --lm-mark: #e9c44a; --lm-pen: #ff8a76;
+  --lm-plot1: #8db8ff; --lm-plot2: #ff8a76; --lm-plot3: #d1a8ff; --lm-plot4: #6fd6c4;
 }
 
 /* ───────── Canvas y reproductor ───────── */
@@ -50,7 +49,7 @@
 @keyframes lm-reveal { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
 
 /* ───────── Componentes ───────── */
-.lm-rule { width: 160px; height: 8px; background: var(--lm-accent); border-radius: 2px; margin: 28px 0; }
+.lm-rule { width: 160px; height: 12px; background: var(--lm-mark); border-radius: 2px; margin: 28px 0; }
 .lm-title-slide { height: 100%; display: flex; flex-direction: column; justify-content: center; }
 .lm-title-slide h1 { font: 600 118px/1.04 var(--lm-font-display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
 .lm-subtitle { font-size: 54px; color: var(--lm-accent2); margin: 26px 0 0; }
@@ -61,7 +60,7 @@
 .lm-header-compact { justify-content: flex-end; border-bottom: 4px solid var(--lm-rule); padding-bottom: 14px; }
 .lm-header-compact .lm-kicker { font-size: 28px; }
 .lm-header-large h2 { font-size: 104px; }
-.lm-kicker { font: 600 30px var(--lm-font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--lm-accent); margin-bottom: 6px; }
+.lm-kicker { font: 600 30px var(--lm-font-body); color: var(--lm-accent); margin-bottom: 6px; }
 
 .lm-md { font-size: inherit; }
 .lm-md > * { margin: 0 0 .5em; }
@@ -75,7 +74,7 @@
 
 .lm-bullets { margin: 0; padding-left: 1.1em; list-style: none; }
 .lm-bullets > li { position: relative; margin-bottom: .55em; }
-.lm-bullets:not(ol) > li::before { content: ""; position: absolute; left: -.8em; top: .6em; width: .32em; height: .32em; background: var(--lm-accent); border-radius: 1px; }
+.lm-bullets:not(ol) > li::before { content: ""; position: absolute; left: -.85em; top: .55em; width: .36em; height: .36em; background: var(--lm-mark); box-shadow: 0 0 0 3px var(--lm-accent); border-radius: 50%; }
 ol.lm-bullets { list-style: decimal; padding-left: 1.4em; }
 ol.lm-bullets > li::marker { color: var(--lm-accent); font-weight: 600; }
 .lm-bullets ul { margin: .3em 0 0; padding-left: 1em; list-style: none; font-size: .86em; color: var(--lm-muted); }
@@ -95,7 +94,7 @@ ol.lm-bullets > li::marker { color: var(--lm-accent); font-weight: 600; }
 .lm-definition { background: var(--lm-panel); border-left: 12px solid var(--lm-accent2); border-radius: 0 14px 14px 0; padding: 36px 44px; font-size: 44px; height: 100%; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; }
 .lm-def-teorema, .lm-def-corolario { border-left-color: var(--lm-accent); }
 .lm-def-head { display: flex; gap: 20px; align-items: baseline; margin-bottom: 18px; }
-.lm-def-kind { font: 600 30px var(--lm-font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--lm-accent2); }
+.lm-def-kind { font: 600 30px var(--lm-font-body); color: var(--lm-accent2); }
 .lm-def-teorema .lm-def-kind, .lm-def-corolario .lm-def-kind { color: var(--lm-accent); }
 .lm-def-name { font: italic 600 40px var(--lm-font-display); }
 .lm-def-note { margin-top: 22px; font-size: 34px; color: var(--lm-muted); border-top: 2px solid var(--lm-rule); padding-top: 18px; }
@@ -118,7 +117,7 @@ ol.lm-bullets > li::marker { color: var(--lm-accent); font-weight: 600; }
 .lm-derivation.lm-dense { gap: 12px; } .lm-dense .lm-step-math { font-size: 42px; } .lm-dense .lm-step-why { font-size: 28px; }
 
 .lm-example { display: flex; flex-direction: column; gap: 26px; height: 100%; font-size: 40px; }
-.lm-label { display: block; font: 600 28px var(--lm-font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--lm-accent); margin-bottom: 8px; }
+.lm-label { display: block; font: 600 28px var(--lm-font-body); color: var(--lm-accent); margin-bottom: 8px; }
 .lm-ex-problem { background: var(--lm-panel); border-radius: 12px; padding: 24px 34px; }
 .lm-ex-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; flex: 1; justify-content: center; }
 .lm-ex-steps li { display: grid; grid-template-columns: 56px 1fr; column-gap: 22px; align-items: center; }
@@ -138,9 +137,9 @@ ol.lm-bullets > li::marker { color: var(--lm-accent); font-weight: 600; }
 .lm-curve { fill: none; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
 .lm-shade { fill: var(--lm-plot1); opacity: .22; }
 .lm-asymptote { stroke: var(--lm-muted); stroke-width: 3; stroke-dasharray: 14 10; }
-.lm-tangent { stroke: var(--lm-accent); stroke-width: 5; }
+.lm-tangent { stroke: var(--lm-pen); stroke-width: 5; }
 .lm-secant { stroke: var(--lm-plot3); stroke-width: 5; stroke-dasharray: 18 8; }
-.lm-point { fill: var(--lm-accent); stroke: var(--lm-bg); stroke-width: 3; }
+.lm-point { fill: var(--lm-pen); stroke: var(--lm-bg); stroke-width: 3; }
 .lm-vec line { stroke-width: 7; stroke-linecap: round; } .lm-vec polygon { stroke: none; }
 .lm-vec-c0 line { stroke: var(--lm-plot1); } .lm-vec-c0 polygon { fill: var(--lm-plot1); }
 .lm-vec-c1 line { stroke: var(--lm-plot2); } .lm-vec-c1 polygon { fill: var(--lm-plot2); }
@@ -160,7 +159,7 @@ ol.lm-bullets > li::marker { color: var(--lm-accent); font-weight: 600; }
 .lm-table th { background: var(--lm-accent2); color: var(--lm-bg); font-weight: 600; text-align: left; padding: 14px 22px; }
 .lm-table td { padding: 12px 22px; border-bottom: 2px solid var(--lm-rule); }
 .lm-table tbody tr:nth-child(even) { background: var(--lm-panel); }
-.lm-table tr.lm-hl td { background: #f9e3a8; color: #14181f; font-weight: 600; }
+.lm-table tr.lm-hl td { background: var(--lm-mark); color: #14181f; font-weight: 600; }
 .lm-table-md .lm-table { font-size: 34px; } .lm-table-sm .lm-table { font-size: 30px; }
 .lm-table-sm td { padding: 8px 20px; } .lm-table-sm th { padding: 10px 20px; }
 
@@ -189,7 +188,8 @@ ol.lm-bullets > li::marker { color: var(--lm-accent); font-weight: 600; }
 .lm-sandbox { background: transparent; }
 
 /* ───────── Layout específico ───────── */
-.lm-layout-title { background: var(--lm-bg); background-image: linear-gradient(90deg, var(--lm-accent) 0 28px, transparent 28px); }
+.lm-layout-title { background-color: var(--lm-bg); background-image: linear-gradient(var(--lm-rule) 2px, transparent 2px), linear-gradient(90deg, var(--lm-rule) 2px, transparent 2px); background-size: 96px 96px; background-position: -2px -2px; }
+.lm-layout-title .lm-slot { background: var(--lm-bg); padding: 56px 72px; box-shadow: 0 0 0 4px var(--lm-ink); }
 .lm-layout-section { background: var(--lm-panel); }
 
 /* ───────── Presentador ───────── */
