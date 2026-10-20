@@ -152,6 +152,7 @@ CREATE TABLE "presentations" (
 	"prev_stage" text,
 	"resume_at" timestamp with time zone,
 	"last_error" text,
+	"pending_job" jsonb,
 	"visibility" text DEFAULT 'private' NOT NULL,
 	"share_token_hash" text,
 	"current_content_version_id" uuid,

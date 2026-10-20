@@ -12,6 +12,10 @@ import { sha256Hex } from "./hash";
 type Pres = typeof presentations.$inferSelect;
 
 export const RUNNING_STAGES: Stage[] = ["researching", "designing", "polishing"];
+export type PendingJob = { name: string; payload: Record<string, unknown> };
+const RUNNING_FOR: Record<string, Stage> = {
+  research: "researching", "content.generate": "researching", "design.generate": "designing", "component.request": "designing", polish: "polishing",
+};
 
 async function lock(tx: Tx, id: string, ownerId?: string): Promise<Pres> {
   const rows = await tx.select().from(presentations).where(eq(presentations.id, id)).for("update");
@@ -50,11 +54,11 @@ export async function createPresentation(
 
 /* ───── Contenido ───── */
 /** draft | content_review → researching (genera o regenera contenido). */
-export function beginContentGeneration(db: Db, id: string, ownerId: string) {
+export function beginContentGeneration(db: Db, id: string, ownerId: string, pending?: PendingJob) {
   return db.transaction(async (tx) => {
     const p = await lock(tx, id, ownerId);
     expectStage(p, ["draft", "content_review"], "generar contenido");
-    return set(tx, id, { stage: "researching", prevStage: p.stage, lastError: null, resumeAt: null });
+    return set(tx, id, { stage: "researching", prevStage: p.stage, lastError: null, resumeAt: null, pendingJob: pending ?? null });
   });
 }
 
@@ -121,12 +125,12 @@ export function reopenContent(db: Db, id: string, ownerId: string) {
 
 /* ───── Diseño ───── */
 /** content_approved | design_review → designing. Exige contenido aprobado. */
-export function beginDesign(db: Db, id: string, ownerId: string) {
+export function beginDesign(db: Db, id: string, ownerId: string, pending?: PendingJob) {
   return db.transaction(async (tx) => {
     const p = await lock(tx, id, ownerId);
     expectStage(p, ["content_approved", "design_review"], "generar el diseño");
     if (!p.approvedContentVersionId) throw new LaminaError("invalid_transition", "El contenido no está aprobado", 409);
-    return set(tx, id, { stage: "designing", prevStage: p.stage, lastError: null, resumeAt: null });
+    return set(tx, id, { stage: "designing", prevStage: p.stage, lastError: null, resumeAt: null, pendingJob: pending ?? null });
   });
 }
 
@@ -181,12 +185,12 @@ export function reopenDesign(db: Db, id: string, ownerId: string) {
 }
 
 /* ───── Pulido y publicación ───── */
-export function beginPolish(db: Db, id: string, ownerId: string) {
+export function beginPolish(db: Db, id: string, ownerId: string, pending?: PendingJob) {
   return db.transaction(async (tx) => {
     const p = await lock(tx, id, ownerId);
     expectStage(p, ["design_approved"], "pulir la presentación");
     if (!p.approvedDeckVersionId) throw new LaminaError("invalid_transition", "El diseño no está aprobado", 409);
-    return set(tx, id, { stage: "polishing", prevStage: p.stage, lastError: null, resumeAt: null });
+    return set(tx, id, { stage: "polishing", prevStage: p.stage, lastError: null, resumeAt: null, pendingJob: pending ?? null });
   });
 }
 
@@ -283,14 +287,22 @@ export function enterQuotaWait(db: Db, id: string, resumeAt: Date, friendly: str
   });
 }
 
-/** failed_recoverable | quota_wait → etapa previa. El llamador vuelve a encolar el job. */
-export function retryFromFailure(db: Db, id: string, ownerId?: string) {
+/** failed_recoverable | quota_wait → vuelve a la etapa en ejecución del job pendiente. El llamador re-encola `pending`. */
+export function resumeFromWait(db: Db, id: string, ownerId?: string) {
   return db.transaction(async (tx) => {
     const p = await lock(tx, id, ownerId);
     expectStage(p, ["failed_recoverable", "quota_wait"], "reintentar");
-    if (!p.prevStage) throw new LaminaError("invalid_transition", "No hay etapa previa", 409);
-    return set(tx, id, { stage: p.prevStage, lastError: null, resumeAt: null });
+    const pending = p.pendingJob;
+    const stage = pending ? RUNNING_FOR[pending.name] : undefined;
+    if (!pending || !stage) throw new LaminaError("invalid_transition", "No hay un trabajo que reanudar", 409);
+    const row = await set(tx, id, { stage, lastError: null, resumeAt: null });
+    return { presentation: row, pending };
   });
+}
+
+/** Presentaciones en espera de cupo cuya hora de reanudación ya pasó. */
+export async function dueQuotaWaits(db: Db, now = new Date()) {
+  return db.select({ id: presentations.id }).from(presentations).where(and(eq(presentations.stage, "quota_wait"), sql`${presentations.resumeAt} <= ${now}`));
 }
 
 export async function getPresentationFor(db: Db, id: string, ownerId: string) {

@@ -1,6 +1,7 @@
 import type { Block, ContentDraft } from "@lamina/contracts";
 import { checkLatex } from "./latex";
 import { checkExpr } from "./math";
+import { latexToExpr } from "./latex2expr";
 import { MathContext, verifyChain } from "./verify";
 
 export type ContentValidation = { errors: string[]; warnings: { blockId?: string; message: string }[] };
@@ -27,12 +28,12 @@ export function validateContent(draft: ContentDraft): ContentValidation {
   const warnings: ContentValidation["warnings"] = [];
   const ids = new Set<string>();
   const dup = (id: string) => { if (ids.has(id)) errors.push(`id repetido: ${id}`); ids.add(id); };
-  const ctx = new MathContext();
-
   for (const s of draft.sections) {
     dup(s.id);
     for (const h of s.slidesHint) {
       dup(h.id);
+      // Las definiciones f(x)=… son locales a cada diapositiva: no se arrastran entre ejemplos.
+      const ctx = new MathContext();
       for (const b of h.blocks) {
         dup(b.id);
         for (const { where, latex } of latexOf(b)) {
@@ -50,6 +51,12 @@ export function validateContent(draft: ContentDraft): ContentValidation {
         }
         if (b.type === "table") {
           b.rows.forEach((r, i) => { if (r.length !== b.headers.length) errors.push(`bloque ${b.id}: la fila ${i + 1} tiene ${r.length} celdas y hay ${b.headers.length} encabezados`); });
+        }
+        if (b.type === "example") {
+          for (const m of b.problem.matchAll(/\$([a-zA-Z])\(x\)\s*=\s*([^$]+)\$/g)) {
+            const e = latexToExpr(m[2]!);
+            if (e) ctx.defs.set(m[1]!, e);
+          }
         }
         // Verificación matemática determinista
         if (b.type === "formula" || b.type === "derivation" || b.type === "example") {

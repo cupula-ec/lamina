@@ -127,6 +127,55 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@24.19.2)(jsdom@27.4.0(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
+  apps/worker:
+    dependencies:
+      '@lamina/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@lamina/components':
+        specifier: workspace:*
+        version: link:../../packages/components
+      '@lamina/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@lamina/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@lamina/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
+      '@lamina/research':
+        specifier: workspace:*
+        version: link:../../packages/research
+      '@lamina/validation':
+        specifier: workspace:*
+        version: link:../../packages/validation
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.29.7)(pg@8.23.1)
+      pg-boss:
+        specifier: ^12.38.0
+        version: 12.38.0(@opentelemetry/api@1.9.1)
+      tsx:
+        specifier: ^4.20.0
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      '@types/react':
+        specifier: ^19.2.0
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@24.19.2)(jsdom@27.4.0(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
   packages/ai:
     dependencies:
       '@lamina/contracts':

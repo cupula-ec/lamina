@@ -10,7 +10,8 @@ export const LIMITS = { maxUploadBytes: 20 * 1024 * 1024, maxPdfPages: 150, minT
 export type Extracted = { title: string; pages: { page?: number; text: string }[] };
 
 const td = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-" });
-td.remove(["script", "style", "noscript", "iframe", "svg"]);
+td.remove(["script", "style", "noscript", "iframe"]);
+td.remove((n) => n.nodeName.toLowerCase() === "svg");
 
 export function htmlToMarkdown(html: string, url?: string): Extracted {
   const dom = new JSDOM(html, { url, runScripts: undefined });

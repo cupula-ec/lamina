@@ -93,18 +93,21 @@ describe("workflow", () => {
     expect(rs.filter((r) => r === "ok")).toHaveLength(1);
   });
 
-  it("fallo → failed_recoverable → reintentar vuelve a la etapa previa; quota_wait igual", async () => {
+  it("fallo → failed_recoverable → reanudar vuelve a la etapa en ejecución; quota_wait igual", async () => {
     const o = await mkUser(h.db);
     const p = await wf.createPresentation(h.db, o, input);
-    await wf.beginContentGeneration(h.db, p.id, o);
+    const pending = { name: "research", payload: { presentationId: p.id } };
+    await wf.beginContentGeneration(h.db, p.id, o, pending);
     expect((await wf.failJob(h.db, p.id, "falló")).stage).toBe("failed_recoverable");
-    expect((await wf.retryFromFailure(h.db, p.id, o)).stage).toBe("draft");
-    await wf.beginContentGeneration(h.db, p.id, o);
-    const q = await wf.enterQuotaWait(h.db, p.id, new Date(Date.now() + 3600_000), "cupa");
+    const r1 = await wf.resumeFromWait(h.db, p.id, o);
+    expect(r1.presentation.stage).toBe("researching");
+    expect(r1.pending).toEqual(pending);
+    const q = await wf.enterQuotaWait(h.db, p.id, new Date(Date.now() - 1000), "cupo");
     expect(q.stage).toBe("quota_wait");
-    expect(q.resumeAt).toBeTruthy();
+    expect((await wf.dueQuotaWaits(h.db)).map((x) => x.id)).toContain(p.id);
     expect(await code(wf.approveContent(h.db, p.id, o, crypto.randomUUID(), "x"))).toBe("invalid_transition");
-    expect((await wf.retryFromFailure(h.db, p.id, o)).stage).toBe("draft");
+    expect((await wf.resumeFromWait(h.db, p.id)).presentation.stage).toBe("researching");
+    expect(await code(wf.resumeFromWait(h.db, p.id))).toBe("invalid_transition");
   });
 
   it("despublicar revoca token y snapshot; regenerar token cambia el hash", async () => {

@@ -1,5 +1,5 @@
 {
-  "id": "19ea2937-d8ae-4bf0-aa5e-f5c960bf1d70",
+  "id": "dfc232be-88f9-4dff-9c7a-517196e91e79",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1132,6 +1132,12 @@
         "last_error": {
           "name": "last_error",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_job": {
+          "name": "pending_job",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },

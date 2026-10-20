@@ -98,6 +98,8 @@ export const presentations = pgTable("presentations", {
   prevStage: text("prev_stage"),
   resumeAt: ts("resume_at"),
   lastError: text("last_error"),
+  /** Job en curso o a reanudar: { name, payload }. */
+  pendingJob: jsonb("pending_job").$type<{ name: string; payload: Record<string, unknown> }>(),
   visibility: text("visibility").notNull().default("private"),
   shareTokenHash: text("share_token_hash"),
   currentContentVersionId: uuid("current_content_version_id"),
