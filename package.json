@@ -1,0 +1,14 @@
+{
+  "name": "lamina",
+  "private": true,
+  "version": "1.0.0",
+  "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@11.15.1",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build"
+  }
+}

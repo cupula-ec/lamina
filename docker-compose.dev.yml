@@ -1,0 +1,20 @@
+# Servicios de desarrollo: Postgres 17 y SearXNG. `docker compose -f docker-compose.dev.yml up -d`
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: lamina
+      POSTGRES_PASSWORD: lamina
+      POSTGRES_DB: lamina
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lamina"]
+      interval: 3s
+      retries: 20
+  searxng:
+    image: searxng/searxng:latest
+    ports: ["127.0.0.1:58080:8080"]
+    volumes: ["./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro"]
+volumes:
+  pgdata:
