@@ -39,7 +39,7 @@ export async function createTeacherAction(input: { email: string; name: string }
     }
     await getDb().insert(schema.userProfiles).values({ userId, mustChangePassword: true }).onConflictDoUpdate({ target: schema.userProfiles.userId, set: { mustChangePassword: true } });
     let mailed = true;
-    try { await sendWelcomeMail(v.email, v.name, password); } catch (e) { mailed = false; console.error("[mail]", (e as Error).message); }
+    try { const r = await sendWelcomeMail(v.email, v.name, password); if ((r as { dev?: boolean })?.dev) mailed = false; } catch (e) { mailed = false; console.error("[mail]", (e as Error).message); }
     revalidatePath("/admin");
     // Si el correo falló, el admin recibe la clave temporal para entregarla por otro medio (solo en este momento).
     return { mailed, tempPassword: mailed ? null : password };
@@ -55,7 +55,7 @@ export async function resetTeacherPasswordAction(input: { userId: string }) {
     await getAuth().api.revokeUserSessions({ body: { userId: u.id }, headers: await headers() });
     await getDb().update(schema.userProfiles).set({ mustChangePassword: true }).where(eq(schema.userProfiles.userId, u.id));
     let mailed = true;
-    try { await sendWelcomeMail(u.email, u.name, password); } catch { mailed = false; }
+    try { const r = await sendWelcomeMail(u.email, u.name, password); if ((r as { dev?: boolean })?.dev) mailed = false; } catch { mailed = false; }
     revalidatePath("/admin");
     return { mailed, tempPassword: mailed ? null : password };
   });

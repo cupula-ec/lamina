@@ -10,7 +10,9 @@ import { getDb } from "./db";
 import { adminEmails, env } from "./env";
 
 /** Marca las altas hechas desde el panel admin (única vía para crear cuentas de docentes). */
-export const adminCreate = new AsyncLocalStorage<{ allowed: true }>();
+// Singleton en globalThis: el bundle del route handler y el de las Server Actions deben compartir el MISMO almacén.
+const gg = globalThis as unknown as { __laminaAdminCreate?: AsyncLocalStorage<{ allowed: true }> };
+export const adminCreate = (gg.__laminaAdminCreate ??= new AsyncLocalStorage<{ allowed: true }>());
 
 function build() {
   const e = env();
@@ -43,7 +45,7 @@ function build() {
     advanced: { useSecureCookies: e.NODE_ENV === "production", defaultCookieAttributes: { sameSite: "lax", httpOnly: true }, ipAddress: { ipAddressHeaders: ["x-forwarded-for"] } },
     rateLimit: {
       enabled: true, window: 60, max: 120, storage: "database",
-      customRules: { "/sign-in/email": { window: 60, max: 6 }, "/change-password": { window: 60, max: 6 }, "/sign-in/social": { window: 60, max: 20 } },
+      customRules: { "/sign-in/email": { window: 60, max: Number(process.env.AUTH_SIGNIN_MAX ?? 6) }, "/change-password": { window: 60, max: 6 }, "/sign-in/social": { window: 60, max: 20 } },
     },
     plugins: [admin({ defaultRole: "teacher", adminRoles: ["admin"] }), ...oauth, nextCookies()],
     databaseHooks: {
