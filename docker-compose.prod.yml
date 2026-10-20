@@ -1,0 +1,118 @@
+# Producción de Lámina en cloud-2 (/opt/lamina). Secretos en .env (0600), generado por scripts/provision.sh.
+name: lamina
+x-common: &common
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
+
+services:
+  postgres:
+    <<: *common
+    image: postgres:17
+    environment:
+      POSTGRES_USER: lamina
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: lamina
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U lamina"], interval: 5s, retries: 20 }
+    networks: [backend]
+    deploy: { resources: { limits: { memory: 1g } } }
+
+  searxng:
+    <<: *common
+    image: searxng/searxng:latest
+    environment: { SEARXNG_SECRET: "${SEARXNG_SECRET:?}" }
+    volumes: ["./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro"]
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE]
+    networks: [backend, egress]
+    deploy: { resources: { limits: { memory: 512m } } }
+
+  migrate:
+    build: { context: ., dockerfile: docker/Dockerfile, target: worker }
+    image: lamina-worker:latest
+    restart: "no"
+    command: ["node_modules/.bin/tsx", "../../packages/db/src/migrate-cli.ts"]
+    environment: { DATABASE_URL: "postgres://lamina:${POSTGRES_PASSWORD}@postgres:5432/lamina" }
+    depends_on: { postgres: { condition: service_healthy } }
+    networks: [backend]
+
+  web:
+    <<: *common
+    build: { context: ., dockerfile: docker/Dockerfile, target: web }
+    image: lamina-web:latest
+    read_only: true
+    tmpfs: ["/tmp:size=128m,uid=10001"]
+    ports: ["127.0.0.1:8484:3100"]
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgres://lamina:${POSTGRES_PASSWORD}@postgres:5432/lamina"
+      DATA_DIR: /data
+      CHANGELOG_DIR: /repo/content/changelog
+    volumes: ["data:/data"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    networks: [backend, egress]
+    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"], interval: 15s, timeout: 5s, retries: 5, start_period: 20s }
+    deploy: { resources: { limits: { memory: 1g, cpus: "1.5" } } }
+
+  worker:
+    <<: *common
+    build: { context: ., dockerfile: docker/Dockerfile, target: worker }
+    image: lamina-worker:latest
+    read_only: true
+    tmpfs: ["/tmp:size=256m,uid=10001"]
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgres://lamina:${POSTGRES_PASSWORD}@postgres:5432/lamina"
+      DATA_DIR: /data
+      SEARXNG_URL: http://searxng:8080
+      SANDBOX_URL: http://sandbox-runner:8600
+    volumes: ["data:/data"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    networks: [backend, egress, sandbox]
+    deploy: { resources: { limits: { memory: 1g, cpus: "1.5" } } }
+
+  renderer:
+    <<: *common
+    build: { context: ., dockerfile: docker/Dockerfile, target: renderer }
+    image: lamina-renderer:latest
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=512m,uid=10001", "/home/pwuser:size=128m,uid=10001"]
+    environment:
+      DATABASE_URL: "postgres://lamina:${POSTGRES_PASSWORD}@postgres:5432/lamina"
+      DATA_DIR: /data
+      WEB_INTERNAL_URL: http://web:3100
+      RENDER_CONCURRENCY: "2"
+      HOME: /tmp
+    volumes: ["data:/data"]
+    ipc: host
+    depends_on: { migrate: { condition: service_completed_successfully }, web: { condition: service_healthy } }
+    networks: [backend]
+    deploy: { resources: { limits: { memory: 2g, cpus: "2" } } }
+
+  # Único servicio con acceso a Docker: construye y ejecuta componentes generados en contenedores efímeros
+  # (gVisor, sin red, solo lectura). El worker NO recibe el socket de Docker, solo esta API estrecha.
+  sandbox-runner:
+    <<: *common
+    build: { context: ., dockerfile: docker/Dockerfile, target: sandbox-runner }
+    image: lamina-sandbox-runner:latest
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs: ["/tmp:size=64m"]
+    user: "0:0"
+    environment:
+      SANDBOX_TOKEN: ${SANDBOX_TOKEN:?}
+      SANDBOX_IMAGE: lamina-sandbox:latest
+      SANDBOX_RUNTIME: runsc
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
+    networks: [sandbox]
+    deploy: { resources: { limits: { memory: 256m } } }
+
+volumes: { pgdata: {}, data: {} }
+networks:
+  backend: { internal: true }
+  # Salida a internet (fuentes web, OpenRouter, SMTP por Tailscale). El renderer y postgres NO la tienen.
+  egress: {}
+  sandbox: { internal: true }
