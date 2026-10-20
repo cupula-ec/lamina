@@ -1,7 +1,7 @@
 import { create, all, type MathNode } from "mathjs";
 
 /** mathjs aislado: se compila únicamente AST que pasa la lista blanca; nunca se llama a evaluate sobre texto crudo. */
-const math = create(all, {});
+const math = create(all as any, {});
 const FUNCS = new Set([
   "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "exp", "log", "sqrt", "abs", "cbrt", "sec", "csc", "cot",
   "floor", "ceil", "sign", "log10", "log2", "min", "max", "pow", "nthRoot", "atan2",

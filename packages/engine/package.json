@@ -1,0 +1,22 @@
+{
+  "name": "@lamina/engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts", "./engine.css": "./src/engine.css", "./issues": "./src/issues.ts" },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "dependencies": {
+    "@fontsource-variable/source-serif-4": "^5.2.0",
+    "@fontsource/ibm-plex-sans": "^5.2.0",
+    "@lamina/contracts": "workspace:*",
+    "katex": "^0.19.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": { "@types/node": "^24.0.0", "@types/react": "^19.2.0", "@types/react-dom": "^19.2.0", "typescript": "^5.9.0", "vitest": "^5.0.5" }
+}
