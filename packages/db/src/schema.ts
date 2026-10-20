@@ -279,6 +279,14 @@ export const jobErrors = pgTable("job_errors", {
   createdAt: createdAt(),
 });
 
+/** Tokens de servicio de un solo uso para que el renderer abra /render/<deck> (nunca cookies de usuario). */
+export const renderTokens = pgTable("render_tokens", {
+  tokenHash: text("token_hash").primaryKey(),
+  deckVersionId: uuid("deck_version_id").notNull(),
+  expiresAt: ts("expires_at").notNull(),
+  usedAt: ts("used_at"),
+});
+
 /** Estado global de modelos (cooldowns por 429, etc.) y ajustes de admin. */
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),

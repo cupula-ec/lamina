@@ -8,7 +8,7 @@ const [email, name, pw, role] = process.argv.slice(2);
 if (!email || !name) throw new Error("uso: create-user <correo> <nombre> [clave] [rol]");
 const password = pw ?? `Temp-${Math.random().toString(36).slice(2, 10)}!x`;
 const res = await adminCreate.run({ allowed: true }, () =>
-  getAuth().api.createUser({ body: { email, password, name, role: (role as "admin" | "teacher") ?? "teacher" } }),
+  getAuth().api.createUser({ body: { email, password, name, role: (role ?? "teacher") as "admin" } }),
 );
 await getDb().update(schema.userProfiles).set({ mustChangePassword: false, consentAt: new Date(), consentVersion: "dev" }).where(eq(schema.userProfiles.userId, res.user.id));
 console.log(`creado ${email} clave: ${password}`);
