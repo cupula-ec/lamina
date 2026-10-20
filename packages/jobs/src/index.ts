@@ -10,6 +10,7 @@ export const QUEUE_CONFIG: Record<JobName, { expireInSeconds: number; retryLimit
   "content.generate": { expireInSeconds: 12 * 60, retryLimit: 2, policy: "exclusive" },
   "design.generate": { expireInSeconds: 20 * 60, retryLimit: 2, policy: "exclusive" },
   "component.request": { expireInSeconds: 15 * 60, retryLimit: 2, policy: "exclusive" },
+  "design.repair": { expireInSeconds: 15 * 60, retryLimit: 1, policy: "exclusive" },
   polish: { expireInSeconds: 8 * 60, retryLimit: 2, policy: "exclusive" },
   render: { expireInSeconds: 5 * 60, retryLimit: 2, policy: "standard" },
 };

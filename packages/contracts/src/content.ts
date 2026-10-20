@@ -109,14 +109,31 @@ export const ContentMeta = z.object({
 });
 export type ContentMeta = z.infer<typeof ContentMeta>;
 
+/** Aviso de verificación. Con `kind` es un paso matemático concreto que el docente puede aprobar o corregir; sin `kind`, un aviso general. */
+export const ContentWarning = z.object({
+  blockId: Id.optional(),
+  message: z.string().max(400),
+  kind: z.enum(["mismatch", "unverifiable"]).optional(),
+  /** LaTeX del paso dudoso (para mostrarlo y para reconocer la misma duda tras editar). */
+  latex: z.string().max(600).optional(),
+  reason: z.enum(["sin_igualdad", "sintaxis", "dimensiones", "muestreo", "ecuacion"]).optional(),
+  status: z.enum(["pending", "approved"]).optional(),
+});
+export type ContentWarning = z.infer<typeof ContentWarning>;
+
+/** Resumen de la verificación matemática automática. */
+export const VerificationStats = z.object({ verified: z.number().int().min(0), approved: z.number().int().min(0), review: z.number().int().min(0) });
+export type VerificationStats = z.infer<typeof VerificationStats>;
+
 export const ContentDraft = z.object({
   schemaVersion: z.literal(CONTENT_SCHEMA_VERSION),
   meta: ContentMeta,
   sections: z.array(Section).min(1).max(12),
   /** Avisos de verificación (fórmulas no comprobables, fuentes débiles, etc.). */
-  warnings: z.array(z.object({ blockId: Id.optional(), message: z.string().max(400) })).default([]),
+  warnings: z.array(ContentWarning).default([]),
+  verification: VerificationStats.optional(),
 });
 export type ContentDraft = z.infer<typeof ContentDraft>;
 
 /** Variante que se pide al modelo: sin warnings (los añade el validador). */
-export const ContentDraftModelOutput = ContentDraft.omit({ warnings: true });
+export const ContentDraftModelOutput = ContentDraft.omit({ warnings: true, verification: true });

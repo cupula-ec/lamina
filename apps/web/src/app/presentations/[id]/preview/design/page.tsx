@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { schema } from "@lamina/db";
+import type { SlideIssue } from "@lamina/engine";
 import type { Stage } from "@lamina/contracts";
 import { AppShell } from "@/components/AppShell";
 import { AutoRefresh } from "@/components/AutoRefresh";
@@ -56,11 +57,12 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
             presentationId={p.id}
             stage={stage}
             visibility={p.visibility}
+            hasUnpublishedChanges={stage === "published" && !!p.finalDeckVersionId && p.finalDeckVersionId !== p.publishedDeckVersionId}
             deckVersionId={cur.row.id}
             deckSha={cur.row.sha256}
             deck={cur.deck}
             isCurrent={cur.row.id === (["final_review", "published", "private_final"].includes(stage) ? p.finalDeckVersionId : stage === "polishing" ? p.approvedDeckVersionId : p.currentDeckVersionId)}
-            issues={Object.fromEntries(arts.map((a) => [a.slideId, a.issues as { slot: string | null; kind: string; severity: string; message: string }[]]))}
+            issues={Object.fromEntries(arts.map((a) => [a.slideId, (a.issues as SlideIssue[]).map((i, index) => ({ ...i, index }))]))}
             rendered={arts.filter((a) => a.path).map((a) => a.slideId)}
             waitingRender={waitingRender}
             prov={prov}

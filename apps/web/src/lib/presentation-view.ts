@@ -3,6 +3,7 @@ import { ContentDraft, DeckDocument } from "@lamina/contracts";
 import { schema } from "@lamina/db";
 import { getDb } from "./db";
 import { sha256Hex } from "@lamina/db";
+import { jsonSchemaToZod, type CatalogLookup } from "@lamina/components";
 
 /** Componentes provisionales de la presentación (con bundle) para el resolver del cliente. */
 export async function provisionalFor(presentationId: string) {
@@ -61,4 +62,15 @@ export async function provisionalForDeck(presentationId: string, pins: Record<st
     .innerJoin(schema.components, eq(schema.components.id, schema.componentVersions.componentRowId))
     .where(and(or(eq(schema.components.presentationId, presentationId), eq(schema.components.scope, "global")), inArray(schema.componentVersions.bundleHash, hashes), not(inArray(schema.components.status, ["rejected", "deprecated"]))));
   return rows.map(({ c, v }) => ({ id: c.componentId, version: v.version, bundle: v.bundle, bundleHash: v.bundleHash, propsJsonSchema: ((v.manifest as { propsJsonSchema?: Record<string, unknown> }).propsJsonSchema ?? {}) }));
+}
+
+/** Búsqueda de esquemas de props para validar un deck en servidor: nativos (registry) + provisionales fijados por el deck. */
+export async function catalogLookupFor(presentationId: string, pins: Record<string, { version: string; bundleHash?: string }>): Promise<CatalogLookup> {
+  const prov = await provisionalForDeck(presentationId, pins);
+  const map = new Map(prov.map((p) => {
+    let propsSchema;
+    try { propsSchema = jsonSchemaToZod(p.propsJsonSchema); } catch { propsSchema = undefined; }
+    return [`${p.id}@${p.version}`, { propsSchema, status: "provisional" }] as const;
+  }));
+  return (ref) => map.get(`${ref.componentId}@${ref.version}`);
 }

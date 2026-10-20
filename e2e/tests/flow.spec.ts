@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { approveDesign, DESIGN_SUMMARY, designReady } from "./helpers";
 
 const EMAIL = process.env.E2E_EMAIL ?? "docente@test.ec";
 const PASS = process.env.E2E_PASSWORD ?? "ClaveDocente123";
@@ -49,9 +50,9 @@ test("flujo completo: crear → contenido → diseño → pulido → publicar �
   await expect(page.getByText("Contenido aprobado").first()).toBeVisible();
   await page.getByRole("button", { name: "Generar el diseño" }).click();
   await expect(page).toHaveURL(/preview\/design/);
-  await expect(page.getByRole("button", { name: "Aprobar diseño" })).toBeVisible({ timeout: 180_000 });
+  await designReady(page, 180_000);
   // revisión automática del renderer
-  await expect(page.getByText(/errores · \d+ avisos/)).toBeVisible({ timeout: 180_000 });
+  await expect(page.getByText(DESIGN_SUMMARY)).toBeVisible({ timeout: 180_000 });
   await expect(page.getByText(/Diapositiva 1 de \d+/)).toBeVisible();
 
   // Iteración de diseño con comentarios sobre una diapositiva
@@ -59,9 +60,9 @@ test("flujo completo: crear → contenido → diseño → pulido → publicar �
   await page.getByLabel("Ir a la diapositiva 4").locator("xpath=ancestor::li").getByText("cambiar").click();
   await page.getByLabel("Comentarios").fill("más grande la gráfica");
   await page.getByRole("button", { name: "Regenerar con comentarios" }).click();
-  await expect(page.getByRole("button", { name: "Aprobar diseño" })).toBeVisible({ timeout: 180_000 });
-  await expect(page.getByText(/errores · \d+ avisos/)).toBeVisible({ timeout: 180_000 });
-  await page.getByRole("button", { name: "Aprobar diseño" }).click();
+  await designReady(page, 180_000);
+  await expect(page.getByText(DESIGN_SUMMARY)).toBeVisible({ timeout: 180_000 });
+  await approveDesign(page);
   await page.getByRole("button", { name: "Pulir y continuar" }).click();
   await expect(page.getByRole("button", { name: "Publicar", exact: true })).toBeVisible({ timeout: 120_000 });
 
@@ -70,7 +71,19 @@ test("flujo completo: crear → contenido → diseño → pulido → publicar �
   const shared = page.locator("p", { hasText: "Enlace para compartir" });
   await expect(shared).toBeVisible();
   const url = (await shared.innerText()).match(/https?:\/\/\S+/)![0];
+  await expect(page.getByRole("button", { name: "Copiar enlace" })).toBeVisible();
   const id = url.match(/presentations\/([0-9a-f-]+)\/view/)![1]!;
+
+  // Edición posterior a la publicación: nueva versión; lo público no cambia hasta «Publicar cambios»
+  await page.goto(`/presentations/${id}/preview/design`);
+  await page.getByRole("link", { name: "Editar diapositiva" }).click();
+  await expect(page).toHaveURL(/\/edit\//);
+  await page.getByLabel("Notas del presentador").fill("Nota añadida desde la edición manual");
+  await page.getByRole("button", { name: "Guardar como nueva versión" }).click();
+  await expect(page).toHaveURL(/preview\/design/);
+  await expect(page.getByText("Hay cambios sin publicar.")).toBeVisible();
+  await page.getByRole("button", { name: "Publicar cambios" }).click();
+  await expect(page.getByText("Hay cambios sin publicar.")).toBeHidden();
 
   // Visor del dueño
   await page.goto(`/presentations/${id}/view`);

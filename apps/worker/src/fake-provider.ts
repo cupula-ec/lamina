@@ -100,6 +100,7 @@ export function makeFakeProvider() {
       }
       return { slide: { ...base, id: h.id } };
     },
+    "design.repair": (r) => ({ slide: (r.fakeContext as any).slide }),
     "component.generate": (r) => fakeComponent((r.fakeContext as any).name),
     polish: () => ({ slides: [] }),
   });

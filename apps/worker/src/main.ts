@@ -1,4 +1,5 @@
 import { lt } from "drizzle-orm";
+import { JOB_PAYLOADS } from "@lamina/contracts";
 import { createDb, schema, workflow as wf } from "@lamina/db";
 import { createBoss, enqueue } from "@lamina/jobs";
 import { SearxngProvider, TavilyProvider, type SearchProvider } from "@lamina/research";
@@ -9,6 +10,7 @@ import { makeFakeProvider } from "./fake-provider";
 import { contentGenerate } from "./handlers/content";
 import { designGenerate } from "./handlers/design";
 import { polish } from "./handlers/polish";
+import { designRepair } from "./handlers/repair";
 import { research } from "./handlers/research";
 import { guarded } from "./run";
 
@@ -29,6 +31,7 @@ type Job<T> = { data: T; retryCount?: number }[];
 await boss.work("research", { localConcurrency: 2 }, guarded(ctx, "research", research) as (j: Job<any>) => Promise<void>);
 await boss.work("content.generate", { localConcurrency: 2 }, guarded(ctx, "content.generate", contentGenerate as any) as any);
 await boss.work("design.generate", { localConcurrency: 1 }, guarded(ctx, "design.generate", designGenerate as any) as any);
+await boss.work("design.repair", { localConcurrency: 1 }, async (jobs: { data: any }[]) => { for (const j of jobs) await designRepair(ctx, JOB_PAYLOADS["design.repair"].parse(j.data)); });
 await boss.work("polish", { localConcurrency: 1 }, guarded(ctx, "polish", polish as any) as any);
 const { registerComponentWorker } = await import("./handlers/component");
 await registerComponentWorker(ctx);

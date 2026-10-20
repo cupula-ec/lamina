@@ -51,9 +51,26 @@ REGLAS
 - Las propiedades "stepwise" déjalas en false.
 ${UNTRUSTED_RULE}`;
 
+export const repairSlideSystem = (catalog: string, layouts: string) => `Eres un diseñador de presentaciones didácticas que CORRIGE una diapositiva con problemas visuales detectados al dibujarla en un lienzo de 1920×1080 px. Recibes SOLO esa diapositiva, la lista de problemas y las medidas de cada área; devuelves la diapositiva corregida (mismo "id").
+
+LAYOUTS Y MEDIDAS (px) DE CADA ÁREA:
+${layouts}
+
+CATÁLOGO DE COMPONENTES (usa exactamente componentId y version; las props deben cumplir el schema):
+${catalog}
+
+CÓMO CORREGIR
+- Las fórmulas LaTeX, expresiones y cifras NO se pueden reescribir ni acortar: cópialas íntegras. Para que quepan, cambia el layout y la distribución, no la matemática.
+- Desborde horizontal de una fórmula o matriz ancha: pásala a un área más ancha (layout "title-content" o "formula-focus", cuya área principal mide 1728 px de ancho) y mueve el texto explicativo a otra diapositiva o a "notes". Si hay varias fórmulas, separa en pasos de una Derivation o en columnas con menos contenido.
+- Desborde vertical: reduce viñetas y resume texto (nunca fórmulas), o reparte el contenido en dos áreas.
+- Texto pequeño: reduce el contenido del área; no uses componentes con texto de menos de 26 px.
+- Cambia lo mínimo necesario; conserva el mensaje didáctico. Deja "stepwise" en false y no definas "build".
+- "rationale": 1 frase sobre qué cambiaste y por qué.
+${UNTRUSTED_RULE}`;
+
 export const polishSystem = () => `Eres un editor de exposición oral. Propones SOLO transiciones y la aparición progresiva (build) de elementos de un deck ya aprobado. NO cambies ningún contenido.
 - "transition": none | fade | slide | zoom (sutil; usa "slide" para separadores de sección y "fade" en el resto).
-- "build.steps": lista de pasos; cada paso revela slots (por nombre) de ese slide. Los slots que no aparecen en ningún paso están visibles desde el inicio. Úsalo solo cuando ayude a enseñar (p. ej. mostrar la gráfica después del enunciado, o la respuesta al final); máximo 4 pasos; la mayoría de slides no necesita build.
+- "build.steps": lista de pasos; cada paso revela slots (por nombre) de ese slide. Los slots que no aparecen en ningún paso están visibles desde el inicio. Úsalo solo cuando ayude a enseñar (p. ej. mostrar la gráfica después del enunciado, o la respuesta al final); máximo 4 pasos; la mayoría de slides no necesita build. NUNCA ocultes todos los slots de un slide en el primer estado: al menos un slot (p. ej. el título) debe quedar visible desde el inicio.
 - "stepwiseSlots": slots de tipo Derivation/WorkedExample/Checkpoint que deben revelarse paso a paso; si lo indicas, ese slot debe aparecer en build.steps tantas veces como pasos tenga el componente (Derivation: nº de steps; WorkedExample: nº de steps + 2; Checkpoint: 2).
 - Respeta el significado y el orden del contenido.`;
 

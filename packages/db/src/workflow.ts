@@ -15,7 +15,7 @@ type Pres = typeof presentations.$inferSelect;
 export const RUNNING_STAGES: Stage[] = ["researching", "designing", "polishing"];
 export type PendingJob = { name: string; payload: Record<string, unknown> };
 const RUNNING_FOR: Record<string, Stage> = {
-  research: "researching", "content.generate": "researching", "design.generate": "designing", "component.request": "designing", polish: "polishing",
+  research: "researching", "content.generate": "researching", "design.generate": "designing", "design.repair": "designing", "component.request": "designing", polish: "polishing",
 };
 
 async function lock(tx: Tx, id: string, ownerId?: string): Promise<Pres> {
@@ -134,10 +134,11 @@ export function reopenContent(db: Db, id: string, ownerId: string) {
 
 /* ───── Diseño ───── */
 /** content_approved | design_review → designing. Exige contenido aprobado. */
-export function beginDesign(db: Db, id: string, ownerId: string, pending?: PendingJob) {
+export function beginDesign(db: Db, id: string, ownerId: string, pending?: PendingJob, expectCurrentDeckVersionId?: string) {
   return db.transaction(async (tx) => {
     const p = await lock(tx, id, ownerId);
     expectStage(p, ["content_approved", "design_review"], "generar el diseño");
+    if (expectCurrentDeckVersionId && p.currentDeckVersionId !== expectCurrentDeckVersionId) throw new LaminaError("stale_version", "El diseño cambió mientras tanto. Recarga la página.", 409);
     if (!p.approvedContentVersionId) throw new LaminaError("invalid_transition", "El contenido no está aprobado", 409);
     await assertConcurrency(tx, p.ownerId, id);
     return set(tx, id, { stage: "designing", prevStage: p.stage, lastError: null, resumeAt: null, pendingJob: pending ?? null });
@@ -149,7 +150,7 @@ export async function addDeckVersion(
   presentationId: string,
   v: {
     deck: unknown; sha256: string; contentVersionId: string; authorKind: "ia" | "docente"; parentId: string | null;
-    kind?: "design" | "polish"; note?: string; componentPins?: Record<string, { version: string; bundleHash?: string }>; issues?: unknown[];
+    kind?: "design" | "polish" | "repair" | "edit"; note?: string; componentPins?: Record<string, { version: string; bundleHash?: string }>; issues?: unknown[];
   },
 ) {
   const [{ n } = { n: 0 }] = await tx
@@ -170,6 +171,46 @@ export function designGenerated(db: Db, id: string, v: Omit<Parameters<typeof ad
     await set(tx, id, { stage: "design_review", currentDeckVersionId: row.id, approvedDeckVersionId: null, prevStage: null, lastError: null });
     await evt(tx, "design_generated", p, { versionId: row.id });
     return row;
+  });
+}
+
+/** designing → designing: guarda el borrador (aún sin revisión del docente) y lo deja como versión vigente mientras se verifica/repara. */
+export function designDrafted(db: Db, id: string, v: Omit<Parameters<typeof addDeckVersion>[2], "authorKind" | "kind">) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id);
+    expectStage(p, ["designing"], "guardar el borrador del diseño");
+    if (v.contentVersionId !== p.approvedContentVersionId) throw new LaminaError("stale_version", "El diseño no corresponde al contenido aprobado", 409);
+    const row = await addDeckVersion(tx, id, { ...v, authorKind: "ia", kind: "design" });
+    await set(tx, id, { currentDeckVersionId: row.id, approvedDeckVersionId: null, lastError: null, pendingJob: null });
+    await evt(tx, "design_generated", p, { versionId: row.id });
+    return row;
+  });
+}
+
+/** designing → designing: versión corregida automáticamente (descendiente de la vigente). */
+export function designRepaired(db: Db, id: string, v: { baseVersionId: string; deck: unknown; sha256: string; note: string }) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id);
+    expectStage(p, ["designing"], "guardar la reparación");
+    if (p.currentDeckVersionId !== v.baseVersionId) throw new LaminaError("stale_version", "La versión base cambió", 409);
+    const [base] = await tx.select().from(deckVersions).where(eq(deckVersions.id, v.baseVersionId));
+    const row = await addDeckVersion(tx, id, {
+      deck: v.deck, sha256: v.sha256, contentVersionId: base!.contentVersionId, authorKind: "ia", parentId: base!.id,
+      kind: "repair", note: v.note, componentPins: base!.componentPins,
+    });
+    await set(tx, id, { currentDeckVersionId: row.id, lastError: null });
+    await evt(tx, "design_repaired", p, { versionId: row.id });
+    return row;
+  });
+}
+
+/** designing → design_review sobre la versión vigente (idempotente: ignora si la etapa o la versión ya cambiaron). */
+export function designFinish(db: Db, id: string, versionId: string) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id);
+    if (p.stage !== "designing" || p.currentDeckVersionId !== versionId) return null;
+    await evt(tx, "design_ready", p, { versionId });
+    return set(tx, id, { stage: "design_review", prevStage: null, pendingJob: null, lastError: null, resumeAt: null });
   });
 }
 
@@ -217,6 +258,44 @@ export function polishGenerated(db: Db, id: string, v: { deck: unknown; sha256: 
     });
     await set(tx, id, { stage: "final_review", finalDeckVersionId: row.id, prevStage: null, lastError: null });
     return row;
+  });
+}
+
+/** Etapas en las que el docente puede editar diapositivas a mano, y cuál es su versión de cabecera. */
+export const EDITABLE_STAGES: Stage[] = ["design_review", "final_review", "private_final", "published"];
+export const headDeckVersionId = (p: Pick<Pres, "stage" | "currentDeckVersionId" | "finalDeckVersionId">) =>
+  p.stage === "design_review" ? p.currentDeckVersionId : p.finalDeckVersionId;
+
+/**
+ * Edición manual de una diapositiva: crea una versión `edit` (autor docente) descendiente de la cabecera.
+ * En diseño pasa a ser la vigente; en final/privada/publicada pasa a ser la final. Lo publicado no cambia hasta `publishChanges`.
+ */
+export function saveEditedDeck(db: Db, id: string, ownerId: string, v: { baseVersionId: string; deck: unknown; sha256: string; note: string }) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id, ownerId);
+    expectStage(p, EDITABLE_STAGES, "editar la diapositiva");
+    if (headDeckVersionId(p) !== v.baseVersionId) throw new LaminaError("stale_version", "La presentación cambió mientras editabas. Recarga para ver la última versión.", 409);
+    const [base] = await tx.select().from(deckVersions).where(eq(deckVersions.id, v.baseVersionId));
+    const row = await addDeckVersion(tx, id, {
+      deck: v.deck, sha256: v.sha256, contentVersionId: base!.contentVersionId, authorKind: "docente", parentId: base!.id,
+      kind: "edit", note: v.note, componentPins: base!.componentPins,
+    });
+    await set(tx, id, p.stage === "design_review" ? { currentDeckVersionId: row.id } : { finalDeckVersionId: row.id });
+    await evt(tx, "slide_edited", p, { versionId: row.id });
+    return row;
+  });
+}
+
+/** published → published: el snapshot público pasa a ser la última versión final (mismo enlace y visibilidad). */
+export function publishChanges(db: Db, id: string, ownerId: string) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id, ownerId);
+    expectStage(p, ["published"], "publicar los cambios");
+    if (!p.finalDeckVersionId || p.finalDeckVersionId === p.publishedDeckVersionId) throw new LaminaError("invalid_transition", "No hay cambios por publicar", 409);
+    const [fv] = await tx.select().from(deckVersions).where(eq(deckVersions.id, p.finalDeckVersionId));
+    await tx.insert(approvals).values({ presentationId: id, kind: "final", versionId: p.finalDeckVersionId, sha256: fv!.sha256, userId: ownerId });
+    await evt(tx, "published_changes", p, { versionId: p.finalDeckVersionId });
+    return set(tx, id, { publishedDeckVersionId: p.finalDeckVersionId });
   });
 }
 
@@ -326,8 +405,12 @@ export function cancelPending(db: Db, id: string, ownerId: string) {
 /** Etapas en ejecución atascadas (el job murió o expiró): pasan a failed_recoverable para que el docente pueda reintentar o cancelar. */
 export async function failStale(db: Db, maxMinutes: number, now = new Date()) {
   const cutoff = new Date(now.getTime() - maxMinutes * 60_000);
-  const rows = await db.select({ id: presentations.id }).from(presentations).where(and(sql`${presentations.stage} in ('researching','designing','polishing')`, sql`${presentations.updatedAt} < ${cutoff}`));
-  for (const r of rows) await failJob(db, r.id, "El trabajo tardó demasiado y se detuvo. Tu avance está guardado: puedes reintentar o volver a la versión anterior.");
+  const rows = await db.select({ id: presentations.id, stage: presentations.stage, current: presentations.currentDeckVersionId }).from(presentations).where(and(sql`${presentations.stage} in ('researching','designing','polishing')`, sql`${presentations.updatedAt} < ${cutoff}`));
+  for (const r of rows) {
+    // Un borrador de diseño ya guardado no se pierde si el renderer/reparación no respondió: se entrega tal cual.
+    if (r.stage === "designing" && r.current && (await designFinish(db, r.id, r.current))) continue;
+    await failJob(db, r.id, "El trabajo tardó demasiado y se detuvo. Tu avance está guardado: puedes reintentar o volver a la versión anterior.");
+  }
   return rows.length;
 }
 

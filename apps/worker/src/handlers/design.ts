@@ -17,7 +17,7 @@ const SlideOut = z.object({
   missingComponent: z.object({ name: z.string().min(2).max(60).regex(/^[A-Za-z][A-Za-z0-9]*$/), purpose: z.string().min(10).max(500) }).optional(),
 });
 
-const layoutsDoc = () =>
+export const layoutsDoc = () =>
   Object.values(LAYOUTS).map((l) => `- ${l.id}: ${l.purpose}. Slots: ${l.slots.map((s) => `${s.name}${s.required ? "*" : ""} (${s.hint})`).join("; ")}`).join("\n");
 
 /** Fórmulas/expresiones que deben aparecer literalmente en la diapositiva (fidelidad matemática). */
@@ -51,7 +51,7 @@ export function missingFormulas(hint: SlideHint, slide: SlideT): string[] {
 
 const wrap = (slides: SlideT[], base?: Deck): Deck => ({ schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: base?.themeId ?? "lamina-claro", meta: base?.meta ?? { title: "x", topic: "x", level: "x", language: "es" }, slides });
 
-const ownsHint = (hintId: string, slideId: string) => slideId === hintId || slideId.startsWith(`${hintId}-`);
+export const ownsHint = (hintId: string, slideId: string) => slideId === hintId || slideId.startsWith(`${hintId}-`);
 
 export async function designGenerate(
   ctx: Ctx,
@@ -134,11 +134,13 @@ export async function designGenerate(
   const provById = new Map(prov.map((x) => [x.manifest.id, x]));
   for (const sl of safe.slides) for (const r of Object.values(sl.slots)) pins[r.componentId] = { version: r.version, bundleHash: provById.get(r.componentId)?.bundleHash };
 
-  const saved = await wf.designGenerated(ctx.db, p.id, {
+  const saved = await wf.designDrafted(ctx.db, p.id, {
     deck: safe, sha256: hashJson(safe), contentVersionId: data.contentVersionId, parentId: data.baseDeckVersionId, componentPins: pins,
     note: data.feedback ? "Regenerado con comentarios" : "Diseño inicial",
   });
-  await enqueue(ctx.boss, "render", { presentationId: p.id, deckVersionId: saved.id }, { base: saved.id }).catch(() => {});
+  // Render → detección → reparación puntual (design.repair) → design_review. Si no se puede encolar, se cierra sin reparar.
+  await enqueue(ctx.boss, "render", { presentationId: p.id, deckVersionId: saved.id, then: "repair", attempt: 0 }, { base: `${saved.id}:0` })
+    .catch(() => wf.designFinish(ctx.db, p.id, saved.id));
 }
 
 /** Registra una petición de componente (consume cuota del docente) y encola al especialista. */

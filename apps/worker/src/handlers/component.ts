@@ -96,10 +96,8 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
       testResults: { ok: true, checks: built.checks }, screenshots: [],
     }).returning();
     await enqueue(ctx.boss, "render", { presentationId: data.presentationId, componentVersionId: ver!.id }, { base: ver!.id }).catch(() => {});
-    await finish("done", undefined, rowId);
-    await db.insert(schema.events).values({ name: "component_created", userId: data.userId, presentationId: data.presentationId, data: { id: gen.id } });
-
-    // Re-diseño inmediato de la diapositiva que lo pidió (si la presentación sigue en revisión de diseño).
+    // Re-diseño inmediato de la diapositiva que lo pidió (si la presentación sigue en revisión de diseño). Va ANTES de marcar la solicitud
+    // como lista: así la pantalla ya ve la etapa «diseñando» cuando deja de refrescarse por la solicitud pendiente.
     const [p] = await db.select().from(schema.presentations).where(eq(schema.presentations.id, data.presentationId));
     if (p && p.stage === "design_review" && p.currentDeckVersionId && p.approvedContentVersionId) try {
       const payload = {
@@ -109,6 +107,8 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
       await wf.beginDesign(db, p.id, p.ownerId, { name: "design.generate", payload });
       await enqueue(ctx.boss, "design.generate", payload, { base: `${p.currentDeckVersionId}:comp:${ver!.id}` });
     } catch (e) { ctx.log(`rediseño tras componente no iniciado: ${(e as Error).message}`); }
+    await finish("done", undefined, rowId);
+    await db.insert(schema.events).values({ name: "component_created", userId: data.userId, presentationId: data.presentationId, data: { id: gen.id } });
   } catch (e) {
     if (e instanceof QuotaWaitError) return finish("failed", "Los modelos gratuitos están sin cupo ahora; inténtalo de nuevo más tarde (tu solicitud no se descuenta).");
     ctx.log(`component: error ${(e as Error).message}`);

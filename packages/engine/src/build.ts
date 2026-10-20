@@ -17,15 +17,27 @@ export function revealCounts(slide: Pick<Slide, "build" | "slots">, step: number
 export const isSlotVisible = (counts: Record<string, number | null>, slot: string) => counts[slot] === null || (counts[slot] ?? 0) > 0;
 export const stepsOf = (slide: Pick<Slide, "build">) => slide.build.steps.length;
 
+/** Primer paso en el que el slide muestra algún slot (evita abrir un slide aparentemente en blanco cuando todos sus slots están gateados). */
+export function entryStep(slide: Pick<Slide, "build" | "slots">): number {
+  const slots = Object.keys(slide.slots);
+  if (!slots.length) return 0;
+  for (let st = 0; st <= stepsOf(slide); st++) {
+    const counts = revealCounts(slide, st);
+    if (slots.some((k) => isSlotVisible(counts, k))) return st;
+  }
+  return 0;
+}
+
 /** Navegación lineal: avanza primero los pasos del slide y luego el siguiente slide. */
-export function nextPos(slides: Pick<Slide, "build">[], pos: { slide: number; step: number }) {
+export function nextPos(slides: Pick<Slide, "build" | "slots">[], pos: { slide: number; step: number }) {
   const s = slides[pos.slide];
   if (s && pos.step < stepsOf(s)) return { slide: pos.slide, step: pos.step + 1 };
-  if (pos.slide < slides.length - 1) return { slide: pos.slide + 1, step: 0 };
+  if (pos.slide < slides.length - 1) return { slide: pos.slide + 1, step: entryStep(slides[pos.slide + 1]!) };
   return pos;
 }
-export function prevPos(slides: Pick<Slide, "build">[], pos: { slide: number; step: number }) {
-  if (pos.step > 0) return { slide: pos.slide, step: pos.step - 1 };
+export function prevPos(slides: Pick<Slide, "build" | "slots">[], pos: { slide: number; step: number }) {
+  const s = slides[pos.slide];
+  if (s && pos.step > entryStep(s)) return { slide: pos.slide, step: pos.step - 1 };
   if (pos.slide > 0) return { slide: pos.slide - 1, step: stepsOf(slides[pos.slide - 1]!) };
   return pos;
 }

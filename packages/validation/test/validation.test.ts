@@ -36,6 +36,8 @@ describe("latexToExpr", () => {
   });
 });
 
+const draftOn = (topic: string) => (blocks: unknown[]) =>
+  ContentDraft.parse({ schemaVersion: 1, meta: { topic, level: "u", objective: "o" }, sections: [{ id: "s", title: "S", slidesHint: [{ id: "h", intent: "i", blocks }] }] });
 const draft = (blocks: unknown[]) =>
   ContentDraft.parse({ schemaVersion: 1, meta: { topic: "t", level: "u", objective: "o" }, sections: [{ id: "s", title: "S", slidesHint: [{ id: "h", intent: "i", blocks }] }] });
 
@@ -66,5 +68,71 @@ describe("validateContent", () => {
     const r = validateContent(draft([{ id: "b", type: "formula", latex: "\\int_0^1 x\\,dx = \\frac12" }]));
     expect(r.errors).toEqual([]);
     expect(r.warnings.length).toBeGreaterThan(0);
+  });
+});
+
+describe("álgebra lineal y varias variables", () => {
+  const w = (latex: string) => validateContent(draftOn("Álgebra lineal: matrices")([{ id: "b", type: "formula", latex }]));
+  const bad = (latex: string) => w(latex).warnings.some((x) => /Posible error/.test(x.message));
+  const unv = (latex: string) => w(latex).warnings.some((x) => /No se pudo verificar/.test(x.message));
+
+  it("identidades matriciales correctas quedan verificadas", () => {
+    for (const l of ["A+B=B+A", "(A+B)+C=A+(B+C)", "(AB)^T=B^TA^T", "(AB)^{-1}=B^{-1}A^{-1}", "A(B+C)=AB+AC", "AI=A", "IA=A", "A+O=A", "(A^T)^T=A", "k(A+B)=kA+kB", "(kA)^T=kA^T", "\\det(AB)=\\det(A)\\det(B)", "\\operatorname{tr}(AB)=\\operatorname{tr}(BA)"]) {
+      expect(bad(l), l).toBe(false);
+      expect(unv(l), l).toBe(false);
+    }
+  });
+  it("detecta errores matriciales", () => {
+    for (const l of ["AB=BA", "(AB)^T=A^TB^T", "(A+B)^2=A^2+2AB+B^2", "\\det(A+B)=\\det(A)+\\det(B)"]) expect(bad(l), l).toBe(true);
+  });
+  it("AB ≠ BA se verifica; una desigualdad falsa se marca", () => {
+    expect(bad("AB \\neq BA")).toBe(false);
+    expect(unv("AB \\neq BA")).toBe(false);
+    expect(bad("A+B \\neq B+A")).toBe(true);
+  });
+  it("matrices numéricas", () => {
+    expect(bad("\\begin{bmatrix}1&2\\\\3&4\\end{bmatrix}\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}=\\begin{bmatrix}19&22\\\\43&50\\end{bmatrix}")).toBe(false);
+    expect(unv("\\begin{bmatrix}1&2\\\\3&4\\end{bmatrix}\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}=\\begin{bmatrix}19&22\\\\43&50\\end{bmatrix}")).toBe(false);
+    expect(bad("\\begin{bmatrix}1&2\\\\3&4\\end{bmatrix}\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}=\\begin{bmatrix}19&22\\\\43&51\\end{bmatrix}")).toBe(true);
+    expect(w("\\det\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}=ad-bc").warnings).toEqual([]);
+    expect(bad("\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}^T=\\begin{pmatrix}a&c\\\\b&d\\end{pmatrix}")).toBe(false);
+  });
+  it("escalares con varias variables y subíndices", () => {
+    expect(w("(a+b)^2=a^2+2ab+b^2").warnings).toEqual([]);
+    expect(bad("(a+b)^2=a^2+b^2")).toBe(true);
+    expect(bad("a_{11}a_{22}=a_{22}a_{11}")).toBe(false);
+  });
+  it("definiciones y ecuaciones por resolver no son errores ni avisos de verificación", () => {
+    expect(w("m = 2ab").warnings).toEqual([]);
+    expect(bad("2x+3=7")).toBe(false);
+    expect(bad("y-9=6(x-3)")).toBe(false);
+    expect(bad("x^2+y^2=r^2")).toBe(false);
+    expect(bad("\\det(A-\\lambda I)=0")).toBe(false);
+    expect(w("A\\mathbf{x}=\\mathbf{b}").warnings.some((x) => /Posible error/.test(x.message))).toBe(false);
+  });
+  it("lo no soportado sigue siendo «no verificable»", () => {
+    expect(unv("\\int_0^1 x\\,dx=\\frac12")).toBe(true);
+    expect(unv("\\sum_{i=1}^n i=\\frac{n(n+1)}{2}")).toBe(true);
+  });
+  it("física: las mayúsculas son escalares (no matrices)", () => {
+    const f = (latex: string) => validateContent(draftOn("Circuitos eléctricos")([{ id: "b", type: "formula", latex }])).warnings;
+    expect(f("\\frac{1}{R_1}+\\frac{1}{R_2}=\\frac{R_1+R_2}{R_1R_2}")).toEqual([]);
+    expect(f("\\frac{V}{R}=\\frac{1}{R}V")).toEqual([]);
+  });
+  it("una llamada f(a+b) no se toma como multiplicación", () => {
+    expect(bad("f(a+b)=f(a)+f(b)")).toBe(false);
+    expect(unv("f(a+b)=f(a)+f(b)")).toBe(true);
+  });
+  it("definir f(x) no genera avisos; t y n se verifican", () => {
+    expect(w("f(x)=x^2").warnings).toEqual([]);
+    expect(bad("2t+3t=6t")).toBe(true);
+    expect(bad("n(n+1)=n^2")).toBe(true);
+    expect(w("2t+3t=5t").warnings).toEqual([]);
+  });
+  it("los avisos nunca superan el límite del contrato", () => {
+    const big = "\\begin{pmatrix}\\frac{1}{2}&\\frac{3}{4}&\\frac{5}{6}\\\\\\frac{7}{8}&\\frac{9}{10}&\\frac{11}{12}\\\\\\frac{13}{14}&\\frac{15}{16}&\\frac{17}{18}\\end{pmatrix}";
+    const r = validateContent(draftOn("Matrices")([{ id: "b", type: "formula", latex: `M^T + M = M + ${big}` }]));
+    expect(r.warnings.every((x) => x.message.length <= 400)).toBe(true);
+    expect(() => ContentDraft.parse({ schemaVersion: 1, meta: { topic: "t", level: "u", objective: "o" }, warnings: r.warnings, sections: [{ id: "s", title: "S", slidesHint: [{ id: "h", intent: "i", blocks: [{ id: "b", type: "formula", latex: "x" }] }] }] })).not.toThrow();
   });
 });

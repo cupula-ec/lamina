@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ADMIN, createToDesignReview, login } from "./helpers";
+import { ADMIN, createToDesignReview, designReady, login } from "./helpers";
 
 test("componente nuevo: pedir → provisional aislado → usado en la presentación → admin lo promueve", async ({ page, browser }) => {
   const NAME = `Recta${Date.now().toString(36)}`;
@@ -16,7 +16,7 @@ test("componente nuevo: pedir → provisional aislado → usado en la presentaci
   // Se construye en el sandbox y queda provisional; luego se rediseña la diapositiva usándolo
   await expect(page.getByText("Listo (provisional)")).toBeVisible({ timeout: 180_000 });
   await expect(page.getByText(new RegExp(`${NAME} \\(visual\\)`))).toBeVisible({ timeout: 180_000 });
-  await expect(page.getByRole("button", { name: "Aprobar diseño" })).toBeVisible({ timeout: 120_000 });
+  await designReady(page, 120_000);
 
   // Se ejecuta en un iframe sandbox con origen opaco (sin allow-same-origin)
   const frame = page.locator("iframe[data-lm-sandbox]").first();

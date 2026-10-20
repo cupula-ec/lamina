@@ -8,3 +8,4 @@
 - **Publicar** fija `published_deck_version_id` (snapshot) con versiones de engine/componentes fijadas. `/view` autoriza en servidor (dueño; o publicada + pública; o publicada + token con hash en BD). Un UUID nunca basta.
 - El **pulido** solo puede cambiar `build`, `transition` y `props.stepwise`; un validador de diff (`apps/worker/src/handlers/polish.ts`) lo impone.
 - Idempotencia: `singletonKey = nombre:presentación:base` con colas `exclusive` de pg-boss + botones deshabilitados.
+- Desde ADR-010, `designing` incluye render + reparación puntual antes de `design_review` (`designDrafted` → `designRepaired`* → `designFinish`), y las versiones editadas a mano (`kind: "edit"`) se crean con `saveEditedDeck` sin saltarse la máquina de estados.

@@ -1,8 +1,8 @@
 "use client";
-import { createElement as h, useCallback, useEffect, useRef, useState } from "react";
+import { createElement as h, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { DeckDocument } from "@lamina/contracts";
 import { CANVAS } from "./geometry";
-import { nextPos, prevPos, stepsOf } from "./build";
+import { entryStep, nextPos, prevPos, stepsOf } from "./build";
 import { SlideView } from "./SlideView";
 import type { Resolver } from "./types";
 
@@ -34,15 +34,19 @@ export function DeckPlayer({ deck, resolver, channelKey, presenter = false, init
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const [pos, setPos] = useState<Pos>(initial ?? { slide: 0, step: 0 });
+  const [fitted, setFitted] = useState(false);
+  const [pos, setPos] = useState<Pos>(() => initial ?? { slide: 0, step: deck.slides[0] ? entryStep(deck.slides[0]) : 0 });
   const [dir, setDir] = useState<1 | -1>(1);
   const chan = useRef<BroadcastChannel | null>(null);
   const slides = deck.slides;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = wrap.current;
     if (!el) return;
-    const fit = () => setScale(Math.min(el.clientWidth / CANVAS.width, el.clientHeight / CANVAS.height));
+    const fit = () => {
+      const k = Math.min(el.clientWidth / CANVAS.width, el.clientHeight / CANVAS.height);
+      if (k > 0) { setScale(k); setFitted(true); }
+    };
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     fit();
@@ -75,7 +79,7 @@ export function DeckPlayer({ deck, resolver, channelKey, presenter = false, init
       if ((e.target as HTMLElement)?.closest?.("input,textarea,[contenteditable]")) return;
       if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); next(); }
       else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); prev(); }
-      else if (e.key === "Home") go({ slide: 0, step: 0 }, -1);
+      else if (e.key === "Home") go({ slide: 0, step: entryStep(slides[0]!) }, -1);
       else if (e.key === "End") go({ slide: slides.length - 1, step: stepsOf(slides[slides.length - 1]!) }, 1);
       else if (e.key === "f" || e.key === "F") { if (document.fullscreenElement) document.exitFullscreen(); else wrap.current?.parentElement?.requestFullscreen?.(); }
       else if ((e.key === "p" || e.key === "P") && channelKey && !presenter) window.open(`${location.pathname}?presenter=1${location.search.replace(/^\?/, "&")}`, "lamina-presenter", "width=1100,height=700");
@@ -95,12 +99,12 @@ export function DeckPlayer({ deck, resolver, channelKey, presenter = false, init
       onTouchStart: (e: React.TouchEvent) => { touch.current = e.touches[0]!.clientX; },
       onTouchEnd: (e: React.TouchEvent) => { if (touch.current == null) return; const dx = e.changedTouches[0]!.clientX - touch.current; if (Math.abs(dx) > 50) (dx < 0 ? next : prev)(); touch.current = null; },
     },
-      h("div", { className: "lm-canvas-pos", style: { width: CANVAS.width * scale, height: CANVAS.height * scale } },
+      h("div", { className: "lm-canvas-pos", style: { width: CANVAS.width * scale, height: CANVAS.height * scale, visibility: fitted ? "visible" : "hidden" } },
         h("div", { key: slide.id, className: `lm-canvas lm-tr-${slide.transition} lm-dir-${dir}`, style: { transform: `scale(${scale})`, transformOrigin: "top left", width: CANVAS.width, height: CANVAS.height } },
           h(SlideView, { slide, resolver, step: pos.step, themeId: deck.themeId }))),
     ),
     showChrome ? h("div", { className: "lm-chrome", "aria-live": "polite" },
-      h("button", { type: "button", onClick: prev, "aria-label": "Anterior", disabled: pos.slide === 0 && pos.step === 0 }, "‹"),
+      h("button", { type: "button", onClick: prev, "aria-label": "Anterior", disabled: pos.slide === 0 && pos.step <= entryStep(slides[0]!) }, "‹"),
       h("span", null, `${pos.slide + 1} / ${total}`),
       h("button", { type: "button", onClick: next, "aria-label": "Siguiente", disabled: pos.slide === total - 1 && pos.step === stepsOf(slide) }, "›"),
     ) : null,

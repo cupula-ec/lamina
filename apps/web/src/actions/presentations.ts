@@ -1,16 +1,17 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { ContentDraft, LaminaError, type Block } from "@lamina/contracts";
+import { ContentDraft, DeckDocument, LaminaError, Slide, type Block } from "@lamina/contracts";
+import { validateDeckAgainstCatalog } from "@lamina/components";
 import { consumeQuota, hashJson, refundQuota, schema, workflow as wf, type QuotaKind } from "@lamina/db";
 import { enqueue } from "@lamina/jobs";
 import { validateContent } from "@lamina/validation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getBoss } from "@/lib/boss";
 import { getDb } from "@/lib/db";
 import { act, requireOwner } from "@/lib/guard";
 import { deletePresentationData } from "@/lib/cleanup";
-import { loadContent } from "@/lib/presentation-view";
+import { catalogLookupFor, loadContent, loadDeck } from "@/lib/presentation-view";
 import { env } from "@/lib/env";
 
 const Id = z.string().uuid();
@@ -18,7 +19,7 @@ const Feedback = z.string().trim().max(3000).optional();
 const touch = (id: string) => { revalidatePath(`/presentations/${id}`, "layout"); revalidatePath("/dashboard"); };
 
 /** Encola tras cambiar de etapa; si falla el encolado, la presentación pasa a failed_recoverable (reintentable). */
-async function kick(id: string, name: "content.generate" | "design.generate" | "polish", payload: Record<string, unknown>, base: string) {
+async function kick(id: string, name: "content.generate" | "design.generate" | "design.repair" | "polish", payload: Record<string, unknown>, base: string) {
   try { await enqueue(await getBoss(), name, payload as never, { base }); }
   catch (e) {
     await wf.failJob(getDb(), id, "No se pudo encolar el trabajo. Reintenta.");
@@ -52,9 +53,9 @@ export async function saveContentAction(input: { id: string; baseVersionId: stri
       if (prev === undefined) b.origin = "teacher";
       else if (prev !== stableJson({ ...b, origin: undefined, sourceRefs: undefined })) b.origin = "edited";
     }
-    const v = validateContent(draft);
+    const v = validateContent(draft, parsed.data.warnings);
     if (v.errors.length) throw new LaminaError("validation_failed", `Corrige antes de guardar: ${v.errors.slice(0, 3).join(" · ")}`, 422, v.errors);
-    const final = { ...draft, warnings: v.warnings };
+    const final = ContentDraft.parse({ ...draft, warnings: v.warnings, verification: v.stats });
     const row = await wf.saveTeacherContent(getDb(), id, u.id, { content: final, sha256: hashJson(final), baseVersionId: input.baseVersionId, note: "Edición del docente" });
     touch(id);
     return { versionId: row.id, sha256: row.sha256 };
@@ -131,6 +132,43 @@ export async function regenerateDesignAction(input: { id: string; feedback?: str
   });
 }
 
+/** Corrección puntual manual (misma canalización que la automática): re-envía a reparar solo las diapositivas con errores. */
+export async function repairDesignAction(input: { id: string; slideIds?: string[] }) {
+  return act(async (u) => {
+    const id = Id.parse(input.id);
+    const p = await requireOwner(id, u.id);
+    if (p.stage !== "design_review" || !p.currentDeckVersionId) throw new LaminaError("invalid_transition", "Solo puedes corregir mientras revisas el diseño", 409);
+    const arts = await getDb().select().from(schema.renderArtifacts).where(eq(schema.renderArtifacts.deckVersionId, p.currentDeckVersionId));
+    const only = input.slideIds?.length ? z.array(z.string().max(64)).max(100).parse(input.slideIds) : undefined;
+    const hasErrors = arts.some((a) => a.path && (!only || only.includes(a.slideId)) && (a.issues as { severity: string; ignored?: boolean }[]).some((i) => i.severity === "error" && !i.ignored));
+    if (!hasErrors) throw new LaminaError("invalid_transition", "No hay errores pendientes que corregir", 409);
+    const payload = { presentationId: id, userId: u.id, deckVersionId: p.currentDeckVersionId, attempt: 0, slideIds: only };
+    // Cuenta como una regeneración de diseño (el cupo de IA gratuita es compartido); se devuelve si falla.
+    await withQuota(u.id, "design_regen", async () => {
+      await wf.beginDesign(getDb(), id, u.id, { name: "design.repair", payload }, p.currentDeckVersionId!);
+      await kick(id, "design.repair", payload, `${p.currentDeckVersionId}:manual:${Date.now()}`);
+    });
+    touch(id);
+  });
+}
+
+/** Marca/desmarca un problema como ignorado (no cuenta como pendiente ni bloquea la aprobación). */
+export async function ignoreIssueAction(input: { id: string; deckVersionId: string; slideId: string; index: number; ignored: boolean }) {
+  return act(async (u) => {
+    const id = Id.parse(input.id);
+    const p = await requireOwner(id, u.id);
+    if (!["design_review", "final_review"].includes(p.stage)) throw new LaminaError("invalid_transition", "Ya no puedes cambiar los problemas de esta versión", 409);
+    const db = getDb();
+    const where = and(eq(schema.renderArtifacts.presentationId, id), eq(schema.renderArtifacts.deckVersionId, Id.parse(input.deckVersionId)), eq(schema.renderArtifacts.slideId, input.slideId));
+    const [a] = await db.select().from(schema.renderArtifacts).where(where);
+    const list = (a?.issues ?? []) as Record<string, unknown>[];
+    if (!a || !list[input.index]) throw new LaminaError("not_found", "Problema no encontrado", 404);
+    const next = list.map((i, k) => (k === input.index ? { ...i, ignored: input.ignored || undefined } : i));
+    await db.update(schema.renderArtifacts).set({ issues: next }).where(where);
+    touch(id);
+  });
+}
+
 export async function approveDesignAction(input: { id: string; versionId: string; sha256: string }) {
   return act(async (u) => { await wf.approveDesign(getDb(), Id.parse(input.id), u.id, Id.parse(input.versionId), input.sha256); touch(input.id); });
 }
@@ -148,6 +186,41 @@ export async function startPolishAction(input: { id: string }) {
     await kick(id, "polish", payload, p.approvedDeckVersionId);
     touch(id);
   });
+}
+
+/* ───────── Edición manual de diapositivas ───────── */
+/** Guarda la edición de UNA diapositiva como versión nueva (autor docente) y re-renderiza solo esa diapositiva. */
+export async function saveSlideEditAction(input: { id: string; baseVersionId: string; slide: unknown }) {
+  return act(async (u) => {
+    const id = Id.parse(input.id);
+    const p = await requireOwner(id, u.id);
+    if (!wf.EDITABLE_STAGES.includes(p.stage as never)) throw new LaminaError("invalid_transition", "Ahora no se puede editar la presentación (espera a que termine el proceso o reabre el diseño).", 409);
+    const baseId = Id.parse(input.baseVersionId);
+    if (wf.headDeckVersionId(p) !== baseId) throw new LaminaError("stale_version", "La presentación cambió mientras editabas. Recarga para ver la última versión.", 409);
+    const base = await loadDeck(baseId);
+    if (!base) throw new LaminaError("not_found", "Versión no encontrada", 404);
+    const slide = Slide.safeParse(input.slide);
+    if (!slide.success) throw new LaminaError("validation_failed", `Diapositiva inválida: ${slide.error.issues[0]?.path.join(".")} ${slide.error.issues[0]?.message}`, 422);
+    const idx = base.deck.slides.findIndex((s) => s.id === slide.data.id);
+    if (idx < 0) throw new LaminaError("not_found", "Diapositiva no encontrada", 404);
+    if (hashJson(base.deck.slides[idx]) === hashJson(slide.data)) throw new LaminaError("invalid_input", "No hay cambios que guardar", 400);
+    const deck = { ...base.deck, slides: base.deck.slides.map((s, i) => (i === idx ? slide.data : s)) };
+    const v = validateDeckAgainstCatalog(deck, await catalogLookupFor(id, base.row.componentPins));
+    if (!v.ok) throw new LaminaError("validation_failed", `Corrige antes de guardar: ${v.errors.slice(0, 3).join(" · ")}`, 422, v.errors);
+    const row = await wf.saveEditedDeck(getDb(), id, u.id, { baseVersionId: baseId, deck: v.deck, sha256: hashJson(v.deck), note: `Edición manual de la diapositiva ${idx + 1}` });
+    // Las demás diapositivas conservan captura y problemas; solo se re-renderiza la editada.
+    const arts = await getDb().select().from(schema.renderArtifacts).where(eq(schema.renderArtifacts.deckVersionId, baseId));
+    const keep = arts.filter((a) => a.slideId !== slide.data.id);
+    if (keep.length) await getDb().insert(schema.renderArtifacts).values(keep.map((a) => ({ presentationId: id, deckVersionId: row.id, slideId: a.slideId, path: a.path, issues: a.issues }))).onConflictDoNothing();
+    await enqueue(await getBoss(), "render", { presentationId: id, deckVersionId: row.id }, { base: row.id }).catch(() => {});
+    touch(id);
+    return { versionId: row.id };
+  });
+}
+
+/** Publica los cambios hechos después de publicar (mismo enlace y visibilidad). */
+export async function publishChangesAction(input: { id: string }) {
+  return act(async (u) => { await wf.publishChanges(getDb(), Id.parse(input.id), u.id); touch(input.id); });
 }
 
 /* ───────── Componentes nuevos ───────── */

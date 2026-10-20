@@ -6,3 +6,4 @@ export * from "./deck";
 export * from "./component";
 export * from "./jobs";
 export * from "./canonical";
+export * from "./geometry";

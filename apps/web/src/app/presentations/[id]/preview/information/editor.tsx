@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import katex from "katex";
 import { Latex, Md } from "@lamina/engine";
 import type { Block, ContentDraft, Section } from "@lamina/contracts";
+
+type Warn = ContentDraft["warnings"][number];
 import { approveContentAction, regenerateContentAction, restoreContentVersionAction, saveContentAction } from "@/actions/presentations";
 
 type Version = { id: string; n: number; authorKind: string; note: string | null; createdAt: string };
@@ -17,6 +19,25 @@ const ORIGIN: Record<string, { label: string; tone: string }> = {
   edited: { label: "Editado por ti", tone: "tag-warn" },
 };
 const TYPE_LABEL: Record<string, string> = { text: "Texto", formula: "Fórmula", derivation: "Derivación", example: "Ejemplo resuelto", graphSpec: "Gráfica", table: "Tabla", diagramSpec: "Diagrama", definition: "Definición", theorem: "Teorema" };
+
+const REASON_HELP: Record<string, string> = {
+  sin_igualdad: "No es una igualdad que se pueda comparar.",
+  sintaxis: "Usa notación que el verificador aún no entiende (límites, integrales, sumatorias…).",
+  dimensiones: "No se pueden determinar las dimensiones de las matrices.",
+  muestreo: "No hubo suficientes valores de prueba válidos.",
+  ecuacion: "Parece una ecuación por resolver, no una identidad.",
+};
+
+/** Sustituye el LaTeX de un paso concreto (fórmula, paso de derivación o de ejemplo) por su corrección. */
+function replaceLatex(d: ContentDraft, blockId: string, old: string, next: string): boolean {
+  for (const s of d.sections) for (const h of s.slidesHint) for (const b of h.blocks) {
+    if (b.id !== blockId) continue;
+    if (b.type === "formula" && b.latex === old) { b.latex = next; return true; }
+    if (b.type === "derivation") { const st = b.steps.find((x) => x.latex === old); if (st) { st.latex = next; return true; } }
+    if (b.type === "example") { const st = b.steps.find((x) => x.latex === old); if (st) { st.latex = next; return true; } }
+  }
+  return false;
+}
 
 const uid = () => Math.random().toString(36).slice(2, 8);
 function latexError(tex: string): string | null {
@@ -125,6 +146,20 @@ function BlockEditor({ b, onChange, ro }: { b: Block; onChange: (b: Block) => vo
   }
 }
 
+function FixForm({ initial, disabled, onApply, onCancel }: { initial: string; disabled: boolean; onApply: (latex: string) => void; onCancel: () => void }) {
+  const [v, setV] = useState(initial);
+  const err = useMemo(() => latexError(v), [v]);
+  return (
+    <div className="mt-3 space-y-2">
+      <LatexInput label="Escribe la fórmula correcta" value={v} onChange={setV} ro={false} />
+      <div className="flex gap-2">
+        <button type="button" className="btn btn-sm btn-primary" disabled={disabled || !!err || !v.trim() || v === initial} onClick={() => onApply(v)}>Aplicar corrección</button>
+        <button type="button" className="btn btn-sm" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
 const newBlock = (type: "text" | "formula" | "definition"): Block =>
   type === "text" ? { id: `b${uid()}`, type, md: "Nuevo texto", origin: "teacher", sourceRefs: [] }
   : type === "formula" ? { id: `b${uid()}`, type, latex: "x^2", origin: "teacher", sourceRefs: [] }
@@ -145,8 +180,13 @@ export function ContentEditor({ presentationId, stage, versionId, sha256, versio
 
   const chunkMap = useMemo(() => new Map(chunks.map((c) => [c.id, c])), [chunks]);
   const srcMap = useMemo(() => new Map(sources.map((s) => [s.id, s])), [sources]);
-  const warnByBlock = useMemo(() => { const m = new Map<string, string[]>(); for (const w of draft.warnings) if (w.blockId) m.set(w.blockId, [...(m.get(w.blockId) ?? []), w.message]); return m; }, [draft.warnings]);
-  const general = draft.warnings.filter((w) => !w.blockId);
+  const warnByBlock = useMemo(() => { const m = new Map<string, Warn[]>(); for (const w of draft.warnings) if (w.blockId) m.set(w.blockId, [...(m.get(w.blockId) ?? []), w]); return m; }, [draft.warnings]);
+  const general = draft.warnings.filter((w) => !w.kind);
+  const cards = useMemo(() => draft.warnings.map((w, i) => ({ w, i })).filter(({ w }) => w.kind && w.status !== "approved"), [draft.warnings]);
+  const approvedCount = draft.warnings.filter((w) => w.kind && w.status === "approved").length;
+  const [card, setCard] = useState(0);
+  const [fixing, setFixing] = useState<string | null>(null);
+  const cur = cards[Math.min(card, cards.length - 1)];
   const ro = readOnly || pending;
 
   const mut = (fn: (d: ContentDraft) => void) => { const d = structuredClone(draft); fn(d); setDraft(d); setDirty(true); setNotice(null); };
@@ -157,6 +197,15 @@ export function ContentEditor({ presentationId, stage, versionId, sha256, versio
     const r = await saveContentAction({ id: presentationId, baseVersionId: versionId, content: draft });
     if (!r.ok) return r;
     setDirty(false); setNotice("Cambios guardados como una nueva versión."); router.refresh();
+  });
+  const setWarnStatus = (i: number, status: "approved" | "pending") => mut((d) => { d.warnings[i]!.status = status; });
+  const applyFix = (i: number, w: Warn, latex: string) => mut((d) => { if (w.blockId && w.latex && replaceLatex(d, w.blockId, w.latex, latex)) d.warnings.splice(i, 1); });
+  const saveAndApprove = () => run(async () => {
+    const r = await saveContentAction({ id: presentationId, baseVersionId: versionId, content: draft });
+    if (!r.ok) return r;
+    const a = await approveContentAction({ id: presentationId, versionId: (r.data as { versionId: string }).versionId, sha256: (r.data as { sha256: string }).sha256 });
+    if (!a.ok) return a;
+    setDirty(false); router.refresh();
   });
   const approve = () => run(async () => { const r = await approveContentAction({ id: presentationId, versionId, sha256 }); if (!r.ok) return r; router.refresh(); });
   const regenerate = (withFeedback: boolean) => run(async () => {
@@ -178,17 +227,49 @@ export function ContentEditor({ presentationId, stage, versionId, sha256, versio
           {!readOnly && (
             <div className="flex flex-wrap gap-3">
               <button className="btn" onClick={save} disabled={!dirty || pending}>Guardar cambios</button>
-              <button className="btn btn-primary" onClick={approve} disabled={dirty || pending} title={dirty ? "Guarda tus cambios antes de aprobar" : undefined}>Aprobar contenido</button>
+              {dirty && <button className="btn btn-primary" onClick={saveAndApprove} disabled={pending}>Guardar y aprobar contenido</button>}
+              {!dirty && <button className="btn btn-primary" onClick={approve} disabled={pending}>Aprobar contenido</button>}
             </div>
           )}
         </div>
         {error && <p role="alert" className="err sheet border-pen p-3">{error}</p>}
         {notice && <p role="status" className="sheet p-3 text-ok font-bold">{notice}</p>}
 
-        {(general.length > 0 || draft.warnings.length > 0) && (
+        {(draft.warnings.length > 0 || (draft.verification?.verified ?? 0) > 0) && (
           <section className="sheet border-warn p-4" aria-labelledby="avisos">
-            <h2 id="avisos" className="font-bold text-warn">Avisos de verificación ({draft.warnings.length})</h2>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{draft.warnings.map((w, i) => <li key={i}>{w.message}</li>)}</ul>
+            <h2 id="avisos" className="font-bold">Avisos de verificación</h2>
+            <p className="mt-1 text-sm" role="status">
+              <span className="font-bold text-ok">{draft.verification?.verified ?? 0} verificados automáticamente</span>
+              {" · "}<span className={`font-bold ${cards.length ? "text-warn" : "text-ok"}`}>{cards.length} necesitan revisión</span>
+              {approvedCount > 0 && <> · {approvedCount} revisados por ti</>}
+            </p>
+            {general.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{general.map((w, i) => <li key={i}>{w.message}</li>)}</ul>}
+            {cur && (
+              <article className="mt-3 rounded-md border-2 border-warn p-4" aria-label={`Verificación ${Math.min(card, cards.length - 1) + 1} de ${cards.length}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-bold">Verificación {Math.min(card, cards.length - 1) + 1} de {cards.length}</h3>
+                  <div className="flex gap-1">
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={cards.length < 2} onClick={() => { setCard((Math.min(card, cards.length - 1) - 1 + cards.length) % cards.length); setFixing(null); }}>‹ Anterior</button>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={cards.length < 2} onClick={() => { setCard((Math.min(card, cards.length - 1) + 1) % cards.length); setFixing(null); }}>Siguiente ›</button>
+                  </div>
+                </div>
+                <p className="mt-2 text-sm">{cur.w.kind === "mismatch" ? "El verificador encontró una posible inconsistencia en este paso:" : "La presentación usará esta fórmula y no se pudo comprobar sola:"}</p>
+                {cur.w.latex && <div className="my-2 overflow-x-auto rounded border border-ink/20 bg-paper px-3 py-2 text-lg"><Latex tex={cur.w.latex} /></div>}
+                <p className="text-sm text-ink-2">{cur.w.kind === "mismatch" ? cur.w.message.replace(/^Posible error matemático: /, "") : cur.w.reason ? REASON_HELP[cur.w.reason] : cur.w.message}</p>
+                {!readOnly && (fixing === `${cur.i}` ? (
+                  <FixForm key={cur.i} initial={cur.w.latex ?? ""} disabled={pending} onCancel={() => setFixing(null)} onApply={(l) => { applyFix(cur.i, cur.w, l); setFixing(null); }} />
+                ) : (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <p className="w-full text-sm font-bold">¿La fórmula es correcta?</p>
+                    <button type="button" className="btn btn-sm btn-primary" disabled={pending} onClick={() => setWarnStatus(cur.i, "approved")}>Sí, aprobar</button>
+                    <button type="button" className="btn btn-sm" disabled={pending} onClick={() => setFixing(`${cur.i}`)}>No, corregir</button>
+                    {cur.w.blockId && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setOpen(cur.w.blockId!); document.getElementById(`blk-${cur.w.blockId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>Ver en el contenido</button>}
+                  </div>
+                ))}
+              </article>
+            )}
+            {!cur && draft.warnings.some((w) => w.kind) && <p className="mt-2 text-sm font-bold text-ok">✓ Revisaste todos los pasos dudosos.</p>}
+            {dirty && (cards.length > 0 || approvedCount > 0) && <p className="hint mt-2">Tus revisiones se guardan junto con los demás cambios.</p>}
           </section>
         )}
 
@@ -209,17 +290,20 @@ export function ContentEditor({ presentationId, stage, versionId, sha256, versio
                     {!readOnly && <button type="button" className="btn btn-ghost btn-sm" onClick={() => mut((d) => { d.sections[si]!.slidesHint.splice(hi, 1); })} disabled={s.slidesHint.length <= 1}>Quitar diapositiva</button>}
                   </div>
                   {h.blocks.map((b, bi) => {
-                    const warns = warnByBlock.get(b.id) ?? [];
+                    const warnsAll = warnByBlock.get(b.id) ?? [];
+                    const warns = warnsAll.filter((w) => w.status !== "approved");
+                    const reviewed = warnsAll.length - warns.length;
                     const refs = b.sourceRefs.map((r) => { const c = chunkMap.get(r); return c ? { c, s: srcMap.get(c.sourceId) } : null; }).filter(Boolean) as { c: Chunk; s: Source | undefined }[];
                     const o = ORIGIN[b.origin] ?? ORIGIN.generated!;
                     const isOpen = open === b.id;
                     return (
-                      <article key={b.id} className="rounded-md border-2 border-ink/70 p-3">
+                      <article key={b.id} id={`blk-${b.id}`} className="rounded-md border-2 border-ink/70 p-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <button type="button" className="font-bold underline-offset-4 hover:underline" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : b.id)}>{TYPE_LABEL[b.type]} {isOpen ? "▾" : "▸"}</button>
                           <span className={`tag ${o.tone}`}>{o.label}</span>
                           {refs.map(({ c, s: src }, i) => <span key={i} className="tag tag-info" title={c.text}>Fuente: {(src?.title ?? "—").slice(0, 28)}</span>)}
-                          {warns.length > 0 && <span className="tag tag-warn">{warns.length} aviso{warns.length > 1 ? "s" : ""}</span>}
+                          {warns.length > 0 && <span className="tag tag-warn">{warns.length} por revisar</span>}
+                          {reviewed > 0 && <span className="tag tag-ok">✓ revisado</span>}
                           {!readOnly && (
                             <span className="ml-auto flex gap-1">
                               <button type="button" className="btn btn-ghost btn-sm" aria-label="Subir bloque" disabled={bi === 0} onClick={() => mut((d) => { const a = d.sections[si]!.slidesHint[hi]!.blocks; [a[bi - 1], a[bi]] = [a[bi]!, a[bi - 1]!]; })}>↑</button>
@@ -228,7 +312,7 @@ export function ContentEditor({ presentationId, stage, versionId, sha256, versio
                             </span>
                           )}
                         </div>
-                        {warns.map((w, i) => <p key={i} className="mt-2 text-sm font-bold text-warn">⚠ {w}</p>)}
+                        {warns.map((w, i) => <p key={i} className="mt-2 text-sm font-bold text-warn">⚠ {w.message}</p>)}
                         {isOpen && (
                           <div className="mt-3 space-y-3">
                             <BlockEditor b={b} ro={ro} onChange={(nb) => mut((d) => { d.sections[si]!.slidesHint[hi]!.blocks[bi] = nb; })} />

@@ -4,6 +4,7 @@ import { DeckDocument, Transition, type DeckDocument as Deck, type Slide } from 
 import { polishSystem, QuotaWaitError } from "@lamina/ai";
 import { hashJson, schema, workflow as wf } from "@lamina/db";
 import { validateDeckAgainstCatalog } from "@lamina/components";
+import { enqueue } from "@lamina/jobs";
 import type { Ctx } from "../ctx";
 import { expectStage } from "../run";
 import { loadProvisional, lookupFor } from "../catalog";
@@ -112,5 +113,7 @@ export async function polish(ctx: Ctx, data: { presentationId: string; deckVersi
   const prov = await loadProvisional(ctx, p.id);
   const v = validateDeckAgainstCatalog(result, lookupFor(prov));
   if (!v.ok) { result = approved; }
-  await wf.polishGenerated(ctx.db, p.id, { deck: result, sha256: hashJson(result), note: "Pulido de transiciones y build" });
+  const saved = await wf.polishGenerated(ctx.db, p.id, { deck: result, sha256: hashJson(result), note: "Pulido de transiciones y build" });
+  // Re-render + re-detección sobre la versión final: sin esto final_review quedaba sin artefactos ni issues.
+  await enqueue(ctx.boss, "render", { presentationId: p.id, deckVersionId: saved.id }, { base: saved.id }).catch(() => {});
 }

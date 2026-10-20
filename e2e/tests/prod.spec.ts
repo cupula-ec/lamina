@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { login } from "./helpers";
+import { approveDesign, DESIGN_SUMMARY, designReady, login } from "./helpers";
 
 // Recorrido real (modelos :free, búsqueda real) contra un despliegue. Solo con E2E_PROD=1.
 test.skip(process.env.E2E_PROD !== "1", "solo contra producción");
@@ -27,10 +27,10 @@ test("recorrido real: tema de Cálculo + URL → contenido → diseño → pulid
   await expect(page.getByText("Cambios guardados como una nueva versión.")).toBeVisible();
   await page.getByRole("button", { name: "Aprobar contenido" }).click();
   await page.getByRole("button", { name: "Generar el diseño" }).click();
-  await expect(page.getByRole("button", { name: "Aprobar diseño" })).toBeVisible({ timeout: 20 * 60_000 });
-  await expect(page.getByText(/errores · \d+ avisos/)).toBeVisible({ timeout: 5 * 60_000 });
+  await designReady(page, 20 * 60_000);
+  await expect(page.getByText(DESIGN_SUMMARY)).toBeVisible({ timeout: 5 * 60_000 });
   await page.screenshot({ path: "test-results/prod-2-diseno.png", fullPage: true });
-  await page.getByRole("button", { name: "Aprobar diseño" }).click();
+  await approveDesign(page);
   await page.getByRole("button", { name: "Pulir y continuar" }).click();
   await expect(page.getByRole("button", { name: "Publicar", exact: true })).toBeVisible({ timeout: 5 * 60_000 });
   await page.getByRole("button", { name: "Publicar", exact: true }).click();

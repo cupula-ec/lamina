@@ -130,6 +130,76 @@ describe("workflow", () => {
   });
 });
 
+describe("reparación y edición posterior", () => {
+  async function toFinal(o: string) {
+    const { p, v } = await toContentReview(o);
+    await wf.approveContent(h.db, p.id, o, v.id, v.sha256);
+    await wf.beginDesign(h.db, p.id, o);
+    const dv = await wf.designDrafted(h.db, p.id, { deck: { s: 1 }, sha256: hashJson({ s: 1 }), contentVersionId: v.id, parentId: null });
+    return { p, v, dv };
+  }
+
+  it("borrador → reparación → cierre: sigue en designing hasta designFinish; ignora versiones obsoletas", async () => {
+    const o = await mkUser(h.db);
+    const { p, dv } = await toFinal(o);
+    expect((await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!.stage).toBe("designing");
+    const rv = await wf.designRepaired(h.db, p.id, { baseVersionId: dv.id, deck: { s: 2 }, sha256: hashJson({ s: 2 }), note: "x" });
+    expect(rv).toMatchObject({ kind: "repair", parentId: dv.id, authorKind: "ia" });
+    expect(await code(wf.designRepaired(h.db, p.id, { baseVersionId: dv.id, deck: {}, sha256: "x", note: "x" }))).toBe("stale_version");
+    expect(await wf.designFinish(h.db, p.id, dv.id)).toBeNull(); // la vigente ya es la reparada
+    const fin = await wf.designFinish(h.db, p.id, rv.id);
+    expect(fin!.stage).toBe("design_review");
+    expect(fin!.currentDeckVersionId).toBe(rv.id);
+    expect(await wf.designFinish(h.db, p.id, rv.id)).toBeNull(); // idempotente
+  });
+
+  it("editar tras publicar: la versión pública no cambia hasta publishChanges", async () => {
+    const o = await mkUser(h.db);
+    const { p, dv } = await toFinal(o);
+    await wf.designFinish(h.db, p.id, dv.id);
+    await wf.approveDesign(h.db, p.id, o, dv.id, dv.sha256);
+    await wf.beginPolish(h.db, p.id, o);
+    const fv = await wf.polishGenerated(h.db, p.id, { deck: { s: 3 }, sha256: hashJson({ s: 3 }) });
+    const pub = await wf.publish(h.db, p.id, o, "public");
+    expect(pub.presentation.publishedDeckVersionId).toBe(fv.id);
+    const ed = await wf.saveEditedDeck(h.db, p.id, o, { baseVersionId: fv.id, deck: { s: 4 }, sha256: hashJson({ s: 4 }), note: "e" });
+    expect(ed).toMatchObject({ kind: "edit", authorKind: "docente", parentId: fv.id });
+    let cur = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!;
+    expect(cur).toMatchObject({ stage: "published", publishedDeckVersionId: fv.id, finalDeckVersionId: ed.id });
+    expect(await code(wf.saveEditedDeck(h.db, p.id, o, { baseVersionId: fv.id, deck: {}, sha256: "x", note: "e" }))).toBe("stale_version");
+    cur = await wf.publishChanges(h.db, p.id, o);
+    expect(cur.publishedDeckVersionId).toBe(ed.id);
+    expect(cur.visibility).toBe("public");
+    expect(await code(wf.publishChanges(h.db, p.id, o))).toBe("invalid_transition");
+  });
+
+  it("failStale entrega un borrador de diseño ya guardado en vez de fallar", async () => {
+    const o = await mkUser(h.db);
+    const { p, dv } = await toFinal(o);
+    await wf.failStale(h.db, 45, new Date(Date.now() + 2 * 3600_000));
+    const cur = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!;
+    expect(cur).toMatchObject({ stage: "design_review", currentDeckVersionId: dv.id });
+  });
+
+  it("beginDesign con versión esperada obsoleta falla", async () => {
+    const o = await mkUser(h.db);
+    const { p, dv } = await toFinal(o);
+    await wf.designFinish(h.db, p.id, dv.id);
+    expect(await code(wf.beginDesign(h.db, p.id, o, undefined, crypto.randomUUID()))).toBe("stale_version");
+    expect(await code(wf.beginDesign(h.db, p.id, o, undefined, dv.id))).toBe("ok");
+  });
+
+  it("no se edita en etapas en curso ni ajenas", async () => {
+    const o = await mkUser(h.db);
+    const { p, dv } = await toFinal(o);
+    expect(await code(wf.saveEditedDeck(h.db, p.id, o, { baseVersionId: dv.id, deck: {}, sha256: "x", note: "e" }))).toBe("invalid_transition");
+    await wf.designFinish(h.db, p.id, dv.id);
+    expect(await code(wf.saveEditedDeck(h.db, p.id, await mkUser(h.db), { baseVersionId: dv.id, deck: {}, sha256: "x", note: "e" }))).toBe("not_found");
+    const ed = await wf.saveEditedDeck(h.db, p.id, o, { baseVersionId: dv.id, deck: { s: 9 }, sha256: hashJson({ s: 9 }), note: "e" });
+    expect((await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!.currentDeckVersionId).toBe(ed.id);
+  });
+});
+
 describe("revisión de seguridad", () => {
   it("cuota 0 bloquea incluso el primer uso", async () => {
     const o = await mkUser(h.db);

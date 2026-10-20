@@ -5,8 +5,8 @@ import { eq } from "drizzle-orm";
 import { chromium, type Browser } from "playwright";
 import { z } from "zod";
 import { DeckDocument, JOB_PAYLOADS } from "@lamina/contracts";
-import { createDb, schema } from "@lamina/db";
-import { createBoss } from "@lamina/jobs";
+import { createDb, schema, workflow as wf } from "@lamina/db";
+import { createBoss, enqueue } from "@lamina/jobs";
 
 const env = z.object({
   DATABASE_URL: z.string().url(),
@@ -36,11 +36,13 @@ export async function renderDeck(deckVersionId: string) {
   const deck = DeckDocument.parse(dv.deck);
   const existing = await db.select().from(schema.renderArtifacts).where(eq(schema.renderArtifacts.deckVersionId, deckVersionId));
   if (existing.length >= deck.slides.length) return; // caché por deck_version
+  const done = new Set(existing.filter((a) => a.path).map((a) => a.slideId)); // capturas ya copiadas (reparación puntual): no se repiten
   const dir = path.join(env.DATA_DIR, "presentations", dv.presentationId, "renders", deckVersionId);
   await fs.mkdir(dir, { recursive: true });
   const ctx = await (await getBrowser()).newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, javaScriptEnabled: true, serviceWorkers: "block" });
   try {
     for (const [i, slide] of deck.slides.entries()) {
+      if (done.has(slide.id)) continue;
       const page = await ctx.newPage();
       try {
         const token = await newToken(deckVersionId);
@@ -77,6 +79,25 @@ export async function renderComponent(componentVersionId: string, presentationId
   } finally { await ctx.close(); }
 }
 
+const MAX_REPAIR_ATTEMPTS = 2;
+
+/** Tras renderizar un borrador de diseño: si quedan errores y hay intentos, se encola la reparación puntual; si no, se entrega al docente. */
+async function afterRender(d: z.infer<typeof JOB_PAYLOADS.render>) {
+  if (d.then !== "repair" || !d.deckVersionId) return;
+  const [p] = await db.select().from(schema.presentations).where(eq(schema.presentations.id, d.presentationId));
+  if (!p || p.stage !== "designing" || p.currentDeckVersionId !== d.deckVersionId) return;
+  const arts = await db.select().from(schema.renderArtifacts).where(eq(schema.renderArtifacts.deckVersionId, d.deckVersionId));
+  const failing = arts.some((a) => a.path && (!d.slideIds || d.slideIds.includes(a.slideId)) && (a.issues as { severity: string; ignored?: boolean }[]).some((i) => i.severity === "error" && !i.ignored));
+  if (failing && d.attempt < MAX_REPAIR_ATTEMPTS) {
+    try { await enqueue(boss, "design.repair", { presentationId: p.id, userId: p.ownerId, deckVersionId: d.deckVersionId, attempt: d.attempt, slideIds: d.slideIds }, { base: `${d.deckVersionId}:${d.attempt}` }); return; }
+    catch (e) {
+      if ((e as { code?: string }).code === "job_in_progress") return; // la reparación ya está en cola/curso: no se cierra el diseño
+      console.error("[renderer] no se pudo encolar la reparación:", (e as Error).message);
+    }
+  }
+  await wf.designFinish(db, p.id, d.deckVersionId);
+}
+
 await boss.work("render", { localConcurrency: env.RENDER_CONCURRENCY }, async (jobs) => {
   for (const job of jobs) {
     const d = JOB_PAYLOADS.render.parse(job.data);
@@ -84,7 +105,13 @@ await boss.work("render", { localConcurrency: env.RENDER_CONCURRENCY }, async (j
     try {
       if (d.deckVersionId) await renderDeck(d.deckVersionId); else await renderComponent(d.componentVersionId!, d.presentationId);
       console.log(`[renderer] ok ${key}`);
-    } catch (e) { console.error(`[renderer] fallo ${key}:`, (e as Error).message); throw e; }
+    } catch (e) {
+      console.error(`[renderer] fallo ${key}:`, (e as Error).message);
+      // Último reintento: el docente no se queda esperando; recibe el diseño sin revisión automática.
+      if (d.then === "repair" && d.deckVersionId && ((job as { retryCount?: number }).retryCount ?? 0) >= 2) await wf.designFinish(db, d.presentationId, d.deckVersionId).catch(() => {});
+      throw e;
+    }
+    await afterRender(d).catch((e) => console.error(`[renderer] afterRender ${key}:`, (e as Error).message));
   }
 });
 console.log("[renderer] listo");

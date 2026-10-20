@@ -21,6 +21,17 @@ export const Build = z.object({
 });
 export type Build = z.infer<typeof Build>;
 
+/** Ajuste manual de un slot (edición posterior a la aprobación). */
+export const SlotAdjust = z.object({
+  x: z.number().int().min(0).max(1920).optional(),
+  y: z.number().int().min(0).max(1080).optional(),
+  w: z.number().int().min(160).max(1920).optional(),
+  h: z.number().int().min(120).max(1080).optional(),
+  /** Escala del contenido del slot (0.5 = mitad, 1.5 = +50 %). */
+  fontScale: z.number().min(0.5).max(1.5).optional(),
+});
+export type SlotAdjust = z.infer<typeof SlotAdjust>;
+
 export const Slide = z.object({
   id: z.string().min(1).max(64),
   layout: z.enum(LAYOUT_IDS),
@@ -30,6 +41,8 @@ export const Slide = z.object({
   transition: Transition.default("fade"),
   /** Justificación registrada por la IA de diseño (qué comunica el slide y por qué esos componentes). */
   rationale: z.string().max(600).optional(),
+  /** Ajustes manuales de posición, tamaño y escala por slot; ausente = geometría del layout. */
+  adjust: z.record(z.string(), SlotAdjust).optional(),
 });
 export type Slide = z.infer<typeof Slide>;
 
@@ -62,6 +75,11 @@ export const DeckDocument = z
       }
       for (const k of Object.keys(s.slots)) {
         if (!names.has(k)) ctx.addIssue({ code: "custom", path: ["slides", i, "slots", k], message: `slot "${k}" no existe en el layout ${s.layout}` });
+      }
+      for (const [k, a] of Object.entries(s.adjust ?? {})) {
+        if (!names.has(k)) ctx.addIssue({ code: "custom", path: ["slides", i, "adjust", k], message: `ajuste de un slot inexistente: ${k}` });
+        else if (a.w !== undefined && a.x !== undefined && a.x + a.w > 1920) ctx.addIssue({ code: "custom", path: ["slides", i, "adjust", k], message: `el slot "${k}" se sale del lienzo (ancho)` });
+        else if (a.h !== undefined && a.y !== undefined && a.y + a.h > 1080) ctx.addIssue({ code: "custom", path: ["slides", i, "adjust", k], message: `el slot "${k}" se sale del lienzo (alto)` });
       }
       s.build.steps.forEach((st, j) =>
         st.reveal.forEach((r) => {

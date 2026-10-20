@@ -2,7 +2,7 @@
 import { Component, createElement, useMemo, type ReactNode } from "react";
 import type { Slide } from "@lamina/contracts";
 import { LAYOUTS } from "@lamina/contracts";
-import { CANVAS, slotBox } from "./geometry";
+import { CANVAS, adjustedBox } from "./geometry";
 import { isSlotVisible, revealCounts } from "./build";
 import { ErrorCard } from "./primitives";
 import { SandboxFrame } from "./SandboxFrame";
@@ -18,7 +18,10 @@ class Boundary extends Component<{ children: ReactNode; label: string }, { err: 
 
 function SlotContent({ slide, slot, resolver, counts }: { slide: Slide; slot: string; resolver: Resolver; counts: Record<string, number | null> }) {
   const ref = slide.slots[slot]!;
-  const box = slotBox(slide.layout, slot);
+  const full = adjustedBox(slide.layout, slot, slide.adjust?.[slot]);
+  // fontScale: el componente se dibuja en una caja 1/s mayor y se escala s: cabe más (s<1) o se agranda (s>1) manteniendo el área.
+  const s = slide.adjust?.[slot]?.fontScale ?? 1;
+  const box = s === 1 ? full : { ...full, w: Math.round(full.w / s), h: Math.round(full.h / s) };
   const ctx: ComponentCtx = { layout: slide.layout, slot, width: box.w, height: box.h, revealCount: counts[slot] ?? null };
   const res = resolver(ref);
   if (!res) return createElement(ErrorCard, { kind: "missing", title: `Componente no disponible: ${ref.componentId}@${ref.version}` });
@@ -46,7 +49,8 @@ export function SlideView({ slide, resolver, step = 0, themeId }: { slide: Slide
     spec.slots.map((s) => {
       const ref = slide.slots[s.name];
       if (!ref) return null;
-      const b = slotBox(slide.layout, s.name);
+      const b = adjustedBox(slide.layout, s.name, slide.adjust?.[s.name]);
+      const fs = slide.adjust?.[s.name]?.fontScale ?? 1;
       const visible = isSlotVisible(counts, s.name);
       return createElement(
         "div",
@@ -57,7 +61,11 @@ export function SlideView({ slide, resolver, step = 0, themeId }: { slide: Slide
           "data-lm-hidden": visible ? "0" : "1",
           style: { left: b.x, top: b.y, width: b.w, height: b.h },
         },
-        visible ? createElement(SlotContent, { slide, slot: s.name, resolver, counts }) : null,
+        visible
+          ? fs === 1
+            ? createElement(SlotContent, { slide, slot: s.name, resolver, counts })
+            : createElement("div", { style: { width: Math.round(b.w / fs), height: Math.round(b.h / fs), transform: `scale(${fs})`, transformOrigin: "0 0" } }, createElement(SlotContent, { slide, slot: s.name, resolver, counts }))
+          : null,
       );
     }),
   );

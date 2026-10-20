@@ -10,6 +10,7 @@ import { research } from "../src/handlers/research";
 import { contentGenerate, mergeSections } from "../src/handlers/content";
 import { designGenerate, missingFormulas, mustKeep } from "../src/handlers/design";
 import { applySuggestions, deterministicPolish, disallowedChanges, polish } from "../src/handlers/polish";
+import { designRepair, repairTargets } from "../src/handlers/repair";
 import { guarded } from "../src/run";
 
 const URL = "postgres://lamina:lamina@127.0.0.1:55432/lamina_worker_test";
@@ -63,8 +64,13 @@ describe("pipeline completo con proveedor fake", () => {
     await wf.beginDesign(h.db, p.id, o, { name: "design.generate", payload: {} });
     await designGenerate(ctx, { presentationId: p.id, contentVersionId: cv!.id, baseDeckVersionId: null });
     cur = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!;
-    expect(cur.stage).toBe("design_review");
+    // el borrador queda en "designing" hasta que render + reparación puntual terminen
+    expect(cur.stage).toBe("designing");
     expect(sent.at(-1)!.name).toBe("render");
+    expect(sent.at(-1)!.data).toMatchObject({ then: "repair", attempt: 0 });
+    await wf.designFinish(h.db, p.id, cur.currentDeckVersionId!);
+    cur = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!;
+    expect(cur.stage).toBe("design_review");
     const [dv] = await h.db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, cur.currentDeckVersionId!));
     const deck = DeckDocument.parse(dv!.deck);
     expect(deck.slides.length).toBeGreaterThan(8);
@@ -85,6 +91,46 @@ describe("pipeline completo con proveedor fake", () => {
     expect(pub.presentation.publishedDeckVersionId).toBe(fv!.id);
     const calls = await h.db.select().from(schema.aiCalls);
     expect(calls.every((c) => c.model.endsWith(":free"))).toBe(true);
+  });
+
+  it("reparación puntual: corrige solo la diapositiva con error, copia las demás y re-renderiza", async () => {
+    const o = await user();
+    const p = await wf.createPresentation(h.db, o, { title: "t", topic: "La derivada", level: "U", objective: "o" });
+    await wf.beginContentGeneration(h.db, p.id, o, { name: "research", payload: {} });
+    await contentGenerate(ctx, { presentationId: p.id, baseVersionId: null });
+    const pr = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!;
+    const [cv] = await h.db.select().from(schema.contentVersions).where(eq(schema.contentVersions.id, pr.currentContentVersionId!));
+    await wf.approveContent(h.db, p.id, o, cv!.id, cv!.sha256);
+    await wf.beginDesign(h.db, p.id, o, { name: "design.generate", payload: {} });
+    await designGenerate(ctx, { presentationId: p.id, contentVersionId: cv!.id, baseDeckVersionId: null });
+    const cur = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!;
+    const v1 = cur.currentDeckVersionId!;
+    const [dv] = await h.db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, v1));
+    const deck = DeckDocument.parse(dv!.deck);
+    const bad = deck.slides[3]!.id;
+    const err = { slot: "main", kind: "overflow", severity: "error", message: "La matriz se sale de la diapositiva por la derecha.", detail: "mide 988×878" };
+    await h.db.insert(schema.renderArtifacts).values(deck.slides.map((s) => ({ presentationId: p.id, deckVersionId: v1, slideId: s.id, path: `/x/${s.id}.png`, issues: s.id === bad ? [err] : [] })));
+    expect([...repairTargets(await h.db.select().from(schema.renderArtifacts).where(eq(schema.renderArtifacts.deckVersionId, v1))).keys()]).toEqual([bad]);
+
+    // el proveedor fake devuelve la misma diapositiva → no hay cambios → se cierra el diseño sin crear versión
+    await designRepair(ctx, { presentationId: p.id, userId: o, deckVersionId: v1, attempt: 0 });
+    let after = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!;
+    expect(after.stage).toBe("design_review");
+    expect(after.currentDeckVersionId).toBe(v1);
+
+    // con un proveedor que sí cambia la diapositiva: nueva versión "repair", artefactos copiados y render encolado
+    await wf.beginDesign(h.db, p.id, o, { name: "design.repair", payload: {} });
+    const fixing: Ctx = { ...ctx, ai: new AiClient({ provider: { chat: async (req: any) => ({ text: JSON.stringify({ slide: { ...(req.fakeContext as any).slide, notes: "corregida" } }), promptTokens: 0, completionTokens: 0 }) } as any, hooks: makeHooks(h.db, 1000) }) };
+    await designRepair(fixing, { presentationId: p.id, userId: o, deckVersionId: v1, attempt: 0 });
+    after = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!;
+    expect(after.stage).toBe("designing");
+    expect(after.currentDeckVersionId).not.toBe(v1);
+    const [v2] = await h.db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, after.currentDeckVersionId!));
+    expect(v2).toMatchObject({ kind: "repair", parentId: v1, authorKind: "ia" });
+    const copied = await h.db.select().from(schema.renderArtifacts).where(eq(schema.renderArtifacts.deckVersionId, v2!.id));
+    expect(copied.length).toBe(deck.slides.length - 1); // la corregida se re-renderiza
+    expect(copied.some((a) => a.slideId === bad)).toBe(false);
+    expect(sent.at(-1)!.data).toMatchObject({ deckVersionId: v2!.id, then: "repair", attempt: 1 });
   });
 
   it("regeneración de contenido conserva secciones bloqueadas y solo cambia las pedidas", async () => {

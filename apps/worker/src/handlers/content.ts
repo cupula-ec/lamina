@@ -76,7 +76,7 @@ Devuelve el JSON del borrador de contenido (schemaVersion 1, meta, sections).`;
   if (searchFailed) warnings.unshift({ message: `Búsqueda web no disponible (${searchFailed.error ?? "sin detalle"}): el contenido se apoya en tus materiales y en el conocimiento del modelo, sin fuentes verificadas.` });
   if (!chunks.length) warnings.unshift({ message: "No hay fuentes de apoyo: revisa con especial cuidado los datos y resultados." });
   for (const b of badTeacher) warnings.unshift({ message: `No se pudo usar «${b.title}»: ${b.error ?? "error de lectura"}.` });
-  const final = ContentDraft.parse({ ...draft, warnings: warnings.slice(0, 40) });
+  const final = ContentDraft.parse({ ...draft, warnings: warnings.slice(0, 40), verification: v.stats });
 
   await wf.contentGenerated(ctx.db, p.id, {
     content: final, sha256: hashJson(final), parentId: base?.id ?? null,
