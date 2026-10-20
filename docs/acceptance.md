@@ -19,10 +19,10 @@ Solo se marca como cumplido lo que tiene evidencia. Fecha: 19–20 oct 2026.
 
 ## ⏳ Pendiente (no se marca como cumplido)
 
-1. **Inicio de sesión con Google**: requiere crear el cliente OAuth en la consola de Google (la API no permite crear clientes web). Con `GOOGLE_CLIENT_ID/SECRET` en `/opt/lamina/.env` y el redirect `https://lamina.cupula.com.ec/api/auth/callback/google` queda activo (el código ya está y exige cuenta dada de alta).
+1. **Inicio de sesión con Google**: cliente OAuth cargado el 20 oct; el flujo arranca (redirige a Google) pero el login completo de un docente real no se ha probado de punta a punta (requiere una cuenta Google interactiva).
 2. **Alta de docente desde el panel + correo real**: probado en local (contraseña temporal, cambio obligatorio, consentimiento); el envío SMTP por el relay de Cúpula y el ingreso del admin por Keycloak requieren una sesión interactiva de Esteban.
-3. **Tavily** (respaldo de búsqueda): clave pendiente; SearXNG funciona como principal.
-4. **PR automático de componentes**: requiere `GITHUB_TOKEN` en el servidor.
+3. **Tavily**: clave cargada y activa como respaldo (no ejercitada: SearXNG responde primero).
+4. **PR automático de componentes**: `GITHUB_TOKEN` cargado (token OAuth de `gh`, alcance amplio: conviene sustituirlo por uno de grano fino limitado a `cupula-ec/lamina`); el PR no se ha probado en prod.
 5. **CLA Assistant** en el repo (GitHub App) y restauración de prueba de backups.
 6. **Prompt injection con un PDF real hostil** en prod y prueba del especialista con modelos reales (la prueba automatizada usa IA fake para el componente).
 7. Una presentación con subida de **PDF** en prod (cubierto por tests de extracción, no por el recorrido real).
