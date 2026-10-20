@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { z, type ZodType } from "zod";
 import { ComponentManifest } from "@lamina/contracts";
 import { schema } from "@lamina/db";
@@ -9,7 +9,7 @@ export type ProvisionalComponent = { manifest: ComponentManifest; bundle: string
 
 /** Componentes provisionales (scope = presentación) disponibles para esta presentación: última versión de cada uno. */
 export async function loadProvisional(ctx: Ctx, presentationId: string): Promise<ProvisionalComponent[]> {
-  const comps = await ctx.db.select().from(schema.components).where(and(eq(schema.components.scope, presentationId), eq(schema.components.status, "provisional")));
+  const comps = await ctx.db.select().from(schema.components).where(or(and(eq(schema.components.scope, presentationId), eq(schema.components.status, "provisional")), and(eq(schema.components.scope, "global"), eq(schema.components.status, "stable"), eq(schema.components.runtime, "sandboxed"))));
   const out: ProvisionalComponent[] = [];
   for (const c of comps) {
     const [v] = await ctx.db.select().from(schema.componentVersions).where(eq(schema.componentVersions.componentRowId, c.id)).orderBy(desc(schema.componentVersions.createdAt)).limit(1);

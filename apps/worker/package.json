@@ -11,6 +11,7 @@
     "@lamina/db": "workspace:*",
     "@lamina/jobs": "workspace:*",
     "@lamina/research": "workspace:*",
+    "@lamina/sandbox-kit": "workspace:*",
     "@lamina/validation": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "pg-boss": "^12.38.0",

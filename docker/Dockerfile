@@ -52,3 +52,15 @@ RUN mkdir -p /data && chown 10001:10001 /data
 USER 10001:10001
 WORKDIR /repo/apps/renderer
 CMD ["node_modules/.bin/tsx", "src/main.ts"]
+
+# ───────── Sandbox runner (API estrecha sobre Docker; único con acceso al socket) ─────────
+FROM base AS sandbox-runner-deps
+COPY . .
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile --prod --filter "@lamina/sandbox-runner..."
+
+FROM ${NODE_IMAGE} AS sandbox-runner
+ENV NODE_ENV=production
+WORKDIR /repo
+COPY --from=sandbox-runner-deps /repo ./
+WORKDIR /repo/apps/sandbox-runner
+CMD ["node_modules/.bin/tsx", "src/main.ts"]

@@ -1,0 +1,9 @@
+{
+  "name": "@lamina/sandbox-runner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "tsx src/main.ts", "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "dependencies": { "@lamina/sandbox-kit": "workspace:*", "tsx": "^4.20.0", "typescript": "^5.9.0", "undici": "^7.16.0", "zod": "^4.6.7" },
+  "devDependencies": { "@types/node": "^24.0.0", "vitest": "^5.0.5" }
+}

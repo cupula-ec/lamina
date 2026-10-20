@@ -39,7 +39,9 @@ export const ComponentRequestPayload = z.object({
   slideId: z.string().optional(),
 });
 export const PolishPayload = z.object({ presentationId: Uuid, userId: z.string(), deckVersionId: Uuid });
-export const RenderPayload = z.object({ presentationId: Uuid, deckVersionId: Uuid });
+export const RenderPayload = z
+  .object({ presentationId: Uuid, deckVersionId: Uuid.optional(), componentVersionId: Uuid.optional() })
+  .refine((p) => !!p.deckVersionId !== !!p.componentVersionId, { message: "indica deckVersionId o componentVersionId" });
 
 export const JOB_PAYLOADS = {
   research: ResearchPayload,

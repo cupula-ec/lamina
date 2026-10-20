@@ -61,11 +61,30 @@ export async function renderDeck(deckVersionId: string) {
   } finally { await ctx.close(); }
 }
 
+/** Captura de un componente provisional (primer fixture) para la revisión del administrador. */
+export async function renderComponent(componentVersionId: string, presentationId: string) {
+  const dir = path.join(env.DATA_DIR, "presentations", presentationId, "components");
+  await fs.mkdir(dir, { recursive: true });
+  const ctx = await (await getBrowser()).newContext({ viewport: { width: 988, height: 750 }, deviceScaleFactor: 1, serviceWorkers: "block" });
+  try {
+    const page = await ctx.newPage();
+    const token = await newToken(componentVersionId);
+    await page.goto(`${env.WEB_INTERNAL_URL}/render/component/${componentVersionId}?token=${token}`, { waitUntil: "load", timeout: 45_000 });
+    await page.waitForFunction(() => (window as any).__laminaReady === true, undefined, { timeout: 30_000 });
+    const file = path.join(dir, `${componentVersionId}.png`);
+    await page.screenshot({ path: file, clip: { x: 0, y: 0, width: 988, height: 750 } });
+    await db.update(schema.componentVersions).set({ screenshots: [file] }).where(eq(schema.componentVersions.id, componentVersionId));
+  } finally { await ctx.close(); }
+}
+
 await boss.work("render", { localConcurrency: env.RENDER_CONCURRENCY }, async (jobs) => {
   for (const job of jobs) {
     const d = JOB_PAYLOADS.render.parse(job.data);
-    try { await renderDeck(d.deckVersionId); console.log(`[renderer] ok ${d.deckVersionId}`); }
-    catch (e) { console.error(`[renderer] fallo ${d.deckVersionId}:`, (e as Error).message); throw e; }
+    const key = d.deckVersionId ?? d.componentVersionId!;
+    try {
+      if (d.deckVersionId) await renderDeck(d.deckVersionId); else await renderComponent(d.componentVersionId!, d.presentationId);
+      console.log(`[renderer] ok ${key}`);
+    } catch (e) { console.error(`[renderer] fallo ${key}:`, (e as Error).message); throw e; }
   }
 });
 console.log("[renderer] listo");

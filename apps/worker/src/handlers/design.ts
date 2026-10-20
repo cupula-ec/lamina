@@ -88,7 +88,7 @@ export async function designGenerate(
       try {
         const out = await ctx.ai.structured({
           role: "design", task: "design.slide", schema: SlideOut, presentationId: p.id, maxTokens: 3500, temperature: 0.3, system, user,
-          fakeContext: { hint: h, section: s.title, provisional: prov.map((x) => x.manifest.id) },
+          fakeContext: { hint: h, section: s.title, feedback: data.feedback, provisional: prov.map((x) => ({ id: x.manifest.id, version: x.manifest.version, example: x.manifest.examples[0]?.props ?? {} })) },
           check: (o) => {
             const sl = { ...o.slide, id: h.id };
             const v = validateDeckAgainstCatalog(wrap([sl], undefined), lookup);

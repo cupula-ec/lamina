@@ -46,11 +46,61 @@ export function fakeContent(meta: Meta, chunkIds: string[], regen: boolean, only
   return { schemaVersion: 1, meta: { topic: meta.topic, level: meta.level, objective: meta.objective, language: meta.language }, sections: out };
 }
 
+/** Componente de ejemplo (recta numérica con intervalos) que supera el sandbox: lo usa el proveedor fake. */
+export function fakeComponent(name: string) {
+  const tsx = `import React from "react";
+import { ticks, scaleLinear } from "@lamina/sdk";
+
+type Interval = { from: number; to: number; closedFrom?: boolean; closedTo?: boolean; label?: string };
+type Props = { min: number; max: number; intervals: Interval[]; caption?: string };
+
+export default function Component({ props, size }: { props: Props; size: { width: number; height: number } }) {
+  const W = size.width, H = size.height;
+  const x = scaleLinear().domain([props.min, props.max]).range([80, W - 80]);
+  const y = H / 2;
+  return (
+    <svg width={W} height={H} viewBox={\`0 0 \${W} \${H}\`} role="img" aria-label="Recta numérica">
+      <line x1={60} x2={W - 60} y1={y} y2={y} stroke="var(--lm-ink)" strokeWidth={5} />
+      {ticks(props.min, props.max, 10).map((t) => (
+        <g key={t}><line x1={x(t)} x2={x(t)} y1={y - 14} y2={y + 14} stroke="var(--lm-ink)" strokeWidth={3} /><text x={x(t)} y={y + 52} textAnchor="middle" fontSize={30} fill="var(--lm-ink)">{t}</text></g>
+      ))}
+      {props.intervals.map((iv, i) => (
+        <g key={i}>
+          <line x1={x(iv.from)} x2={x(iv.to)} y1={y} y2={y} stroke="var(--lm-plot2)" strokeWidth={14} opacity={0.85} />
+          <circle cx={x(iv.from)} cy={y} r={14} fill={iv.closedFrom ? "var(--lm-plot2)" : "var(--lm-bg)"} stroke="var(--lm-plot2)" strokeWidth={5} />
+          <circle cx={x(iv.to)} cy={y} r={14} fill={iv.closedTo ? "var(--lm-plot2)" : "var(--lm-bg)"} stroke="var(--lm-plot2)" strokeWidth={5} />
+          {iv.label && <text x={(x(iv.from) + x(iv.to)) / 2} y={y - 40} textAnchor="middle" fontSize={34} fill="var(--lm-ink)">{iv.label}</text>}
+        </g>
+      ))}
+      {props.caption && <g><text x={W / 2} y={H - 40} textAnchor="middle" fontSize={30} fill="var(--lm-ink)">{props.caption}</text><Latex tex="" /></g>}
+    </svg>
+  );
+}
+`;
+  return {
+    id: name, title: "Recta numérica con intervalos", purpose: "Recta numérica con intervalos abiertos/cerrados resaltados, para explicar dominios y soluciones de desigualdades.",
+    useCases: ["Dominio de una función", "Solución de una desigualdad"],
+    propsJsonSchema: { type: "object", required: ["min", "max", "intervals"], properties: { min: { type: "number" }, max: { type: "number" }, intervals: { type: "array", maxItems: 6, items: { type: "object", required: ["from", "to"], properties: { from: { type: "number" }, to: { type: "number" }, closedFrom: { type: "boolean" }, closedTo: { type: "boolean" }, label: { type: "string", maxLength: 30 } } } }, caption: { type: "string", maxLength: 120 } } },
+    fixtures: [{ min: -5, max: 5, intervals: [{ from: -2, to: 3, closedFrom: false, closedTo: true, label: "(-2, 3]" }] }, { min: 0, max: 10, intervals: [{ from: 1, to: 4, closedFrom: true, closedTo: true }] }],
+    tsx,
+  };
+}
+
 export function makeFakeProvider() {
   return new FakeProvider({
     "research.queries": (r) => ({ queries: [`${(r.fakeContext as any).topic} explicación`, `${(r.fakeContext as any).topic} ejemplos resueltos`] }),
     "content.generate": (r) => { const c = r.fakeContext as any; return fakeContent(c.meta, c.chunkIds, c.regen, c.onlySectionIds); },
-    "design.slide": (r) => { const h = (r.fakeContext as any).hint as SlideHint; return { slide: { ...slidesFromHint(h)[0]!, id: h.id } }; },
+    "design.slide": (r) => {
+      const c = r.fakeContext as any; const h = c.hint as SlideHint;
+      const base = slidesFromHint(h)[0]!;
+      const want = (c.provisional as { id: string; version: string; example: unknown }[]).find((p) => new RegExp(`\\b${p.id}\\b`).test(c.feedback ?? ""));
+      if (want) {
+        const text = base.slots.main ?? base.slots.text ?? base.slots.left;
+        return { slide: { ...base, id: h.id, layout: "split-visual", slots: { title: base.slots.title!, text: text!, visual: { componentId: want.id, version: want.version, props: want.example as Record<string, unknown> } }, rationale: `Usa el componente provisional ${want.id} pedido por el docente.` } };
+      }
+      return { slide: { ...base, id: h.id } };
+    },
+    "component.generate": (r) => fakeComponent((r.fakeContext as any).name),
     polish: () => ({ slides: [] }),
   });
 }
