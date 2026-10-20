@@ -58,7 +58,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     body = (
       <div className="grid gap-8 md:grid-cols-2">
         <section><h2 className="text-xl font-bold">Embudo (30 días)</h2>
-          <ol className="mt-2 space-y-2">{funnel.map(([l, n]) => <li key={l} className="flex items-center gap-3"><span className="w-44 text-sm">{l}</span><div className="h-4 flex-1 rounded bg-paper-2"><div className="h-4 rounded bg-blue" style={{ width: `${funnel[0][1] ? (n / funnel[0][1]) * 100 : 0}%` }} /></div><strong>{n}</strong></li>)}</ol>
+          <ol className="mt-2 space-y-2">{funnel.map(([l, n]) => <li key={l} className="flex items-center gap-3"><span className="w-44 text-sm">{l}</span><div className="h-4 flex-1 overflow-hidden rounded bg-paper-2"><div className="h-4 rounded bg-blue" style={{ width: `${Math.max(...funnel.map((f) => f[1])) ? Math.min(100, (n / Math.max(...funnel.map((f) => f[1]))) * 100) : 0}%` }} /></div><strong>{n}</strong></li>)}</ol>
           <p className="mt-4 text-sm">Iteraciones medias por presentación: contenido <strong>{iters?.content ?? "—"}</strong> versiones · diseño <strong>{iters?.design ?? "—"}</strong> versiones.</p>
           <p className="mt-1 text-sm">Trabajos en espera de cupo (30 días): <strong>{e("quota_wait")}</strong> · fallidos: <strong>{e("job_failed")}</strong>.</p></section>
         <section><h2 className="text-xl font-bold">Presentaciones por etapa</h2>
