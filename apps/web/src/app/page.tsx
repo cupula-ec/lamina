@@ -10,6 +10,8 @@ const steps = [
   { t: "Presenta", d: "Se publica una versión web para proyectar en pantalla completa, con notas del presentador. Tú decides si es privada, por enlace o pública." },
 ];
 
+export const dynamic = "force-dynamic";
+
 export default async function Landing() {
   const user = await getSessionUser();
   return (
