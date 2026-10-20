@@ -52,13 +52,14 @@ async function purge() {
   await db.delete(schema.events).where(lt(schema.events.createdAt, cutoff));
 }
 
+const t3 = setInterval(() => void wf.failStale(db, 45).then((n) => n && ctx.log(`${n} trabajo(s) atascado(s) marcados como detenidos`)).catch((e) => ctx.log(`failStale: ${e.message}`)), 60_000);
 const t1 = setInterval(() => void resumeDue().catch((e) => ctx.log(`resumeDue: ${e.message}`)), 30_000);
 const t2 = setInterval(() => void purge().catch((e) => ctx.log(`purge: ${e.message}`)), 6 * 3600_000);
 void purge();
 ctx.log(`worker listo (IA: ${env.LAMINA_AI_PROVIDER}, búsqueda: ${search.map((s) => s.name).join("+") || "ninguna"})`);
 
 async function shutdown() {
-  clearInterval(t1); clearInterval(t2);
+  clearInterval(t1); clearInterval(t2); clearInterval(t3);
   await boss.stop({ graceful: true, timeout: 20_000 }).catch(() => {});
   await pool.end();
   process.exit(0);

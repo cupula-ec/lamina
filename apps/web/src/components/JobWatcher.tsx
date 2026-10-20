@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { retryAction } from "@/actions/presentations";
+import { cancelPendingAction, retryAction } from "@/actions/presentations";
 import { STAGE_LABEL, isRunning } from "@/lib/stages";
 
 const HINT: Record<string, string> = {
@@ -10,7 +10,7 @@ const HINT: Record<string, string> = {
   polishing: "Ajustando transiciones y la aparición progresiva de elementos. Unos segundos.",
 };
 
-type Status = { stage: string; lastError: string | null; resumeAt: string | null };
+type Status = { stage: string; lastError: string | null; resumeAt: string | null; prevStage?: string | null };
 
 /** Muestra el estado real del trabajo y refresca la página cuando cambia la etapa (sobrevive a recargas). */
 export function JobWatcher({ id, initial }: { id: string; initial: Status }) {
@@ -37,6 +37,8 @@ export function JobWatcher({ id, initial }: { id: string; initial: Status }) {
     return () => { clearInterval(t); clearInterval(e); };
   }, [active, id, router]);
 
+  const cancel = () => start(async () => { setError(null); const r = await cancelPendingAction({ id }); if (!r.ok) return setError(r.error); router.refresh(); });
+  const canCancel = ["content_review", "design_review", "design_approved", "content_approved"].includes(st.prevStage ?? "");
   const retry = () => start(async () => { setError(null); const r = await retryAction({ id }); if (!r.ok) return setError(r.error); router.refresh(); });
 
   if (st.stage === "failed_recoverable")
@@ -45,7 +47,7 @@ export function JobWatcher({ id, initial }: { id: string; initial: Status }) {
         <p className="font-bold text-pen">El trabajo se detuvo</p>
         <p className="mt-1">{st.lastError ?? "Ocurrió un error."} Tu avance está guardado.</p>
         {error && <p className="err mt-2">{error}</p>}
-        <button className="btn btn-primary mt-4" disabled={pending} onClick={retry}>{pending ? "Reintentando…" : "Reintentar"}</button>
+        <div className="mt-4 flex flex-wrap gap-3"><button className="btn btn-primary" disabled={pending} onClick={retry}>{pending ? "Reintentando…" : "Reintentar"}</button>{canCancel && <button className="btn" disabled={pending} onClick={cancel}>Volver a la versión anterior</button>}</div>
       </div>
     );
   if (st.stage === "quota_wait")
@@ -55,7 +57,7 @@ export function JobWatcher({ id, initial }: { id: string; initial: Status }) {
         <p className="mt-1">{st.lastError ?? "Los modelos gratuitos alcanzaron su límite."} {st.resumeAt && <>Se reanudará automáticamente hacia las <strong>{new Date(st.resumeAt).toLocaleTimeString("es-EC", { hour: "2-digit", minute: "2-digit" })}</strong>.</>}</p>
         <p className="hint mt-1">No pierdes nada: puedes cerrar la página. También puedes intentar ahora.</p>
         {error && <p className="err mt-2">{error}</p>}
-        <button className="btn mt-4" disabled={pending} onClick={retry}>Intentar ahora</button>
+        <div className="mt-4 flex flex-wrap gap-3"><button className="btn" disabled={pending} onClick={retry}>Intentar ahora</button>{canCancel && <button className="btn" disabled={pending} onClick={cancel}>Cancelar y volver a la versión anterior</button>}</div>
       </div>
     );
   if (isRunning(st.stage))

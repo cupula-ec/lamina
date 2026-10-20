@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, not, or } from "drizzle-orm";
 import { ContentDraft, DeckDocument } from "@lamina/contracts";
 import { schema } from "@lamina/db";
 import { getDb } from "./db";
@@ -59,6 +59,6 @@ export async function provisionalForDeck(presentationId: string, pins: Record<st
   const db = getDb();
   const rows = await db.select({ c: schema.components, v: schema.componentVersions }).from(schema.componentVersions)
     .innerJoin(schema.components, eq(schema.components.id, schema.componentVersions.componentRowId))
-    .where(and(or(eq(schema.components.presentationId, presentationId), eq(schema.components.scope, "global")), inArray(schema.componentVersions.bundleHash, hashes)));
+    .where(and(or(eq(schema.components.presentationId, presentationId), eq(schema.components.scope, "global")), inArray(schema.componentVersions.bundleHash, hashes), not(inArray(schema.components.status, ["rejected", "deprecated"]))));
   return rows.map(({ c, v }) => ({ id: c.componentId, version: v.version, bundle: v.bundle, bundleHash: v.bundleHash, propsJsonSchema: ((v.manifest as { propsJsonSchema?: Record<string, unknown> }).propsJsonSchema ?? {}) }));
 }

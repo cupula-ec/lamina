@@ -12,8 +12,7 @@ test("móvil: landing, login, dashboard y visor táctil", async ({ page }) => {
   await page.goto(`/presentations/${id}/view`);
   await expect(page.locator(".lm-slide")).toBeVisible();
   const first = await page.locator("[data-lm-slide]").first().getAttribute("data-lm-slide");
-  const box = await page.locator(".lm-stage").boundingBox();
-  await page.touchscreen.tap(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.locator(".lm-stage").tap();
   await page.keyboard.press("ArrowRight");
   await expect(page.locator("[data-lm-slide]").first()).not.toHaveAttribute("data-lm-slide", first!);
 });

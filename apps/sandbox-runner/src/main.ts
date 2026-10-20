@@ -1,5 +1,5 @@
 import http from "node:http";
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { BuildInput, type BuildResult } from "@lamina/sandbox-kit/client";
 import { Docker, containerConfig } from "./docker";
 
@@ -33,14 +33,17 @@ const authOk = (h: string | undefined) => {
 async function runContainer(input: unknown): Promise<{ result: Record<string, unknown>; timedOut: boolean; logs: string }> {
   const inputB64 = Buffer.from(JSON.stringify(input)).toString("base64");
   if (inputB64.length > 120_000) throw Object.assign(new Error("entrada demasiado grande"), { status: 413 });
-  const id = await docker.create(containerConfig({ image: IMAGE, runtime: RUNTIME, inputB64 }));
+  const nonce = randomBytes(18).toString("hex");
+  const id = await docker.create(containerConfig({ image: IMAGE, runtime: RUNTIME, inputB64, nonce }));
   try {
     await docker.start(id);
     const w = await docker.wait(id, TIMEOUT_MS);
     const logs = await docker.logs(id);
-    const line = logs.split("\n").find((l) => l.startsWith("LAMINA_RESULT:"));
+    // Solo cuenta la línea con el nonce secreto del contenedor (el código del componente no lo conoce).
+    const prefix = `LAMINA_RESULT:${nonce}:`;
+    const line = logs.split("\n").reverse().find((l) => l.startsWith(prefix));
     if (!line) return { result: { ok: false, checks: [{ name: "Ejecución en sandbox", ok: false, detail: w.timedOut ? `Tiempo agotado (${TIMEOUT_MS / 1000} s)` : `Sin resultado (exit ${w.exitCode}): ${logs.slice(-300)}` }] }, timedOut: w.timedOut, logs: logs.slice(-1500) };
-    return { result: JSON.parse(line.slice("LAMINA_RESULT:".length)), timedOut: w.timedOut, logs: "" };
+    return { result: JSON.parse(line.slice(prefix.length)), timedOut: w.timedOut, logs: "" };
   } finally { await docker.remove(id); }
 }
 

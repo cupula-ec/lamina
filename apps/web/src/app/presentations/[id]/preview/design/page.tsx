@@ -47,7 +47,7 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
         <div className="space-y-2 text-right"><StageBar stage={stage} prevStage={p.prevStage} /><StageTag label={STAGE_LABEL[stage]} tone={stageTone(stage)} /></div>
       </div>
       <div className="mt-6 space-y-6">
-        {(["designing", "polishing", "quota_wait", "failed_recoverable"] as string[]).includes(stage) && <JobWatcher id={p.id} initial={{ stage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />}
+        {(["designing", "polishing", "quota_wait", "failed_recoverable"] as string[]).includes(stage) && <JobWatcher id={p.id} initial={{ stage, prevStage: p.prevStage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />}
         {!cur && !["designing", "quota_wait", "failed_recoverable"].includes(stage) && (
           <p className="sheet p-5">Aún no hay diseño. Aprueba el contenido y genera el diseño desde <Link className="underline" href={`/presentations/${p.id}/preview/information`}>Contenido</Link>.</p>
         )}

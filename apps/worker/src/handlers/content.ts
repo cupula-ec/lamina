@@ -44,7 +44,7 @@ export async function contentGenerate(ctx: Ctx, data: { presentationId: string; 
   const searchFailed = failedSources.find((s) => s.kind === "search" && s.status === "failed");
   const badTeacher = failedSources.filter((s) => s.origin === "teacher" && s.status === "failed");
 
-  const regen = baseDraft && data.feedback ? `\n\nBORRADOR ACTUAL (JSON):\n${JSON.stringify({ ...baseDraft, warnings: undefined })}\n\nCOMENTARIOS DEL DOCENTE para la nueva versión:\n${data.feedback}\n${data.onlySectionIds?.length ? `Regenera SOLO las secciones con id: ${data.onlySectionIds.join(", ")} y devuelve únicamente esas secciones en "sections" (con los mismos ids).` : "Devuelve el borrador completo mejorado."}\nConserva sin cambios las secciones marcadas locked:true (ids: ${baseDraft.sections.filter((s) => s.locked).map((s) => s.id).join(", ") || "ninguna"}).` : "";
+  const regen = baseDraft ? `\n\nBORRADOR ACTUAL (JSON):\n${JSON.stringify({ ...baseDraft, warnings: undefined })}\n\nCOMENTARIOS DEL DOCENTE para la nueva versión:\n${data.feedback ?? "(sin comentarios: ofrece una variante mejorada y distinta, con otros ejemplos y mejor explicación)"}\n${data.onlySectionIds?.length ? `Regenera SOLO las secciones con id: ${data.onlySectionIds.join(", ")} y devuelve únicamente esas secciones en "sections" (con los mismos ids).` : "Devuelve el borrador completo mejorado."}\nConserva sin cambios las secciones marcadas locked:true (ids: ${baseDraft.sections.filter((s) => s.locked).map((s) => s.id).join(", ") || "ninguna"}).` : "";
 
   const user = `DATOS DE LA CLASE
 Tema: ${p.topic}

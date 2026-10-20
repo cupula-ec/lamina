@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "scripts": { "start": "tsx src/main.ts", "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "scripts": { "start": "tsx src/main.ts", "typecheck": "tsc --noEmit", "test": "vitest run --passWithNoTests" },
   "dependencies": {
     "@lamina/ai": "workspace:*",
     "@lamina/components": "workspace:*",

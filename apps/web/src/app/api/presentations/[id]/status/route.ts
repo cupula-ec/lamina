@@ -10,7 +10,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const user = await requireUserApi();
     const p = await requireOwner((await params).id, user.id);
     return NextResponse.json({
-      stage: p.stage, lastError: p.lastError, resumeAt: p.resumeAt, updatedAt: p.updatedAt,
+      stage: p.stage, prevStage: p.prevStage, lastError: p.lastError, resumeAt: p.resumeAt, updatedAt: p.updatedAt,
       currentContentVersionId: p.currentContentVersionId, currentDeckVersionId: p.currentDeckVersionId, finalDeckVersionId: p.finalDeckVersionId,
     }, { headers: { "cache-control": "no-store" } });
   } catch (e) {

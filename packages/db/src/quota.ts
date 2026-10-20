@@ -24,6 +24,7 @@ export async function limitFor(db: Db, userId: string, kind: QuotaKind): Promise
 /** Consume 1 unidad de cuota diaria de forma atómica; lanza quota_exceeded si se supera el límite. */
 export async function consumeQuota(db: Db, userId: string, kind: QuotaKind, now = new Date()) {
   const limit = await limitFor(db, userId, kind);
+  if (limit <= 0) throw new LaminaError("quota_exceeded", "Tu cuota para esta acción está en 0. Contacta a un administrador.", 429, { kind, limit });
   const day = today(now);
   const scope = `u:${userId}`;
   const res = await db.execute(sql`
@@ -51,6 +52,7 @@ export async function usageFor(db: Db, userId: string, now = new Date()) {
 
 /** Presupuesto global diario de llamadas IA. */
 export async function consumeGlobalAiBudget(db: Db, limit: number, now = new Date()): Promise<boolean> {
+  if (limit <= 0) return false;
   const res = await db.execute(sql`
     insert into usage_counters (scope, kind, day, count) values ('global', 'ai_call', ${today(now)}, 1)
     on conflict (scope, kind, day) do update set count = usage_counters.count + 1

@@ -15,7 +15,7 @@ export type ChatRequest = {
   /** Solo para el proveedor fake: entrada estructurada para generar una respuesta determinista. */
   fakeContext?: unknown;
 };
-export type ChatResult = { text: string; promptTokens?: number; completionTokens?: number };
+export type ChatResult = { text: string; promptTokens?: number; completionTokens?: number; respondedModel?: string };
 export interface Provider {
   chat(req: ChatRequest): Promise<ChatResult>;
 }

@@ -70,7 +70,7 @@ export function derivativeExpr(expr: string): string {
   return d.toString();
 }
 
-const SAMPLES = [0.37, 0.91, 1.43, 2.07, 2.89, 0.61, 1.77, 3.3];
+const SAMPLES = [0.37, 0.91, 1.43, 2.07, 2.89, 0.61, 1.77, 3.3, -0.43, -1.21, -2.6];
 export type Equivalence = "equal" | "different" | "unknown";
 
 /** Equivalencia numérica por muestreo (≥3 puntos válidos). */

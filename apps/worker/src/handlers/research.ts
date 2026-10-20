@@ -13,7 +13,7 @@ import type { Ctx } from "../ctx";
 import { expectStage } from "../run";
 
 const Queries = z.object({ queries: z.array(z.string().min(3).max(160)).min(1).max(4) });
-const MAX_SEARCHES = 4;   // plan: máx. 6 búsquedas
+const MAX_SEARCHES = 4;   // tope propio (≤ 6 del plan)
 const MAX_FETCHES = 12;   // plan: máx. 12 fetch
 const MAX_CHUNKS_PER_SOURCE = 10;
 

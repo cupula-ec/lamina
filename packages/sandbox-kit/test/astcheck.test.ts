@@ -36,6 +36,9 @@ describe("checkComponentSource", () => {
     ["sin export default", `export function C(){ return <div/>; }`],
     ["spread attrs", `export default function C(p: any){ return <div {...p}/>; }`],
     ["re-export", `export * from "fs"; export default function C(){ return <div/>; }`],
+    ["this en modo sloppy", `export default function C(){ const g = (function(this: any){ return this; })(); return <div>{String(g)}</div>; }`],
+    ["location.href", `export default function C(o: any){ o.location.href = "x"; return <div/>; }`],
+    ["propiedad computada en desestructuración", `export default function C(){ const {["constr"+"uctor"]: F} = (()=>0) as any; return <div/>; }`],
   ];
   it.each(attacks)("bloquea: %s", (_n, src) => expect(checkComponentSource(src).length).toBeGreaterThan(0));
 

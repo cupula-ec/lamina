@@ -40,11 +40,11 @@ function build() {
     database: drizzleAdapter(db, { provider: "pg", schema: { user: schema.user, session: schema.session, account: schema.account, verification: schema.verification, rateLimit: schema.rateLimit } }),
     emailAndPassword: { enabled: true, disableSignUp: true, minPasswordLength: 10, maxPasswordLength: 128, autoSignIn: false, revokeSessionsOnPasswordReset: true },
     socialProviders: social,
-    account: { accountLinking: { enabled: true, trustedProviders: ["google", "keycloak"], allowDifferentEmails: false } },
+    account: { accountLinking: { enabled: true, trustedProviders: ["google"], allowDifferentEmails: false } },
     session: { expiresIn: 60 * 60 * 24 * 14, updateAge: 60 * 60 * 24, cookieCache: { enabled: false } },
     advanced: { useSecureCookies: e.NODE_ENV === "production", defaultCookieAttributes: { sameSite: "lax", httpOnly: true }, ipAddress: { ipAddressHeaders: ["x-forwarded-for"] } },
     rateLimit: {
-      enabled: true, window: 60, max: 120, storage: "database",
+      enabled: process.env.AUTH_RATE_LIMIT !== "off", window: 60, max: 120, storage: "database",
       customRules: { "/sign-in/email": { window: 60, max: Number(process.env.AUTH_SIGNIN_MAX ?? 6) }, "/change-password": { window: 60, max: 6 }, "/sign-in/social": { window: 60, max: 20 } },
     },
     plugins: [admin({ defaultRole: "teacher", adminRoles: ["admin"] }), ...oauth, nextCookies()],
@@ -55,10 +55,22 @@ function build() {
             const isAdmin = adminEmails().includes(user.email.toLowerCase());
             if (!isAdmin && !adminCreate.getStore()?.allowed)
               throw new APIError("FORBIDDEN", { message: "Tu correo no está dado de alta en Lámina. Pide acceso a un administrador." });
-            return { data: { ...user, email: user.email.toLowerCase(), role: isAdmin ? "admin" : (user as { role?: string }).role ?? "teacher", emailVerified: isAdmin ? true : user.emailVerified } };
+            return { data: { ...user, email: user.email.toLowerCase(), role: isAdmin ? "admin" : (user as { role?: string }).role ?? "teacher", emailVerified: true } }; // el admin (o Keycloak) atestigua el correo; Google solo vincula con correo verificado por Google
           },
           after: async (user) => {
             await db.insert(schema.userProfiles).values({ userId: user.id, mustChangePassword: false }).onConflictDoNothing();
+          },
+        },
+      },
+      account: {
+        create: {
+          // Keycloak (SSO de Cúpula) SOLO para administradores: un usuario del realm no puede vincularse a la cuenta de un docente.
+          before: async (account) => {
+            if (account.providerId === "keycloak") {
+              const [u] = await db.select().from(schema.user).where(eq(schema.user.id, account.userId));
+              if (!u || !adminEmails().includes(u.email.toLowerCase())) throw new APIError("FORBIDDEN", { message: "El acceso Cúpula es solo para administradores." });
+            }
+            return { data: account };
           },
         },
       },

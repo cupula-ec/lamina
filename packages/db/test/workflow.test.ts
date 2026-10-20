@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { workflow as wf, hashJson, consumeQuota, DEFAULT_QUOTAS } from "../src";
+import { workflow as wf, hashJson, consumeQuota, DEFAULT_QUOTAS, schema } from "../src";
+import { eq } from "drizzle-orm";
 import { testDb, mkUser } from "./helpers";
 import { LaminaError } from "@lamina/contracts";
 
@@ -126,6 +127,48 @@ describe("workflow", () => {
     expect(un.shareTokenHash).toBeNull();
     expect(un.publishedDeckVersionId).toBeNull();
     expect(await code(wf.regenerateShareToken(h.db, p.id, o))).toBe("invalid_transition");
+  });
+});
+
+describe("revisión de seguridad", () => {
+  it("cuota 0 bloquea incluso el primer uso", async () => {
+    const o = await mkUser(h.db);
+    await h.db.insert(schema.userProfiles).values({ userId: o, quotaOverrides: { presentation_new: 0 } });
+    expect(await code(consumeQuota(h.db, o, "presentation_new"))).toBe("quota_exceeded");
+  });
+  it("máx. 2 trabajos simultáneos por docente", async () => {
+    const o = await mkUser(h.db);
+    const ps = [];
+    for (let i = 0; i < 3; i++) ps.push(await wf.createPresentation(h.db, o, input));
+    expect(await code(wf.beginContentGeneration(h.db, ps[0]!.id, o))).toBe("ok");
+    expect(await code(wf.beginContentGeneration(h.db, ps[1]!.id, o))).toBe("ok");
+    expect(await code(wf.beginContentGeneration(h.db, ps[2]!.id, o))).toBe("job_in_progress");
+  });
+  it("cancelPending vuelve a la versión anterior y permite aprobar; failStale detecta trabajos atascados", async () => {
+    const o = await mkUser(h.db);
+    const { p, v } = await toContentReview(o);
+    await wf.beginContentGeneration(h.db, p.id, o, { name: "content.generate", payload: {} });
+    await wf.failJob(h.db, p.id, "falló");
+    expect((await wf.cancelPending(h.db, p.id, o)).stage).toBe("content_review");
+    expect(await code(wf.approveContent(h.db, p.id, o, v.id, v.sha256))).toBe("ok");
+    const q = await toContentReview(o);
+    await wf.beginContentGeneration(h.db, q.p.id, o, { name: "content.generate", payload: {} });
+    expect(await wf.failStale(h.db, 45)).toBe(0);
+    expect(await wf.failStale(h.db, 45, new Date(Date.now() + 3600_000))).toBeGreaterThanOrEqual(1);
+    expect((await wf.getPresentationFor(h.db, q.p.id, o)).stage).toBe("failed_recoverable");
+  });
+  it("publicar registra el sha de la versión final", async () => {
+    const o = await mkUser(h.db);
+    const { p, v } = await toContentReview(o);
+    await wf.approveContent(h.db, p.id, o, v.id, v.sha256);
+    await wf.beginDesign(h.db, p.id, o);
+    const dv = await wf.designGenerated(h.db, p.id, { deck: {}, sha256: hashJson({}), contentVersionId: v.id, parentId: null });
+    await wf.approveDesign(h.db, p.id, o, dv.id, dv.sha256);
+    await wf.beginPolish(h.db, p.id, o);
+    const fv = await wf.polishGenerated(h.db, p.id, { deck: { a: 1 }, sha256: hashJson({ a: 1 }) });
+    await wf.publish(h.db, p.id, o, "public");
+    const ap = await h.db.select().from(schema.approvals).where(eq(schema.approvals.versionId, fv.id));
+    expect(ap.find((a) => a.kind === "final")?.sha256).toBe(fv.sha256);
   });
 });
 

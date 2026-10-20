@@ -10,6 +10,7 @@ const FORBIDDEN_IDENTS = new Set([
   "localStorage", "sessionStorage", "indexedDB", "navigator", "location", "history", "require", "process", "module", "exports", "importScripts",
   "Worker", "SharedWorker", "ServiceWorker", "postMessage", "setTimeout", "setInterval", "requestAnimationFrame", "queueMicrotask", "Proxy", "Reflect",
   "WebAssembly", "Atomics", "SharedArrayBuffer", "Image", "Audio", "open", "alert", "confirm", "prompt", "constructor", "__proto__", "prototype",
+  "location", "href", "assign", "replace", "origin", "cookie", "opener", "contentWindow", "contentDocument", "innerHTML", "outerHTML", "srcdoc",
 ]);
 const FORBIDDEN_JSX_TAGS = new Set(["script", "iframe", "object", "embed", "link", "meta", "base", "form", "a", "img", "video", "audio", "source", "style", "foreignObject", "use", "image"]);
 const FORBIDDEN_ATTRS = new Set(["dangerouslySetInnerHTML", "href", "src", "srcSet", "srcDoc", "action", "formAction", "xlinkHref", "ref"]);
@@ -25,7 +26,13 @@ export function checkComponentSource(source: string): AstIssue[] {
   let hasDefault = false;
 
   const visit = (n: ts.Node): void => {
-    if (ts.isImportDeclaration(n)) {
+    if (n.kind === ts.SyntaxKind.ThisKeyword) {
+      let p: ts.Node | undefined = n.parent, inClass = false;
+      while (p) { if (ts.isClassLike(p)) { inClass = true; break; } p = p.parent; }
+      if (!inClass) bad(n, "`this` no permitido (usa funciones puras con parámetros)");
+    } else if (ts.isComputedPropertyName(n)) bad(n, "Nombres de propiedad computados no permitidos");
+    else if (ts.isPropertyAccessExpression(n) && FORBIDDEN_IDENTS.has(n.name.text) && !["top", "left", "right", "bottom", "replace", "assign", "origin"].includes(n.name.text) ) bad(n, `Acceso a propiedad prohibido: .${n.name.text}`);
+    else if (ts.isImportDeclaration(n)) {
       const spec = (n.moduleSpecifier as ts.StringLiteral).text;
       if (!ALLOWED_IMPORTS.has(spec)) bad(n, `Import no permitido: "${spec}" (solo "react" y "@lamina/sdk")`);
     } else if (ts.isExportDeclaration(n) && n.moduleSpecifier) bad(n, "re-export de módulos no permitido");
@@ -34,7 +41,7 @@ export function checkComponentSource(source: string): AstIssue[] {
     else if (ts.isIdentifier(n) && FORBIDDEN_IDENTS.has(n.text)) {
       // permite nombres de propiedad de objetos propios (p. ej. { top: 10 }) y de acceso (a.top) pero no usos libres
       const p = n.parent;
-      const isPropName = (ts.isPropertyAssignment(p) && p.name === n) || (ts.isPropertyAccessExpression(p) && p.name === n && !["constructor", "prototype", "__proto__"].includes(n.text)) || (ts.isShorthandPropertyAssignment(p) && false)
+      const isPropName = (ts.isPropertyAssignment(p) && p.name === n && !["location", "href", "constructor", "__proto__", "prototype"].includes(n.text)) || (ts.isPropertyAccessExpression(p) && p.name === n && !["constructor", "prototype", "__proto__"].includes(n.text)) || (ts.isShorthandPropertyAssignment(p) && false)
         || (ts.isPropertySignature(p) && p.name === n) || (ts.isJsxAttribute(p) && p.name === n) || (ts.isTypeReferenceNode(p)) || (ts.isParameter(p) && p.name === n && false);
       if (!isPropName || ["constructor", "__proto__", "prototype"].includes(n.text)) bad(n, `Identificador prohibido: ${n.text}`);
     } else if (ts.isElementAccessExpression(n)) {

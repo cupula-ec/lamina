@@ -112,7 +112,7 @@ export class AiClient {
           await this.deps.hooks.onCall({
             role: o.role, model, presentationId: o.presentationId, latencyMs: this.now() - t0,
             promptTokens: r.promptTokens, completionTokens: r.completionTokens,
-            result: ok ? "ok" : "invalid", error: ok ? undefined : problems.join(" | ").slice(0, 400),
+            result: ok ? "ok" : "invalid", error: ok ? (r.respondedModel && r.respondedModel !== model ? `resp:${r.respondedModel}` : undefined) : problems.join(" | ").slice(0, 400),
           });
           if (ok) return parsed as T;
           lastErr = problems.join("; ");

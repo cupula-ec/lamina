@@ -149,6 +149,11 @@ describe("utilidades", () => {
     expect(mustKeep(hint)).toEqual(["f'(x)=3x^2"]);
     expect(missingFormulas(hint, ok)).toEqual([]);
     expect(missingFormulas(hint, bad)).toEqual(["f'(x)=3x^2"]);
+    // subcadena NO vale: x^2 no está en x^2+1
+    const sub: any = { ...ok, slots: { main: { ...ok.slots.main, props: { latex: "f'(x)=3x^2+1" } } } };
+    expect(missingFormulas(hint, sub)).toEqual(["f'(x)=3x^2"]);
+    const inline: any = { ...ok, slots: { main: { ...ok.slots.main, props: { md: "Entonces $f'(x)=3x^2$ siempre." } } } };
+    expect(missingFormulas(hint, inline)).toEqual([]);
   });
   it("el pulido rechaza cualquier cambio de contenido", () => {
     const deck = DeckDocument.parse({ schemaVersion: 1, engineVersion: "1.0.0", meta: { title: "t", topic: "t", level: "u" }, slides: [

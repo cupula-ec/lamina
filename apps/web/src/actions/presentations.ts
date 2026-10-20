@@ -207,6 +207,10 @@ export async function retryAction(input: { id: string }) {
   });
 }
 
+export async function cancelPendingAction(input: { id: string }) {
+  return act(async (u) => { await wf.cancelPending(getDb(), Id.parse(input.id), u.id); touch(input.id); });
+}
+
 export async function deletePresentationAction(input: { id: string }) {
   return act(async (u) => {
     const id = Id.parse(input.id);

@@ -71,6 +71,6 @@ export class OpenRouterProvider implements Provider {
     if (json?.error) throw new ProviderError(json.error.code === 429 ? "rate" : "unavailable", msg, json.error.code, 60_000);
     const text: string = choice?.message?.content ?? "";
     if (!text.trim()) throw new ProviderError("unavailable", "respuesta vacía", 200);
-    return { text, promptTokens: json?.usage?.prompt_tokens, completionTokens: json?.usage?.completion_tokens };
+    return { text, promptTokens: json?.usage?.prompt_tokens, completionTokens: json?.usage?.completion_tokens, respondedModel: typeof json?.model === "string" ? json.model : undefined };
   }
 }

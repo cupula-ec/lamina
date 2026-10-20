@@ -47,12 +47,12 @@ export class Docker {
   async imageExists(name: string) { return (await this.call("GET", `/images/${encodeURIComponent(name)}/json`)).status === 200; }
 }
 
-export function containerConfig(opts: { image: string; runtime?: string; inputB64: string }) {
+export function containerConfig(opts: { image: string; runtime?: string; inputB64: string; nonce: string }) {
   return {
     Image: opts.image,
     Cmd: ["node", "/app/run.mjs"],
     User: "10002:10002",
-    Env: [`LAMINA_INPUT=${opts.inputB64}`, "NODE_ENV=production"],
+    Env: [`LAMINA_INPUT=${opts.inputB64}`, `LAMINA_NONCE=${opts.nonce}`, "NODE_ENV=production"],
     NetworkDisabled: true,
     AttachStdout: false, AttachStderr: false, Tty: false,
     Labels: { "lamina.sandbox": "1" },

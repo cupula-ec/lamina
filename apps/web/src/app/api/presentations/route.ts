@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { LaminaError } from "@lamina/contracts";
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
         const id = randomUUID();
         const storagePath = path.join(dir, id);
         await fs.writeFile(storagePath, buf, { mode: 0o600 });
-        const [u] = await db.insert(schema.uploads).values({ presentationId: p.id, filename: file.name.slice(0, 200), mime: file.type || "application/octet-stream", bytes: buf.length, sha256: sha256Hex(buf.toString("latin1")), storagePath }).returning();
+        const [u] = await db.insert(schema.uploads).values({ presentationId: p.id, filename: file.name.slice(0, 200), mime: file.type || "application/octet-stream", bytes: buf.length, sha256: createHash("sha256").update(buf).digest("hex"), storagePath }).returning();
         await db.insert(schema.sources).values({ presentationId: p.id, kind: "upload", origin: "teacher", title: file.name.slice(0, 200), uploadId: u!.id, status: "pending" });
       }
     }

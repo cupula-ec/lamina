@@ -41,7 +41,7 @@ export default async function InformationPage({ params }: { params: Promise<{ id
 
       <div className="mt-6 space-y-6">
         {(stage === "researching" || stage === "quota_wait" || stage === "failed_recoverable") && (
-          <JobWatcher id={p.id} initial={{ stage: p.stage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />
+          <JobWatcher id={p.id} initial={{ stage: p.stage, prevStage: p.prevStage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />
         )}
         {stage === "draft" && <p className="sheet p-5">La presentación está lista para empezar. Si esta pantalla no avanza, vuelve a <Link href="/presentations/new" className="underline">crearla</Link>.</p>}
 

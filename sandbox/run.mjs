@@ -11,7 +11,8 @@ import { checkComponentSource } from "./astcheck.mjs";
 const require = createRequire(import.meta.url);
 const checks = [];
 const check = (name, ok, detail) => checks.push({ name, ok, ...(detail ? { detail: String(detail).slice(0, 600) } : {}) });
-const out = (o) => { process.stdout.write("LAMINA_RESULT:" + JSON.stringify(o) + "\n", () => process.exit(0)); };
+const NONCE = process.env.LAMINA_NONCE ?? "";
+const out = (o) => { fs.writeSync(1, "LAMINA_RESULT:" + NONCE + ":" + JSON.stringify(o) + "\n"); process.exit(0); };
 
 const input = JSON.parse(Buffer.from(process.env.LAMINA_INPUT ?? "", "base64").toString("utf8") || "{}");
 
@@ -35,6 +36,7 @@ if (input.mode === "probe") {
 }
 
 const { id, source, fixtures, size } = input;
+delete process.env.LAMINA_NONCE;
 const work = "/work";
 const fail = (name, detail) => { check(name, false, detail); out({ ok: false, checks }); };
 
@@ -68,7 +70,7 @@ let bundle;
 try {
   const r = await esbuild.build({
     stdin: { contents: wrapper, resolveDir: work, loader: "tsx" }, bundle: true, write: false, format: "iife", platform: "browser", target: "es2020", minify: true, jsx: "automatic",
-    alias: { "@lamina/sdk": "/app/sdk/index.tsx" }, nodePaths: ["/app/node_modules"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "silent", legalComments: "none",
+    alias: { "@lamina/sdk": "/app/sdk/index.tsx" }, nodePaths: ["/app/node_modules"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "silent", legalComments: "none", banner: { js: '"use strict";' },
   });
   bundle = r.outputFiles[0].text;
 } catch (e) { fail("Bundle (esbuild)", e.message); }
@@ -84,7 +86,7 @@ for (const [i, fx] of fixtures.entries()) {
   w.document.write(`<!doctype html><html><head></head><body><div id="root" style="width:${size?.width ?? 988}px;height:${size?.height ?? 750}px"></div></body></html>`);
   try {
     w.eval(bundle);
-    w.__laminaMount(w.document.getElementById("root"), fx);
+    w.__laminaMount(w.document.getElementById("root"), w.JSON.parse(JSON.stringify(fx)));
     await new Promise((r) => setTimeout(r, 150));
     await w.happyDOM.waitUntilComplete();
   } catch (e) { errors.push("excepción: " + e.message); }

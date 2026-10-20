@@ -32,9 +32,21 @@ export function mustKeep(hint: SlideHint): string[] {
   return out;
 }
 const norm = (s: string) => s.replace(/\s+/g, "");
+function propStrings(v: unknown, out: string[] = []): string[] {
+  if (typeof v === "string") out.push(v);
+  else if (Array.isArray(v)) v.forEach((x) => propStrings(x, out));
+  else if (v && typeof v === "object") Object.values(v).forEach((x) => propStrings(x, out));
+  return out;
+}
+/** Cada fórmula del contenido debe estar íntegra en alguna cadena de props (igual, o delimitada por $ , ; : o extremos): `x^2` no vale por `x^2+1`. */
 export function missingFormulas(hint: SlideHint, slide: SlideT): string[] {
-  const hay = norm(JSON.stringify(slide.slots));
-  return mustKeep(hint).filter((n) => !hay.includes(norm(JSON.stringify(n).slice(1, -1))));
+  const strs = propStrings(slide.slots).map(norm);
+  return mustKeep(hint).filter((n) => {
+    const needle = norm(n);
+    const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(^|[$,;:])${esc}($|[$,;:])`);
+    return !strs.some((s) => s === needle || re.test(s));
+  });
 }
 
 const wrap = (slides: SlideT[], base?: Deck): Deck => ({ schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: base?.themeId ?? "lamina-claro", meta: base?.meta ?? { title: "x", topic: "x", level: "x", language: "es" }, slides });

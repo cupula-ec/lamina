@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts", "./engine.css": "./src/engine.css", "./issues": "./src/issues.ts" },
-  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run --passWithNoTests" },
   "dependencies": {
     "@fontsource-variable/literata": "^5.2.0",
     "@fontsource/atkinson-hyperlegible": "^5.2.0",

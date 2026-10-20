@@ -8,6 +8,7 @@ import type { Db, Tx } from "./client";
 import { approvals, contentVersions, deckVersions, events, presentations } from "./schema";
 import { randomBytes } from "node:crypto";
 import { sha256Hex } from "./hash";
+import { DEFAULT_CONCURRENT_JOBS } from "./quota";
 
 type Pres = typeof presentations.$inferSelect;
 
@@ -28,6 +29,13 @@ async function lock(tx: Tx, id: string, ownerId?: string): Promise<Pres> {
 function expectStage(p: Pres, from: Stage[], action: string) {
   if (!from.includes(p.stage as Stage))
     throw new LaminaError("invalid_transition", `No se puede ${action} desde la etapa "${p.stage}"`, 409, { stage: p.stage, allowed: from });
+}
+
+/** Máx. 2 trabajos simultáneos por docente (se cuenta dentro de la transacción que ya bloqueó la presentación). */
+async function assertConcurrency(tx: Tx, ownerId: string, exceptId: string) {
+  const [{ n } = { n: 0 }] = await tx.select({ n: sql<number>`count(*)::int` }).from(presentations)
+    .where(and(eq(presentations.ownerId, ownerId), sql`${presentations.stage} in ('researching','designing','polishing')`, sql`${presentations.id} <> ${exceptId}`));
+  if (n >= DEFAULT_CONCURRENT_JOBS) throw new LaminaError("job_in_progress", `Ya tienes ${n} presentaciones procesándose. Espera a que termine alguna.`, 409);
 }
 
 async function set(tx: Tx, id: string, patch: Partial<typeof presentations.$inferInsert>) {
@@ -58,6 +66,7 @@ export function beginContentGeneration(db: Db, id: string, ownerId: string, pend
   return db.transaction(async (tx) => {
     const p = await lock(tx, id, ownerId);
     expectStage(p, ["draft", "content_review"], "generar contenido");
+    await assertConcurrency(tx, p.ownerId, id);
     return set(tx, id, { stage: "researching", prevStage: p.stage, lastError: null, resumeAt: null, pendingJob: pending ?? null });
   });
 }
@@ -130,6 +139,7 @@ export function beginDesign(db: Db, id: string, ownerId: string, pending?: Pendi
     const p = await lock(tx, id, ownerId);
     expectStage(p, ["content_approved", "design_review"], "generar el diseño");
     if (!p.approvedContentVersionId) throw new LaminaError("invalid_transition", "El contenido no está aprobado", 409);
+    await assertConcurrency(tx, p.ownerId, id);
     return set(tx, id, { stage: "designing", prevStage: p.stage, lastError: null, resumeAt: null, pendingJob: pending ?? null });
   });
 }
@@ -190,6 +200,7 @@ export function beginPolish(db: Db, id: string, ownerId: string, pending?: Pendi
     const p = await lock(tx, id, ownerId);
     expectStage(p, ["design_approved"], "pulir la presentación");
     if (!p.approvedDeckVersionId) throw new LaminaError("invalid_transition", "El diseño no está aprobado", 409);
+    await assertConcurrency(tx, p.ownerId, id);
     return set(tx, id, { stage: "polishing", prevStage: p.stage, lastError: null, resumeAt: null, pendingJob: pending ?? null });
   });
 }
@@ -220,7 +231,8 @@ export function publish(db: Db, id: string, ownerId: string, visibility: Exclude
     expectStage(p, ["final_review", "private_final"], "publicar");
     if (!p.finalDeckVersionId) throw new LaminaError("invalid_transition", "No hay versión final", 409);
     const token = visibility === "link" ? newToken() : null;
-    await tx.insert(approvals).values({ presentationId: id, kind: "final", versionId: p.finalDeckVersionId, sha256: "", userId: ownerId });
+    const [fv] = await tx.select().from(deckVersions).where(eq(deckVersions.id, p.finalDeckVersionId));
+    await tx.insert(approvals).values({ presentationId: id, kind: "final", versionId: p.finalDeckVersionId, sha256: fv!.sha256, userId: ownerId });
     await evt(tx, "published", p, { visibility });
     const row = await set(tx, id, {
       stage: "published", visibility, publishedDeckVersionId: p.finalDeckVersionId, shareTokenHash: token ? sha256Hex(token) : null,
@@ -298,6 +310,25 @@ export function resumeFromWait(db: Db, id: string, ownerId?: string) {
     const row = await set(tx, id, { stage, lastError: null, resumeAt: null });
     return { presentation: row, pending };
   });
+}
+
+/** Abandona un trabajo detenido/en espera y vuelve a la versión anterior (para poder seguir editando y aprobando). */
+export function cancelPending(db: Db, id: string, ownerId: string) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id, ownerId);
+    expectStage(p, ["failed_recoverable", "quota_wait"], "cancelar el trabajo");
+    const back = p.prevStage === "content_review" || p.prevStage === "design_review" || p.prevStage === "design_approved" ? p.prevStage : p.prevStage === "content_approved" ? "content_approved" : p.prevStage === "draft" ? null : null;
+    if (!back) throw new LaminaError("invalid_transition", "No hay una versión anterior a la que volver; elimina la presentación o reintenta.", 409);
+    return set(tx, id, { stage: back, lastError: null, resumeAt: null, pendingJob: null });
+  });
+}
+
+/** Etapas en ejecución atascadas (el job murió o expiró): pasan a failed_recoverable para que el docente pueda reintentar o cancelar. */
+export async function failStale(db: Db, maxMinutes: number, now = new Date()) {
+  const cutoff = new Date(now.getTime() - maxMinutes * 60_000);
+  const rows = await db.select({ id: presentations.id }).from(presentations).where(and(sql`${presentations.stage} in ('researching','designing','polishing')`, sql`${presentations.updatedAt} < ${cutoff}`));
+  for (const r of rows) await failJob(db, r.id, "El trabajo tardó demasiado y se detuvo. Tu avance está guardado: puedes reintentar o volver a la versión anterior.");
+  return rows.length;
 }
 
 /** Presentaciones en espera de cupo cuya hora de reanudación ya pasó. */

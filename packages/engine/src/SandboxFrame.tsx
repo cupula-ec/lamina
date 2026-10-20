@@ -18,6 +18,7 @@ export function sandboxSrcdoc(bundle: string): string {
  */
 export function SandboxFrame({ bundle, props, width, height, label }: { bundle: string; props: unknown; width: number; height: number; label: string }) {
   const ref = useRef<HTMLIFrameElement>(null);
+  const loads = useRef(0);
   const srcDoc = useMemo(() => sandboxSrcdoc(bundle), [bundle]);
   useEffect(() => {
     const send = () => ref.current?.contentWindow?.postMessage({ type: "lamina:props", props }, "*");
@@ -39,6 +40,7 @@ export function SandboxFrame({ bundle, props, width, height, label }: { bundle: 
     loading: "eager",
     className: "lm-sandbox",
     "data-lm-sandbox": label,
+    onLoad: () => { loads.current++; if (loads.current > 1 && ref.current) { ref.current.dataset.laminaError = "sandbox"; ref.current.srcdoc = "<!doctype html><title>bloqueado</title>"; } },
     style: { width, height, border: 0, display: "block" },
   });
 }

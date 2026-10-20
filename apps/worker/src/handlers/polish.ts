@@ -90,6 +90,7 @@ export function applySuggestions(base: Deck, out: z.infer<typeof PolishOut>): De
 export async function polish(ctx: Ctx, data: { presentationId: string; deckVersionId: string }) {
   const p = await expectStage(ctx, data.presentationId, "polishing");
   if (!p) return;
+  if (p.approvedDeckVersionId !== data.deckVersionId) return; // job obsoleto: no es la versión aprobada
   const [dv] = await ctx.db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, data.deckVersionId));
   const approved = DeckDocument.parse(dv!.deck);
   let result = deterministicPolish(approved);

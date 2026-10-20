@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { ComponentManifest, LaminaError } from "@lamina/contracts";
@@ -67,7 +68,8 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
       });
       if (g.duplicateOf) return finish("failed", `Ya existe un componente que cubre esto: ${g.duplicateOf}. Pide a Lámina que lo use en esa diapositiva.`);
       const r = await sandboxBuild(ctx.env.SANDBOX_URL, ctx.env.SANDBOX_TOKEN, { id: g.id, source: g.tsx, fixtures: g.fixtures, size: { width: 988, height: 750 } });
-      if (r.ok && r.bundle && r.bundleHash) { gen = g; built = r; break; }
+      if (r.ok && r.bundle && r.bundleHash && createHash("sha256").update(r.bundle).digest("hex") === r.bundleHash) { gen = g; built = r; break; }
+      if (r.ok && r.bundle) r.checks.push({ name: "Integridad del bundle", ok: false, detail: "el hash no coincide" });
       errors = fail(r); previous = g.tsx.slice(0, 9000);
       ctx.log(`component ${data.suggestedName}: intento ${attempt} falló`, { errors: errors.slice(0, 3) });
     }
@@ -77,6 +79,7 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
     const [existing] = await db.select().from(schema.components).where(and(eq(schema.components.scope, data.presentationId), eq(schema.components.componentId, gen.id)));
     let rowId: string;
     let n = 1;
+    if (existing?.status === "rejected") return finish("failed", `El nombre ${gen.id} corresponde a un componente rechazado por un administrador; pide otro nombre.`);
     if (existing) { rowId = existing.id; const [c] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.componentVersions).where(eq(schema.componentVersions.componentRowId, rowId)); n = (c?.n ?? 0) + 1; await db.update(schema.components).set({ status: "provisional", purpose: gen.purpose }).where(eq(schema.components.id, rowId)); }
     else {
       const [row] = await db.insert(schema.components).values({ componentId: gen.id, scope: data.presentationId, status: "provisional", runtime: "sandboxed", presentationId: data.presentationId, purpose: gen.purpose }).returning();
@@ -98,14 +101,14 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
 
     // Re-diseño inmediato de la diapositiva que lo pidió (si la presentación sigue en revisión de diseño).
     const [p] = await db.select().from(schema.presentations).where(eq(schema.presentations.id, data.presentationId));
-    if (p && p.stage === "design_review" && p.currentDeckVersionId && p.approvedContentVersionId) {
+    if (p && p.stage === "design_review" && p.currentDeckVersionId && p.approvedContentVersionId) try {
       const payload = {
         presentationId: p.id, userId: p.ownerId, contentVersionId: p.approvedContentVersionId, baseDeckVersionId: p.currentDeckVersionId,
         feedback: `Usa el componente provisional ${gen.id} (acaba de crearse): ${gen.purpose}. Necesidad del docente: ${data.purpose}`, onlySlideIds: data.slideId ? [data.slideId] : undefined,
       };
       await wf.beginDesign(db, p.id, p.ownerId, { name: "design.generate", payload });
       await enqueue(ctx.boss, "design.generate", payload, { base: `${p.currentDeckVersionId}:comp:${ver!.id}` });
-    }
+    } catch (e) { ctx.log(`rediseño tras componente no iniciado: ${(e as Error).message}`); }
   } catch (e) {
     if (e instanceof QuotaWaitError) return finish("failed", "Los modelos gratuitos están sin cupo ahora; inténtalo de nuevo más tarde (tu solicitud no se descuenta).");
     ctx.log(`component: error ${(e as Error).message}`);
