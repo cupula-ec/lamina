@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { SlideThumb } from "@lamina/engine";
 import { nativeResolver, previewDeck } from "@lamina/components";
@@ -38,7 +39,7 @@ export function StyleProposal({ presentationId, initial, chosen, topic, branding
       {open && (
         <div className="mt-5 border-t-2 border-ink/20 pt-5">
           <ThemePicker value={value} onChange={setValue} topic={topic} branding={branding} disabled={pending} />
-          {error && <p className="err mt-3" role="alert">{error}</p>}
+          {error && <Callout tone="bad">{error}</Callout>}
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button" className="btn btn-primary" disabled={pending}

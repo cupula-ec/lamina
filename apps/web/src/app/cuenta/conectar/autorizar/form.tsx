@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { authClient } from "@/lib/auth-client";
 
 export function ConsentForm() {
@@ -16,7 +17,7 @@ export function ConsentForm() {
 
   return (
     <div className="mt-6">
-      {error && <p role="alert" className="err mb-3">{error}</p>}
+      {error && <Callout tone="bad">{error}</Callout>}
       <div className="flex flex-wrap gap-3">
         <button className="btn btn-primary" disabled={busy} onClick={() => send(true)}>Autorizar</button>
         <button className="btn" disabled={busy} onClick={() => send(false)}>Cancelar</button>

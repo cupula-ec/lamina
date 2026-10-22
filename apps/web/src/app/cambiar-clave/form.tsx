@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { changePasswordAction } from "@/actions/account";
 
@@ -27,7 +28,7 @@ export function ChangePasswordForm() {
       <div><label className="label" htmlFor="cur">Contraseña temporal</label><input id="cur" className="field" type="password" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} /></div>
       <div><label className="label" htmlFor="new">Nueva contraseña</label><input id="new" className="field" type="password" autoComplete="new-password" minLength={10} required value={next} onChange={(e) => setNext(e.target.value)} /></div>
       <div><label className="label" htmlFor="again">Repite la nueva contraseña</label><input id="again" className="field" type="password" autoComplete="new-password" required value={again} onChange={(e) => setAgain(e.target.value)} /></div>
-      {error && <p role="alert" className="err">{error}</p>}
+      {error && <Callout tone="bad">{error}</Callout>}
       <button className="btn btn-primary w-full" disabled={pending || !current || !next || !again}>{pending ? "Guardando…" : "Guardar contraseña"}</button>
     </form>
   );

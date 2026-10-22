@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { THEMES, type Branding, type StyleChoice } from "@lamina/contracts";
 import { changeDeckStyleAction } from "@/actions/style";
@@ -23,7 +24,7 @@ export function StyleChange({ presentationId, baseVersionId, current, topic, bra
         <div className="mt-4 border-t-2 border-ink/20 pt-4">
           <p className="hint mb-3">El contenido y las diapositivas no cambian: solo la apariencia. Se crea una versión nueva y se vuelven a dibujar las capturas.</p>
           <ThemePicker value={value} onChange={setValue} topic={topic} branding={branding} disabled={pending} />
-          {error && <p className="err mt-3" role="alert">{error}</p>}
+          {error && <Callout tone="bad">{error}</Callout>}
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button" className="btn btn-primary" disabled={pending || same}

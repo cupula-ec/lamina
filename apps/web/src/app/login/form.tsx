@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { authClient, signInKeycloak } from "@/lib/auth-client";
 
@@ -50,7 +51,7 @@ export function LoginForm({ google, keycloak, initialError }: { google: boolean;
           <label htmlFor="password" className="label">Contraseña</label>
           <input id="password" className="field" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
-        {error && <p role="alert" className="err">{error}</p>}
+        {error && <Callout tone="bad">{error}</Callout>}
         <button className="btn btn-primary w-full" disabled={busy || !email || !password}>{busy ? "Entrando…" : "Entrar"}</button>
       </form>
       {keycloak && (

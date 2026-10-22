@@ -2,14 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { JobWatcher } from "@/components/JobWatcher";
-import { MetaEditor } from "@/components/MetaEditor";
-import { StageBar, StageTag } from "@/components/StageBar";
+import { ProgressHeader } from "@/components/ProgressHeader";
+import { Callout } from "@/components/ui/Callout";
 import { buildBranding } from "@lamina/db";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { requireOwner } from "@/lib/guard";
 import { contentVersions, loadContent, sourcesFor } from "@/lib/presentation-view";
-import { STAGE_LABEL, stageTone } from "@/lib/stages";
 import { isStyleProposal, parseStylePref, proposeStyle, type Stage } from "@lamina/contracts";
 import { ContentEditor } from "./editor";
 import { StartDesign } from "./start-design";
@@ -35,25 +34,13 @@ export default async function InformationPage({ params }: { params: Promise<{ id
 
   return (
     <AppShell user={user} wide>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link href="/dashboard" className="back-link">← Mis presentaciones</Link>
-          <h1 className="mt-2 text-3xl font-bold">{p.title}</h1>
-          <p className="text-ink-2">{p.level} · {p.objective}</p>
-          <MetaEditor presentationId={p.id} initial={{ subject: p.subject ?? "", period: p.period ?? "", group: p.groupName ?? "" }} />
-        </div>
-        <div className="space-y-2 text-right">
-          <StageBar stage={stage} prevStage={p.prevStage} />
-          <StageTag label={STAGE_LABEL[stage]} tone={stageTone(stage)} />
-        </div>
-      </div>
-
-      <div className="mt-6 space-y-6">
+      <ProgressHeader p={p} stage={stage} lead={`${p.level} · ${p.objective}`} />
+      <div className="space-y-6">
         {(stage === "researching" || stage === "quota_wait" || stage === "failed_recoverable") && (
           <JobWatcher id={p.id} initial={{ stage: p.stage, prevStage: p.prevStage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />
         )}
-        {stage === "draft" && p.origin === "mcp" && <p className="sheet p-5">Creada desde una IA externa (MCP). Está esperando que la IA envíe el contenido; cuando lo haga aparecerá aquí para que lo revises y apruebes.</p>}
-        {stage === "draft" && p.origin !== "mcp" && <p className="sheet p-5">La presentación está lista para empezar. Si esta pantalla no avanza, vuelve a <Link href="/presentations/new" className="underline">crearla</Link>.</p>}
+        {stage === "draft" && p.origin === "mcp" && <Callout tone="info" title="Creada desde tu IA conectada">Está esperando que la IA envíe el contenido; cuando lo haga aparecerá aquí para que lo revises y apruebes.</Callout>}
+        {stage === "draft" && p.origin !== "mcp" && <Callout tone="warn" title="La presentación no ha arrancado">Si esta pantalla no avanza en un minuto, <Link href="/presentations/new" className="font-bold underline">vuelve a crearla</Link>.</Callout>}
 
         {showStyle && cur && (
           <StyleProposal
@@ -82,7 +69,7 @@ export default async function InformationPage({ params }: { params: Promise<{ id
         )}
         {stage === "content_approved" && <StartDesign id={p.id} />}
         {["designing", "design_review", "design_approved", "polishing", "final_review", "published", "private_final"].includes(stage) && (
-          <p className="sheet p-5">El contenido está aprobado. <Link className="btn btn-primary ml-3" href={`/presentations/${p.id}/preview/design`}>Ir al diseño</Link></p>
+          <Callout tone="ok" title="El contenido está aprobado"><Link className="btn btn-primary mt-2" href={`/presentations/${p.id}/preview/design`}>Ir al diseño</Link></Callout>
         )}
       </div>
     </AppShell>

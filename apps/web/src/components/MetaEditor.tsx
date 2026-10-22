@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { updatePresentationMetaAction } from "@/actions/branding";
 
@@ -19,7 +20,7 @@ export function MetaEditor({ presentationId, initial }: { presentationId: string
         <div><label className="label text-sm" htmlFor="m-period">Período</label><input id="m-period" className="field" value={f.period} onChange={set("period")} maxLength={80} placeholder="Ej.: Abr–Ago 2026" /></div>
         <div><label className="label text-sm" htmlFor="m-group">Grupo</label><input id="m-group" className="field" value={f.group} onChange={set("group")} maxLength={80} placeholder="Ej.: Grupo 2" /></div>
         <div className="sm:col-span-3">
-          {msg && <p role="status" className="mb-2 font-bold text-ok">{msg}</p>}{err && <p role="alert" className="err mb-2">{err}</p>}
+          {msg && <p role="status" className="mb-2 font-bold text-ok">{msg}</p>}{err && <Callout tone="bad">{err}</Callout>}
           <button className="btn btn-sm" disabled={pending}>{pending ? "Guardando…" : "Guardar datos"}</button>
         </div>
       </form>

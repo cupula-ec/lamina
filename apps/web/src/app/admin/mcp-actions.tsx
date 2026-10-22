@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { revokeConnectionAdminAction, setMcpEnabledAction } from "@/actions/mcp";
 
@@ -18,7 +19,7 @@ export function McpAdminControls({ enabled, items }: { enabled: boolean; items: 
         <p className="mt-1 max-w-[65ch] text-ink-2">Permite que los docentes conecten una IA externa (Claude, etc.) para crear borradores. Al desactivarlo, todas las conexiones dejan de responder de inmediato; no se borran.</p>
         <p className="mt-3">Estado: <span className={`tag ${enabled ? "tag-ok" : "tag-bad"}`}>{enabled ? "Activo" : "Desactivado"}</span></p>
         <button className="btn mt-3" disabled={pending} onClick={() => { if (enabled && !confirm("¿Desactivar el MCP para todos los docentes?")) return; run(() => setMcpEnabledAction({ enabled: !enabled })); }}>{enabled ? "Desactivar MCP" : "Activar MCP"}</button>
-        {err && <p role="alert" className="err mt-3">{err}</p>}
+        {err && <Callout tone="bad">{err}</Callout>}
       </section>
       <section aria-labelledby="mcp-c">
         <h2 id="mcp-c" className="text-xl font-bold">Conexiones ({items.length})</h2>

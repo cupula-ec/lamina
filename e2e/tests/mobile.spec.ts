@@ -8,6 +8,16 @@ test("móvil: landing, login, dashboard y visor táctil", async ({ page }) => {
   expect(overflow).toBeLessThanOrEqual(1);
   await login(page);
   await expect(page.getByRole("link", { name: /Nueva presentación/ }).first()).toBeVisible();
+  const noOverflow = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  await noOverflow();
+  // menú lateral como drawer y asistente de conexión
+  await page.getByRole("button", { name: "Menú" }).click();
+  await page.getByRole("dialog", { name: "Menú" }).getByRole("link", { name: /Conectar con IA/ }).click();
+  await expect(page).toHaveURL(/\/conectar/);
+  await expect(page.getByRole("heading", { name: "Conectar con IA", level: 1 })).toBeVisible();
+  await noOverflow();
+  await page.goto("/cuenta");
+  await noOverflow();
   const id = await createToDesignReview(page, "Revisión móvil");
   await page.goto(`/presentations/${id}/view`);
   await expect(page.locator(".lm-slide")).toBeVisible();

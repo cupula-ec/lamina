@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { promoteComponentAction, rejectComponentAction } from "@/actions/components";
 
@@ -15,7 +16,7 @@ export function ComponentActions({ id }: { id: string }) {
         <button className="btn btn-sm btn-primary" disabled={pending} onClick={() => run(() => promoteComponentAction({ id }))}>Aprobar → estable + PR</button>
         <button className="btn btn-sm btn-danger" disabled={pending} onClick={() => run(() => rejectComponentAction({ id }))}>Rechazar</button>
       </div>
-      {err && <p role="alert" className="err text-sm">{err}</p>}
+      {err && <Callout tone="bad">{err}</Callout>}
       {ok && <p role="status" className="text-sm font-bold text-ok">{ok}</p>}
     </div>
   );

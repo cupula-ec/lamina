@@ -1,5 +1,6 @@
 "use client";
 import { authorLabel } from "@/lib/stages";
+import { Callout } from "@/components/ui/Callout";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -70,10 +71,10 @@ export function DesignReview(props: {
   return (
     <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <div className="space-y-5">
-        {!props.isCurrent && <p className="sheet border-warn p-3 font-bold text-warn">Estás viendo una versión anterior (solo lectura). <Link className="underline" href={`/presentations/${id}/preview/design`}>Volver a la vigente</Link></p>}
-        {repairing && <p role="status" className="sheet border-blue p-3 font-bold">Corrigiendo automáticamente los problemas detectados… esta pantalla se actualiza sola.</p>}
-        {error && <p role="alert" className="err sheet border-pen p-3">{error}</p>}
-        {notice && <p role="status" className="sheet p-3 font-bold text-ok">{notice}</p>}
+        {!props.isCurrent && <Callout tone="warn" title="Estás viendo una versión anterior (solo lectura)"><Link className="font-bold underline" href={`/presentations/${id}/preview/design`}>Volver a la vigente</Link></Callout>}
+        {repairing && <Callout tone="info">Corrigiendo automáticamente los problemas detectados… esta pantalla se actualiza sola.</Callout>}
+        {error && <Callout tone="bad">{error}</Callout>}
+        {notice && <Callout tone="ok">{notice}</Callout>}
 
         <div className="sheet relative overflow-hidden shadow-[5px_5px_0_var(--color-ink)]">
           <SlideThumb key={`${slide.id}-${shownStep}-${props.deckVersionId}`} deck={deck} index={sel} resolver={resolver} step={shownStep} />

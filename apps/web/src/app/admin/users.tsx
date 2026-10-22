@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { banUserAction, createTeacherAction, deleteUserAction, resetTeacherPasswordAction, setQuotaAction } from "@/actions/admin";
 
@@ -27,7 +28,7 @@ export function UsersPanel({ users, defaults }: { users: U[]; defaults: Record<s
           <button className="btn btn-primary self-end" disabled={pending}>Crear y enviar correo</button>
         </form>
         {msg && <p role="status" className="mt-3 font-bold text-ok">{msg}</p>}
-        {err && <p role="alert" className="err mt-3">{err}</p>}
+        {err && <Callout tone="bad">{err}</Callout>}
       </section>
 
       <section aria-labelledby="lista">

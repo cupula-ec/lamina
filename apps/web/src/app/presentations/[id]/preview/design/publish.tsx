@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { keepPrivateAction, publishAction, publishChangesAction, regenerateShareTokenAction, reopenDesignAction, setVisibilityAction, unpublishAction } from "@/actions/presentations";
 
 export function PublishPanel({ presentationId: id, stage: stageProp, visibility: visibilityProp, appUrl, hasUnpublishedChanges }: { presentationId: string; stage: string; visibility: string; appUrl: string; hasUnpublishedChanges: boolean }) {
@@ -14,7 +16,7 @@ export function PublishPanel({ presentationId: id, stage: stageProp, visibility:
   const [vis, setVis] = useState<"link" | "public">(visibilityProp === "public" ? "public" : "link");
   const [copied, setCopied] = useState(false);
   const copy = async (text: string) => {
-    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2500); }
+    try { await navigator.clipboard.writeText(text); toast.success("Enlace copiado"); setCopied(true); setTimeout(() => setCopied(false), 2500); }
     catch { setError("No se pudo copiar; selecciona el enlace y cópialo manualmente."); }
   };
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export function PublishPanel({ presentationId: id, stage: stageProp, visibility:
   return (
     <section className="sheet space-y-4 p-4" aria-labelledby="pub">
       <h2 id="pub" className="font-bold">{stage === "published" ? "Publicada" : stage === "private_final" ? "Lista y privada" : "Revisión final"}</h2>
-      {error && <p role="alert" className="err">{error}</p>}
+      {error && <Callout tone="bad">{error}</Callout>}
       {stage === "final_review" && <p className="hint">La presentación está lista. Puedes publicarla (enlace o pública) o dejarla privada: solo tú la verás.</p>}
       {stage !== "published" && (
         <>

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { BRAND_MIN_CONTRAST, BRAND_THEMES, brandColorFor, contrastRatio } from "@lamina/contracts";
 import { createInstitutionAction, deleteInstitutionAction, setInstitutionActiveAction, updateInstitutionAction } from "@/actions/institutions";
@@ -85,7 +86,7 @@ function Row({ item, onDone }: { item: Item; onDone: () => void }) {
             <button type="button" className="btn btn-sm btn-danger" disabled={pending || item.users > 0} title={item.users > 0 ? "Tiene docentes asignados: desactívala" : undefined} onClick={() => { if (confirm(`¿Eliminar ${item.name}? No se puede deshacer.`)) run(() => deleteInstitutionAction({ id: item.id }), "Eliminada."); }}>Eliminar</button>
           </div>
           {msg && <p role="status" className="font-bold text-ok sm:col-span-2">{msg}</p>}
-          {err && <p role="alert" className="err sm:col-span-2">{err}</p>}
+          {err && <Callout tone="bad">{err}</Callout>}
         </form>
         <CoverPreview name={f.name} short={f.short} primary={f.primaryColor} secondary={f.secondaryColor} logoUrl={logo} />
       </div>
@@ -113,7 +114,7 @@ export function InstitutionsPanel({ items }: { items: Item[] }) {
           <ContrastWarning color={f.primaryColor.trim()} />
         </form>
         {msg && <p role="status" className="mt-3 font-bold text-ok">{msg}</p>}
-        {err && <p role="alert" className="err mt-3">{err}</p>}
+        {err && <Callout tone="bad">{err}</Callout>}
       </section>
       <section aria-labelledby="lista">
         <h2 id="lista" className="text-xl font-bold">Instituciones ({items.length})</h2>

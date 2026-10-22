@@ -2,6 +2,7 @@ import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { personalLogoUrl, schema } from "@lamina/db";
 import { AppShell } from "@/components/AppShell";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { ProfileForm } from "../bienvenida/profile-form";
@@ -19,9 +20,8 @@ export default async function Cuenta() {
   const visible = institutions.filter((i) => i.active || i.id === p?.institutionId);
   return (
     <AppShell user={u}>
-      <h1 className="text-3xl font-bold">Mi cuenta</h1>
-      <p className="mt-1 text-ink-2">{u.name} · {u.email}</p>
-      <div className="mt-8 grid max-w-3xl gap-8">
+      <PageHeader title="Mi cuenta" lead={`${u.name} · ${u.email}`} />
+      <div className="grid max-w-3xl gap-8">
         <section className="sheet p-5"><h2 className="text-xl font-bold">Tu perfil y marca</h2>
           <p className="mt-1 max-w-[60ch] text-ink-2">Tu logo se mostrará junto al de tu institución en las carátulas de las presentaciones nuevas. Las ya diseñadas se actualizan al editar sus datos de carátula.</p>
           <ProfileForm mode="account" institutions={visible} initial={{ fullName: p?.fullName ?? u.name, institutionId: p?.institutionId ?? null, logoUrl: personalLogoUrl(u.id, p?.personalLogoPath ?? null) ?? null }} /></section>

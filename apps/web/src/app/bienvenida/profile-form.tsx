@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { completeOnboardingAction, saveProfileAction } from "@/actions/profile";
 
@@ -86,7 +87,7 @@ export function ProfileForm({ mode, institutions, initial }: { mode: "onboarding
         }} />
         <p className="hint mt-1">Tu logo se mostrará junto al de tu institución en las carátulas. PNG, JPEG, WebP o SVG, hasta 1 MB. Se convierte a PNG por seguridad.</p>
       </div>
-      {error && <p role="alert" className="err">{error}</p>}
+      {error && <Callout tone="bad">{error}</Callout>}
       {msg && <p role="status" className="font-bold text-ok">{msg}</p>}
       <button className="btn btn-primary" disabled={!nameOk || busy || pending}>{busy || pending ? "Guardando…" : mode === "onboarding" ? "Guardar y continuar" : "Guardar cambios"}</button>
     </form>

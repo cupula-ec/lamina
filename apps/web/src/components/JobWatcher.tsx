@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { cancelPendingAction, retryAction } from "@/actions/presentations";
 import { STAGE_LABEL, isRunning } from "@/lib/stages";
@@ -46,7 +47,7 @@ export function JobWatcher({ id, initial }: { id: string; initial: Status }) {
       <div role="alert" className="sheet border-pen p-5">
         <p className="font-bold text-pen">El trabajo se detuvo</p>
         <p className="mt-1">{st.lastError ?? "Ocurrió un error."} Tu avance está guardado.</p>
-        {error && <p className="err mt-2">{error}</p>}
+        {error && <Callout tone="bad">{error}</Callout>}
         <div className="mt-4 flex flex-wrap gap-3"><button className="btn btn-primary" disabled={pending} onClick={retry}>{pending ? "Reintentando…" : "Reintentar"}</button>{canCancel && <button className="btn" disabled={pending} onClick={cancel}>Volver a la versión anterior</button>}</div>
       </div>
     );
@@ -56,7 +57,7 @@ export function JobWatcher({ id, initial }: { id: string; initial: Status }) {
         <p className="font-bold text-warn">En espera de cupo de IA</p>
         <p className="mt-1">{st.lastError ?? "Los modelos gratuitos alcanzaron su límite."} {st.resumeAt && <>Se reanudará automáticamente hacia las <strong>{new Date(st.resumeAt).toLocaleTimeString("es-EC", { hour: "2-digit", minute: "2-digit" })}</strong>.</>}</p>
         <p className="hint mt-1">No pierdes nada: puedes cerrar la página. También puedes intentar ahora.</p>
-        {error && <p className="err mt-2">{error}</p>}
+        {error && <Callout tone="bad">{error}</Callout>}
         <div className="mt-4 flex flex-wrap gap-3"><button className="btn" disabled={pending} onClick={retry}>Intentar ahora</button>{canCancel && <button className="btn" disabled={pending} onClick={cancel}>Cancelar y volver a la versión anterior</button>}</div>
       </div>
     );

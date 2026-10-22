@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { reopenContentAction, startDesignAction } from "@/actions/presentations";
 
@@ -12,7 +13,7 @@ export function StartDesign({ id }: { id: string }) {
       <div>
         <p className="font-bold">Contenido aprobado</p>
         <p className="text-ink-2">Siguiente: Lámina diseña las diapositivas con gráficas, derivaciones y ejemplos.</p>
-        {error && <p className="err mt-1" role="alert">{error}</p>}
+        {error && <Callout tone="bad">{error}</Callout>}
       </div>
       <div className="flex gap-3">
         <button className="btn" disabled={pending} onClick={() => start(async () => { const r = await reopenContentAction({ id }); if (!r.ok) return setError(r.error); router.refresh(); })}>Reabrir contenido</button>
