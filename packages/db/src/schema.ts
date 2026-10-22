@@ -62,6 +62,22 @@ export const rateLimit = pgTable("rate_limit", {
   lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
 
+/* ───────────── Instituciones (branding) ───────────── */
+export const institutions = pgTable("institutions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  short: text("short").notNull(),
+  logoPath: text("logo_path"),
+  logoMime: text("logo_mime"),
+  primaryColor: text("primary_color"),
+  secondaryColor: text("secondary_color"),
+  fontId: text("font_id"),
+  active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
 /* ───────────── Perfil y cuotas ───────────── */
 export const userProfiles = pgTable("user_profiles", {
   userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
@@ -69,6 +85,12 @@ export const userProfiles = pgTable("user_profiles", {
   consentAt: ts("consent_at"),
   consentVersion: text("consent_version"),
   changelogSeenAt: ts("changelog_seen_at"),
+  /** Nombre completo del docente (se sincroniza a user.name). */
+  fullName: text("full_name"),
+  institutionId: uuid("institution_id").references(() => institutions.id, { onDelete: "set null" }),
+  personalLogoPath: text("personal_logo_path"),
+  personalLogoMime: text("personal_logo_mime"),
+  onboardedAt: ts("onboarded_at"),
   /** Cuotas por usuario que sobrescriben los valores por defecto (clave → límite diario). */
   quotaOverrides: jsonb("quota_overrides").$type<Record<string, number>>().notNull().default({}),
   createdAt: createdAt(),
@@ -93,6 +115,11 @@ export const presentations = pgTable("presentations", {
   objective: text("objective").notNull(),
   language: text("language").notNull().default("es"),
   extraNotes: text("extra_notes"),
+  subject: text("subject"),
+  period: text("period"),
+  groupName: text("group_name"),
+  /** Estilo elegido o propuesto (THEME_IDS); null = lo decide la IA al diseñar. */
+  themeId: text("theme_id"),
   stage: text("stage").notNull().default("draft"),
   /** Etapa a la que se vuelve al reintentar tras failed_recoverable / quota_wait. */
   prevStage: text("prev_stage"),
@@ -117,7 +144,7 @@ export const contentVersions = pgTable("content_versions", {
   presentationId: uuid("presentation_id").notNull().references(() => presentations.id, { onDelete: "cascade" }),
   n: integer("n").notNull(),
   parentId: uuid("parent_id"),
-  authorKind: text("author_kind").notNull(), // ia | docente
+  authorKind: text("author_kind").notNull(), // ia | docente | mcp
   note: text("note"),
   content: jsonb("content").notNull(),
   sha256: text("sha256").notNull(),
@@ -130,8 +157,8 @@ export const deckVersions = pgTable("deck_versions", {
   n: integer("n").notNull(),
   parentId: uuid("parent_id"),
   contentVersionId: uuid("content_version_id").notNull(),
-  authorKind: text("author_kind").notNull(),
-  kind: text("kind").notNull().default("design"), // design | polish
+  authorKind: text("author_kind").notNull(), // ia | docente | mcp
+  kind: text("kind").notNull().default("design"), // design | polish | style
   note: text("note"),
   deck: jsonb("deck").notNull(),
   sha256: text("sha256").notNull(),
@@ -195,6 +222,18 @@ export const sourceChunks = pgTable("source_chunks", {
   page: integer("page"),
   text: text("text").notNull(),
 }, (t) => [index("chunks_pres_idx").on(t.presentationId)]);
+
+/** Metadatos del OCR por página (nunca texto ni imagen). */
+export const ocrPages = pgTable("ocr_pages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  uploadId: uuid("upload_id").notNull().references(() => uploads.id, { onDelete: "cascade" }),
+  page: integer("page").notNull(),
+  engine: text("engine").notNull(), // tesseract | vision
+  confidence: integer("confidence"),
+  chars: integer("chars").notNull().default(0),
+  status: text("status").notNull().default("ok"), // ok | low | failed
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("ocr_pages_uq").on(t.uploadId, t.page, t.engine)]);
 
 /* ───────────── Renders ───────────── */
 export const renderArtifacts = pgTable("render_artifacts", {

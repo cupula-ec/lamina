@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LAYOUT_IDS, LAYOUTS, type LayoutId } from "./layouts";
+import { ACCENT_IDS, DEFAULT_THEME_ID, THEME_IDS } from "./themes";
 
 /** DeckDocument v1: declarativo. Sin HTML ni scripts; texto = Markdown que se sanea al renderizar. */
 export const DECK_SCHEMA_VERSION = 1 as const;
@@ -46,19 +47,49 @@ export const Slide = z.object({
 });
 export type Slide = z.infer<typeof Slide>;
 
+/** Ruta interna servida por la app (nunca data: ni URLs externas). */
+const InternalAsset = z.string().max(300).regex(/^\/api\/branding\/[A-Za-z0-9/_\-.?=&]+$/);
+
+/** Marca institucional y datos del docente. Todo opcional: el renderizado omite lo vacío. */
+export const Branding = z.object({
+  institution: z
+    .object({
+      name: z.string().min(1).max(160),
+      short: z.string().min(1).max(24),
+      logoUrl: InternalAsset.optional(),
+      colors: z
+        .object({
+          primary: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+          secondary: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+        })
+        .optional(),
+      fontId: z.string().max(40).optional(),
+    })
+    .optional(),
+  personalLogoUrl: InternalAsset.optional(),
+  teacher: z.string().max(160).optional(),
+  subject: z.string().max(160).optional(),
+  period: z.string().max(80).optional(),
+  group: z.string().max(80).optional(),
+});
+export type Branding = z.infer<typeof Branding>;
+
 export const DeckMeta = z.object({
   title: z.string().min(1).max(200),
   topic: z.string().max(200),
   level: z.string().max(120),
   language: z.string().min(2).max(8).default("es"),
   author: z.string().max(120).optional(),
+  branding: Branding.optional(),
 });
 
 export const DeckDocument = z
   .object({
     schemaVersion: z.literal(DECK_SCHEMA_VERSION),
     engineVersion: z.string(),
-    themeId: z.string().min(1).max(40).default("lamina-claro"),
+    /** Compatibilidad: un tema desconocido (retirado o de una versión futura) cae al tema base. */
+    themeId: z.enum(THEME_IDS).catch(DEFAULT_THEME_ID),
+    accent: z.enum(ACCENT_IDS).optional(),
     meta: DeckMeta,
     slides: z.array(Slide).min(1).max(60),
   })

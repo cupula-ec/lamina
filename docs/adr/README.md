@@ -11,3 +11,6 @@
 | [007](007-autenticacion-y-altas.md) | Autenticación: alta solo por admin, Google y Keycloak | Aceptada |
 | [008](008-licencia-y-catalogo.md) | AGPL-3.0 + CLA; promoción de componentes con PR automático | Aceptada |
 | [009](009-verificacion-matematica.md) | Verificación matemática determinista (KaTeX, mathjs, muestreo numérico) | Aceptada |
+| [010](010-reparacion-puntual-y-edicion.md) | Reparación puntual de diapositivas y edición posterior | Aceptada |
+| [011](011-branding-institucional.md) | Branding institucional y datos del docente | Propuesta |
+| [012](012-motor-visual-temas-y-layouts.md) | Motor visual: temas, decoración procedural y layouts | Propuesta |
