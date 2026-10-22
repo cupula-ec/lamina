@@ -54,7 +54,7 @@
 .la-dot { width: .7rem; height: .7rem; border-radius: 50%; border: 1.5px solid currentColor; flex: none; }
 
 /* Gráfica de fondo: curva y tangente que se dibujan */
-.la-draw { position: absolute; right: -2%; top: 70%; width: min(40rem, 80vw); opacity: .3; pointer-events: none; z-index: -2; }
+.la-draw { position: absolute; right: -2%; top: 62%; width: min(32rem, 70vw); opacity: .16; pointer-events: none; z-index: -2; }
 .la-draw path.curve { stroke-dasharray: 1400; stroke-dashoffset: 1400; animation: la-stroke 2.6s .3s cubic-bezier(.4,0,.2,1) forwards; }
 .la-draw path.tan { stroke-dasharray: 400; stroke-dashoffset: 400; animation: la-stroke 1.2s 2.2s ease-out forwards; }
 .la-draw circle { opacity: 0; animation: la-fade .4s 2.1s forwards; }
@@ -76,3 +76,27 @@
   .la *, .la *::before { animation: none !important; transition: none !important; }
   .la-draw path.curve, .la-draw path.tan { stroke-dashoffset: 0; } .la-draw circle { opacity: 1; }
 }
+
+/* Secciones de la landing completa */
+.la-sec { padding-block: clamp(2.5rem, 6vw, 5rem); border-top: 1px solid var(--la-ink); }
+.la-sec-h { margin: 0; font-weight: 450; letter-spacing: -.025em; line-height: 1.05; font-size: clamp(1.9rem, 4vw, 3rem); max-width: 22ch; text-wrap: balance; }
+.la-sec-h em { font-style: italic; color: var(--la-accent); }
+.la-sec-p { margin: 1.1rem 0 0; max-width: 56ch; color: var(--la-ink-2); font-size: 1.08rem; line-height: 1.6; }
+.la-steps { list-style: none; margin: 2.5rem 0 0; padding: 0; display: grid; gap: 1.75rem 2.5rem; }
+@media (min-width: 760px) { .la-steps { grid-template-columns: repeat(2, 1fr); } }
+.la-step { display: grid; grid-template-columns: 3rem 1fr; gap: .25rem 1rem; align-items: baseline; padding-top: 1rem; border-top: 1px solid var(--la-rule); }
+.la-step .n { font-size: 2rem; font-style: italic; color: var(--la-accent); line-height: 1; }
+.la-step h3 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+.la-step p { margin: .3rem 0 0; grid-column: 2; color: var(--la-ink-2); max-width: 48ch; }
+.la-split { display: grid; gap: 2rem 4rem; }
+@media (min-width: 900px) { .la-split { grid-template-columns: 1fr 1fr; align-items: start; } }
+.la-list { margin: 1.4rem 0 0; padding: 0; list-style: none; display: grid; gap: .6rem; }
+.la-list li { padding-left: 1.4rem; position: relative; color: var(--la-ink-2); max-width: 52ch; }
+.la-list li::before { content: "§"; position: absolute; left: 0; color: var(--la-accent); font-weight: 700; }
+.la-code { margin-top: 1.4rem; padding: .9rem 1rem; background: var(--la-ink); color: #fff8e8; border-radius: 3px; font: .86rem/1.5 ui-monospace, monospace; overflow-x: auto; }
+.la-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .6rem; margin: 2rem 0 0; padding: 0; list-style: none; }
+.la-themes li { padding: .7rem .9rem; border: 1px solid var(--la-ink); background: #fffdf6; font-weight: 600; font-size: .95rem; }
+.la-themes li span { display: block; font-weight: 400; font-size: .8rem; color: var(--la-ink-2); }
+.la-final { text-align: left; }
+.la-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .75rem 2rem; padding-block: 1.4rem; border-top: 1px solid var(--la-ink); font-size: .9rem; color: var(--la-ink-2); }
+.la-foot nav { display: flex; gap: 1.25rem; flex-wrap: wrap; }
