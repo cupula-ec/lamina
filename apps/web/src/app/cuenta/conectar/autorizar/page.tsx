@@ -27,7 +27,7 @@ export default async function Autorizar({ searchParams }: { searchParams: Promis
     <div className="bg-graph min-h-dvh">
       <div className="mx-auto max-w-lg px-5 py-10">
         <Brand href="/dashboard" />
-        <div className="sheet mt-10 p-6 shadow-[6px_6px_0_var(--color-ink)] sm:p-8">
+        <div className="sheet mt-10 p-6 card-hard sm:p-8">
           <h1 className="text-2xl font-bold">¿Autorizar a «{name}»?</h1>
           {!client ? (
             <p role="alert" className="err mt-4">Esta solicitud no es válida o ya expiró. Vuelve a iniciar la conexión desde tu aplicación de IA.</p>

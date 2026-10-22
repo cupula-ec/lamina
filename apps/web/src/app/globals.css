@@ -17,6 +17,8 @@
   --color-pen: #c0301c;
   --color-ok: #17482a;
   --color-warn: #7a5200;
+  --shadow-hard: 6px 6px 0 var(--color-ink);
+  --shadow-hard-sm: 3px 3px 0 var(--color-ink);
 }
 
 html { background: var(--color-paper); color: var(--color-ink); }
@@ -55,8 +57,24 @@ textarea.field { min-height: 7rem; resize: vertical; }
 .err { color: var(--color-pen); font-weight: 700; }
 .sheet { background: #fff; border: 2px solid var(--color-ink); border-radius: 8px; }
 .rule-b { border-bottom: 2px solid var(--color-ink); }
-.tag { display: inline-block; font-size: .8rem; font-weight: 700; padding: .1rem .55rem; border: 1.5px solid currentColor; border-radius: 999px; }
+.tag { white-space: nowrap; display: inline-flex; align-items: center; gap: .3rem; font-size: .8rem; font-weight: 700; padding: .1rem .55rem; border: 1.5px solid currentColor; border-radius: 999px; }
 .tag-ok { color: var(--color-ok); } .tag-warn { color: var(--color-warn); } .tag-bad { color: var(--color-pen); } .tag-info { color: var(--color-blue); } .tag-mute { color: var(--color-ink-2); }
+.card-hard { box-shadow: var(--shadow-hard); }
+.card-feature { position: relative; overflow: hidden; }
+.card-feature::before { content: ""; position: absolute; inset: 0 0 auto 0; height: .5rem; background: var(--color-mark); border-bottom: 2px solid var(--color-ink); }
+.card-feature > :first-child { margin-top: .5rem; }
+
+/* Avisos: nunca dependen solo del color (icono + texto en el componente) */
+.callout { display: flex; gap: .75rem; padding: .85rem 1rem; border: 2px solid currentColor; border-radius: 8px; background: #fff; }
+.callout-info { color: var(--color-blue-deep); } .callout-ok { color: var(--color-ok); } .callout-warn { color: var(--color-warn); } .callout-bad { color: var(--color-pen); }
+.callout > div { color: var(--color-ink); }
+.callout > svg { flex: none; margin-top: .15rem; }
+
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: .75rem; padding: 2rem; border: 2px dashed var(--color-ink); border-radius: 8px; background: color-mix(in oklab, var(--color-paper-2) 60%, #fff); }
+.kbd { display: inline-block; min-width: 1.6rem; padding: 0 .4rem; text-align: center; font: 700 .8rem/1.5rem var(--font-sans); border: 2px solid var(--color-ink); border-bottom-width: 3px; border-radius: 5px; background: #fff; }
+.back-link { font-size: .875rem; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+.skeleton { background: linear-gradient(90deg, var(--color-paper-2), #fff, var(--color-paper-2)); background-size: 200% 100%; animation: sk 1.4s linear infinite; border-radius: 6px; }
+@keyframes sk { to { background-position: -200% 0; } }
 .prose-lamina { max-width: 68ch; }
 .prose-lamina h2 { font-size: 1.5rem; font-weight: 700; margin: 2rem 0 .5rem; }
 .prose-lamina p, .prose-lamina li { margin: .6rem 0; }

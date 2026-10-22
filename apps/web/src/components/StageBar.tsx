@@ -24,3 +24,17 @@ export function StageBar({ stage, prevStage }: { stage: string; prevStage?: stri
 export function StageTag({ label, tone }: { label: string; tone: "ok" | "warn" | "bad" | "info" | "mute" }) {
   return <span className={`tag tag-${tone}`}>{label}</span>;
 }
+
+/** Versión compacta para tarjetas: tres segmentos con la fase actual resaltada. */
+export function StageMeter({ stage, prevStage }: { stage: string; prevStage?: string | null }) {
+  const phase = phaseOf(stage, prevStage);
+  const done = stage === "published" || stage === "private_final";
+  return (
+    <div role="img" aria-label={`Etapa: ${done ? "completada" : STEPS[phase]} (${done ? 3 : phase + 1} de 3)`}>
+      <div className="flex gap-1.5" aria-hidden>
+        {STEPS.map((s, i) => <span key={s} className={`h-2 flex-1 rounded-sm border-2 border-ink ${done || i < phase ? "bg-ink" : i === phase ? "bg-mark" : "bg-paper"}`} />)}
+      </div>
+      <div className="mt-1 flex justify-between text-[0.7rem] font-bold uppercase tracking-wider text-ink-2" aria-hidden>{STEPS.map((s) => <span key={s}>{s}</span>)}</div>
+    </div>
+  );
+}

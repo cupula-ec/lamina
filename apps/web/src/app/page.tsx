@@ -113,7 +113,7 @@ export default async function Landing() {
               <div>
                 <h2 id="la-h-mcp" className="la-sec-h serif">Conecta <em>tu propia IA</em></h2>
                 <p className="la-sec-p">Si ya usas un asistente compatible con MCP, como Claude, puedes conectarlo a tu cuenta desde «Conectar con IA». Él redacta el contenido y las diapositivas; tú sigues aprobando todo en Lámina antes de publicar.</p>
-                <p className="la-sec-p">La conexión se autoriza con tu cuenta y puedes revocarla cuando quieras.</p>
+                <p className="la-sec-p">La conexión se autoriza con tu cuenta y puedes revocarla cuando quieras. <Link href={user ? "/conectar" : "/login"} className="la-link">{user ? "Conectar ahora" : "Entrar para conectar"}</Link></p>
               </div>
               <div>
                 <h2 className="la-sec-h serif">Lo que Lámina <em>verifica</em>, y lo que te avisa</h2>

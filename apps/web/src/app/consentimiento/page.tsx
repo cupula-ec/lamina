@@ -15,7 +15,7 @@ export default async function Page() {
     <div className="bg-graph min-h-dvh">
       <div className="mx-auto max-w-xl px-5 py-10">
         <Brand href="/consentimiento" />
-        <div className="sheet mt-10 p-6 shadow-[6px_6px_0_var(--color-ink)] sm:p-8">
+        <div className="sheet mt-10 p-6 card-hard sm:p-8">
           <h1 className="text-2xl font-bold">Antes de empezar: tus datos y la IA</h1>
           <p className="mt-3 text-ink-2">Lámina usa modelos de IA gratuitos de terceros. Esto es lo que debes saber:</p>
           <ul className="mt-3 list-disc space-y-2 pl-5">

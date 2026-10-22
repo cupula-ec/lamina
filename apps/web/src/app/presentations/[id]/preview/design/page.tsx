@@ -43,7 +43,7 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
       <AutoRefresh active={waitingRender || activeReq} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/dashboard" className="text-sm font-bold underline underline-offset-4">← Mis presentaciones</Link>
+          <Link href="/dashboard" className="back-link">← Mis presentaciones</Link>
           <h1 className="mt-2 text-3xl font-bold">{p.title}</h1>
           <p className="text-ink-2"><Link href={`/presentations/${p.id}/preview/information`} className="underline underline-offset-4">Ver contenido</Link> · {p.level}</p>
           <MetaEditor presentationId={p.id} initial={{ subject: p.subject ?? "", period: p.period ?? "", group: p.groupName ?? "" }} />

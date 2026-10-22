@@ -14,7 +14,7 @@ const ClientId = z.string().min(1).max(500);
 export async function revokeMyConnectionAction(input: { clientId: string }) {
   return act(async (u) => {
     await revokeConnection(getDb(), u.id, ClientId.parse(input.clientId));
-    revalidatePath("/cuenta/conectar");
+    revalidatePath("/conectar");
   });
 }
 
@@ -42,6 +42,6 @@ export async function setMcpEnabledAction(input: { enabled: boolean }) {
     await setMcpEnabled(getDb(), enabled);
     await getDb().insert(schema.events).values({ name: enabled ? "mcp.enabled" : "mcp.disabled", data: {} });
     revalidatePath("/admin");
-    revalidatePath("/cuenta/conectar");
+    revalidatePath("/conectar");
   });
 }

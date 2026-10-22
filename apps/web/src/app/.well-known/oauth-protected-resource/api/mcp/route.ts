@@ -12,6 +12,6 @@ export async function GET() {
     scopes_supported: [...MCP_SCOPES],
     bearer_methods_supported: ["header"],
     resource_name: "Lámina",
-    resource_documentation: `${new URL(mcpResource()).origin}/cuenta/conectar`,
+    resource_documentation: `${new URL(mcpResource()).origin}/conectar`,
   }, { headers: { "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
 }

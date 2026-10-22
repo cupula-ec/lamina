@@ -16,7 +16,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <div className="bg-graph min-h-dvh">
       <div className="mx-auto max-w-md px-5 py-10">
         <Brand />
-        <div className="sheet mt-10 p-6 shadow-[6px_6px_0_var(--color-ink)] sm:p-8">
+        <div className="sheet mt-10 p-6 card-hard sm:p-8">
           <h1 className="text-2xl font-bold">Entrar a Lámina</h1>
           <LoginForm google={!!e.GOOGLE_CLIENT_ID} keycloak={!!e.KEYCLOAK_CLIENT_ID} initialError={sp.error} />
         </div>

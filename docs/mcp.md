@@ -16,11 +16,11 @@ Cada versión enviada aparece como **«Creado por IA externa (MCP)»**.
 
 ## Conectar
 
-1. Entra a Lámina → **Mi cuenta → Conectar con IA**. Allí está la dirección del servidor (`https://<tu-lámina>/api/mcp`).
+1. Entra a Lámina → **Conectar con IA** (barra lateral, `/conectar`). Allí está la dirección del servidor (`https://<tu-lámina>/api/mcp`).
 2. **Claude Code:** `claude mcp add --transport http lamina https://<tu-lámina>/api/mcp`, luego dentro de Claude Code `/mcp` → *lamina* → *Authenticate*.
    **Claude Desktop / claude.ai:** Ajustes → Conectores → Añadir conector personalizado → pega la dirección.
 3. Se abre Lámina en tu navegador: inicia sesión (la cuenta debe estar dada de alta) y pulsa **Autorizar**. Verás el nombre de la aplicación (no verificado), a dónde volverá y los permisos.
-4. Listo. Para cortar el acceso: **Mi cuenta → Conectar con IA → Revocar** (inmediato).
+4. Listo. Para cortar el acceso: **Conectar con IA → Aplicaciones autorizadas → Revocar** (inmediato).
 
 ## Herramientas
 

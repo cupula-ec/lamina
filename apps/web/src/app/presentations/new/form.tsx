@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Callout } from "@/components/ui/Callout";
 
 const LEVELS = ["Bachillerato", "Primer ciclo universitario", "Universidad (ciclos intermedios)", "Posgrado"];
 
@@ -29,6 +31,7 @@ export function NewForm({ consentText }: { consentText: string }) {
       const r = await fetch("/api/presentations", { method: "POST", body: fd });
       const j = await r.json();
       if (!r.ok) { setError(j.error ?? "No se pudo crear la presentación."); setBusy(false); return; }
+      toast.success("Presentación creada. Lámina empieza a investigar.");
       router.push(`/presentations/${j.id}/preview/information`);
     } catch { setError("No hay conexión con el servidor. Inténtalo de nuevo."); setBusy(false); }
   }
@@ -100,7 +103,7 @@ export function NewForm({ consentText }: { consentText: string }) {
               </span>
             </label>
           )}
-          {error && <p role="alert" className="err">{error}</p>}
+          {error && <Callout tone="bad">{error}</Callout>}
           <div className="flex flex-wrap gap-3">
             <button type="button" className="btn" onClick={() => setStep(1)} disabled={busy}>Atrás</button>
             <button className="btn btn-primary" disabled={busy || (hasMaterials && !consent)}>{busy ? "Creando…" : "Crear y empezar a investigar"}</button>

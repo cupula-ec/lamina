@@ -31,7 +31,7 @@ export function ChangelogPanel({ entries, unread }: { entries: Entry[]; unread: 
   const pts = points(latest!.body).slice(0, 4);
   const seen = () => { if (isUnread) { setUnread(false); void markChangelogSeenAction(); } };
   return (
-    <section className="sheet overflow-hidden" aria-labelledby="novedades" onMouseEnter={seen} onFocus={seen}>
+    <section className="sheet overflow-hidden" aria-labelledby="novedades">
       <div className="flex items-center justify-between gap-2 border-b-2 border-ink bg-mark px-5 py-2">
         <h2 id="novedades" className="text-xs font-bold uppercase tracking-[0.14em]">Novedades{version ? ` · v${version}` : ""}</h2>
         <span className="text-xs font-bold">{fmt(latest!.date)}</span>
@@ -49,6 +49,7 @@ export function ChangelogPanel({ entries, unread }: { entries: Entry[]; unread: 
             </li>
           ))}
         </ul>
+        {isUnread && <button type="button" className="btn btn-sm mt-4" onClick={seen}>Entendido</button>}
         {older.length > 0 && (
           <div className="mt-4 border-t-2 border-ink pt-3">
             <button type="button" className="text-sm font-bold underline underline-offset-4" aria-expanded={all} onClick={() => { setAll(!all); seen(); }}>

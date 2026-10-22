@@ -37,7 +37,7 @@ export default async function InformationPage({ params }: { params: Promise<{ id
     <AppShell user={user} wide>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/dashboard" className="text-sm font-bold underline underline-offset-4">← Mis presentaciones</Link>
+          <Link href="/dashboard" className="back-link">← Mis presentaciones</Link>
           <h1 className="mt-2 text-3xl font-bold">{p.title}</h1>
           <p className="text-ink-2">{p.level} · {p.objective}</p>
           <MetaEditor presentationId={p.id} initial={{ subject: p.subject ?? "", period: p.period ?? "", group: p.groupName ?? "" }} />

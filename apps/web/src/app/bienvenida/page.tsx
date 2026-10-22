@@ -23,7 +23,7 @@ export default async function Page() {
     <div className="bg-graph min-h-dvh">
       <div className="mx-auto max-w-xl px-5 py-10">
         <div className="flex items-center justify-between gap-4"><Brand href="/bienvenida" /><LogoutButton /></div>
-        <div className="sheet mt-10 p-6 shadow-[6px_6px_0_var(--color-ink)] sm:p-8">
+        <div className="sheet mt-10 p-6 card-hard sm:p-8">
           <h1 className="text-2xl font-bold">Bienvenido a Lámina</h1>
           <p className="mt-2 text-ink-2">Un último paso: cuéntanos cómo quieres aparecer en tus presentaciones. Podrás cambiarlo cuando quieras en «Mi cuenta».</p>
           <ProfileForm mode="onboarding" institutions={institutions} initial={{ fullName: p?.fullName ?? u.name, institutionId: p?.institutionId ?? null, logoUrl: personalLogoUrl(u.id, p?.personalLogoPath ?? null) ?? null }} />
