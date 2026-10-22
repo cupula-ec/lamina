@@ -10,7 +10,7 @@ const HINT: Record<string, string> = {
   polishing: "Ajustando transiciones y la aparición progresiva de elementos. Unos segundos.",
 };
 
-type Status = { stage: string; lastError: string | null; resumeAt: string | null; prevStage?: string | null };
+type Status = { stage: string; lastError: string | null; resumeAt: string | null; prevStage?: string | null; progress?: string | null };
 
 /** Muestra el estado real del trabajo y refresca la página cuando cambia la etapa (sobrevive a recargas). */
 export function JobWatcher({ id, initial }: { id: string; initial: Status }) {
@@ -64,6 +64,7 @@ export function JobWatcher({ id, initial }: { id: string; initial: Status }) {
     return (
       <div role="status" aria-live="polite" className="sheet p-5">
         <p className="flex items-center gap-3 font-bold"><span aria-hidden className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-ink border-t-transparent" />{STAGE_LABEL[st.stage as keyof typeof STAGE_LABEL]}… <span className="font-normal text-ink-2">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}</span></p>
+        {st.progress && <p className="mt-2 font-bold">{st.progress}</p>}
         <p className="hint mt-2 max-w-[62ch]">{HINT[st.stage]}</p>
       </div>
     );

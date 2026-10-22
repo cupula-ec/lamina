@@ -18,3 +18,5 @@ El servicio es gratuito para docentes ecuatorianos y el gasto en IA debe ser **0
 
 ## Consecuencias
 Calidad variable y 429 frecuentes: salida estructurada validada con Zod, una reparación acotada por modelo, verificación determinista de la matemática (ADR-009) y diseño de respaldo 100 % determinista si la IA falla.
+
+**Actualización v1.2 (rol `vision`, ADR-014):** verificado el 22 oct 2026 con la API pública: 17 modelos `:free`, 8 aceptan imagen. Cadena `vision` por defecto: `google/gemma-4-31b-it:free`, `google/gemma-4-26b-a4b-it:free`, `nvidia/nemotron-3.5-super-vl:free` (sobrescribible con `LAMINA_MODELS_VISION`). El guard `:free` aplica igual (tests en `packages/ai/test/vision.test.ts`); las imágenes se reenvían como `image_url` y nunca se registran en `ai_calls`.

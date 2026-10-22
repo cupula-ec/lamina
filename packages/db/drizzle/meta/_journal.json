@@ -15,6 +15,13 @@
       "when": 1792678581532,
       "tag": "0001_branding_ocr",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792679484741,
+      "tag": "0002_ocr_progress",
+      "breakpoints": true
     }
   ]
 }

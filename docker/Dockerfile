@@ -32,6 +32,10 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store pnpm i
 
 FROM ${NODE_IMAGE} AS worker
 ENV NODE_ENV=production
+# OCR de PDF escaneados (ADR-014): poppler rasteriza, Tesseract lee (spa+eng); se ejecutan sin shell y con usuario sin privilegios.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-spa tesseract-ocr-eng tesseract-ocr-osd \
+ && rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
 COPY --from=worker-deps /repo ./
 RUN mkdir -p /data && chown 10001:10001 /data

@@ -11,6 +11,8 @@ export const DEFAULT_CHAINS: Record<Role, string[]> = {
   design: ["google/gemma-4-31b-it:free", "nvidia/nemotron-3-super-120b-a12b:free", "minimax/minimax-m3.1-flash:free", "nvidia/nemotron-3-ultra-550b-a55b:free"],
   component: ["nvidia/nemotron-3-super-120b-a12b:free", "poolside/laguna-s-2.1:free", "cohere/north-mini-code:free", "nvidia/nemotron-3-ultra-550b-a55b:free"],
   review: ["google/gemma-4-26b-a4b-it:free", "nvidia/nemotron-3-super-120b-a12b:free"],
+  /** Solo modelos `:free` con entrada de imagen (API pública de OpenRouter, 22 oct 2026; ver ADR-014). */
+  vision: ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free", "nvidia/nemotron-3.5-super-vl:free"],
 };
 
 export function chainFor(role: Role, env: Record<string, string | undefined> = process.env): string[] {

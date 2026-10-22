@@ -5,9 +5,14 @@ import { extractText, getDocumentProxy } from "unpdf";
 import mammoth from "mammoth";
 import { LaminaError } from "@lamina/contracts";
 
-export const LIMITS = { maxUploadBytes: 20 * 1024 * 1024, maxPdfPages: 150, minTextChars: 120, maxTextChars: 400_000 };
+export const LIMITS = { maxUploadBytes: 20 * 1024 * 1024, maxPdfPages: 150, minTextChars: 120, maxTextChars: 400_000, minPageChars: 25, minOcrChars: 40 };
 
-export type Extracted = { title: string; pages: { page?: number; text: string }[] };
+/** Resultado del OCR de una página: motor, confianza media (0-100, null si no aplica) y fórmulas a revisar. */
+export type PageOcr = { engine: "tesseract" | "vision"; confidence: number | null; review?: number; unverified?: boolean };
+export type ExtractedPage = { page?: number; text: string; ocr?: PageOcr };
+/** Páginas de un PDF sin texto extraíble; sizes = ancho/alto en puntos PDF (para limitar el tamaño al rasterizar). */
+export type NeedsOcr = { pages: number[]; total: number; sizes: Record<number, [number, number]> };
+export type Extracted = { title: string; pages: ExtractedPage[]; needsOcr?: NeedsOcr };
 
 const td = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-" });
 td.remove(["script", "style", "noscript", "iframe"]);
@@ -37,10 +42,23 @@ export async function pdfToText(buf: Buffer, filename = "documento.pdf"): Promis
   }
   if (pdf.numPages > LIMITS.maxPdfPages) throw new LaminaError("extraction_failed", `El PDF tiene ${pdf.numPages} páginas (máximo ${LIMITS.maxPdfPages})`, 413);
   const { text } = await extractText(pdf, { mergePages: false });
-  const pages = (text as string[]).map((t, i) => ({ page: i + 1, text: t.replace(/[ \t]+\n/g, "\n").trim() })).filter((p) => p.text);
+  const raw = (text as string[]).map((t, i) => ({ page: i + 1, text: t.replace(/[ \t]+\n/g, "\n").trim() }));
+  const pages = raw.filter((p) => p.text.length >= LIMITS.minPageChars);
   const total = pages.reduce((n, p) => n + p.text.length, 0);
-  if (total < LIMITS.minTextChars) throw new LaminaError("extraction_failed", "El PDF no contiene texto extraíble (probablemente es un escaneo; esta versión no hace OCR)", 422);
-  return { title: filename.replace(/\.pdf$/i, ""), pages };
+  const missing = raw.filter((p) => p.text.length < LIMITS.minPageChars).map((p) => p.page);
+  const title = filename.replace(/\.pdf$/i, "");
+  if (missing.length) {
+    const sizes: NeedsOcr["sizes"] = {};
+    for (const n of missing.slice(0, 400)) {
+      try {
+        const v = (await pdf.getPage(n)).getViewport({ scale: 1 });
+        sizes[n] = [v.width, v.height];
+      } catch { sizes[n] = [0, 0]; }
+    }
+    return { title, pages, needsOcr: { pages: missing, total: raw.length, sizes } };
+  }
+  if (total < LIMITS.minTextChars) throw new LaminaError("extraction_failed", "El PDF no contiene texto suficiente", 422);
+  return { title, pages };
 }
 
 export async function docxToMarkdown(buf: Buffer, filename = "documento.docx"): Promise<Extracted> {

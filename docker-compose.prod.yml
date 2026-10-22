@@ -68,10 +68,11 @@ services:
       DATA_DIR: /data
       SEARXNG_URL: http://searxng:8080
       SANDBOX_URL: http://sandbox-runner:8600
+      LAMINA_OCR_CONCURRENCY: "1"
     volumes: ["data:/data"]
     depends_on: { migrate: { condition: service_completed_successfully } }
     networks: [backend, egress, sandbox]
-    deploy: { resources: { limits: { memory: 1g, cpus: "1.5" } } }
+    deploy: { resources: { limits: { memory: 1536m, cpus: "1.5" } } }
 
   renderer:
     <<: *common

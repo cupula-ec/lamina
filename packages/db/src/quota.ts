@@ -3,7 +3,7 @@ import { LaminaError } from "@lamina/contracts";
 import type { Db } from "./client";
 import { usageCounters, userProfiles } from "./schema";
 
-export const QUOTA_KINDS = ["presentation_new", "content_regen", "design_regen", "component_request"] as const;
+export const QUOTA_KINDS = ["presentation_new", "content_regen", "design_regen", "component_request", "ocr_vision_page"] as const;
 export type QuotaKind = (typeof QUOTA_KINDS)[number];
 
 export const DEFAULT_QUOTAS: Record<QuotaKind, number> = {
@@ -11,6 +11,7 @@ export const DEFAULT_QUOTAS: Record<QuotaKind, number> = {
   content_regen: 10,
   design_regen: 10,
   component_request: 3,
+  ocr_vision_page: 30,
 };
 export const DEFAULT_CONCURRENT_JOBS = 2;
 
@@ -34,6 +35,17 @@ export async function consumeQuota(db: Db, userId: string, kind: QuotaKind, now 
     returning count`);
   if (res.rows.length === 0)
     throw new LaminaError("quota_exceeded", `Alcanzaste el límite diario (${limit}) para esta acción. Se renueva a medianoche UTC.`, 429, { kind, limit });
+}
+
+/** Como consumeQuota pero devuelve false (sin lanzar) si no hay cupo: para degradar en vez de fallar. */
+export async function tryConsumeQuota(db: Db, userId: string, kind: QuotaKind, now = new Date()): Promise<boolean> {
+  try {
+    await consumeQuota(db, userId, kind, now);
+    return true;
+  } catch (e) {
+    if (e instanceof LaminaError && e.code === "quota_exceeded") return false;
+    throw e;
+  }
 }
 
 /** Devuelve la unidad consumida (p. ej. si el job nunca se encoló). */

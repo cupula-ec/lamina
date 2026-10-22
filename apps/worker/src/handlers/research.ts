@@ -10,6 +10,7 @@ import {
   chunkText, extractFromBuffer, htmlToMarkdown, pdfToText, safeFetch, searchWithFallback, wrapUntrusted, type Extracted,
 } from "@lamina/research";
 import type { Ctx } from "../ctx";
+import { ocrForPdf } from "../ocr";
 import { expectStage } from "../run";
 
 const Queries = z.object({ queries: z.array(z.string().min(3).max(160)).min(1).max(4) });
@@ -23,9 +24,12 @@ async function saveChunks(ctx: Ctx, presentationId: string, sourceId: string, ex
   await ctx.db.insert(schema.sourceChunks).values(chunks.map((c) => ({ sourceId, presentationId, ord: c.ord, page: c.page ?? null, text: c.text })));
 }
 
-async function extractFromUrl(url: string): Promise<Extracted> {
+async function extractFromUrl(url: string, ocr?: (buf: Buffer, ex: Extracted) => Promise<Extracted>): Promise<Extracted> {
   const doc = await safeFetch(url);
-  if (doc.contentType === "application/pdf") return pdfToText(doc.body, new URL(doc.url).pathname.split("/").pop() || "documento.pdf");
+  if (doc.contentType === "application/pdf") {
+    const ex = await pdfToText(doc.body, new URL(doc.url).pathname.split("/").pop() || "documento.pdf");
+    return ex.needsOcr && ocr ? ocr(doc.body, ex) : { ...ex, needsOcr: undefined };
+  }
   if (/wordprocessingml/.test(doc.contentType)) return (await extractFromBuffer(doc.body, "documento.docx", doc.contentType));
   if (doc.contentType.startsWith("text/plain") || doc.contentType.includes("markdown")) {
     const text = doc.body.toString("utf8").trim();
@@ -36,20 +40,26 @@ async function extractFromUrl(url: string): Promise<Extracted> {
 }
 
 /** Procesa las fuentes aportadas por el docente (pendientes): URLs, archivos y notas. */
-async function processTeacherSources(ctx: Ctx, presentationId: string) {
+async function processTeacherSources(ctx: Ctx, p: typeof schema.presentations.$inferSelect) {
+  const presentationId = p.id;
   const pending = await ctx.db.select().from(schema.sources).where(and(eq(schema.sources.presentationId, presentationId), eq(schema.sources.status, "pending")));
   for (const s of pending) {
     try {
       let ex: Extracted;
-      if (s.kind === "url" && s.url) ex = await extractFromUrl(s.url);
+      let note: string | null = null;
+      if (s.kind === "url" && s.url) {
+        ex = await extractFromUrl(s.url, async (buf, e) => { const r = await ocrForPdf(ctx, p, null, buf, e); note = r.note; return r.ex; });
+      }
       else if (s.kind === "upload" && s.uploadId) {
         const [u] = await ctx.db.select().from(schema.uploads).where(eq(schema.uploads.id, s.uploadId));
         if (!u) throw new LaminaError("extraction_failed", "Archivo no encontrado", 404);
         const buf = await fs.readFile(path.resolve(u.storagePath));
         ex = await extractFromBuffer(buf, u.filename, u.mime);
+        if (ex.needsOcr) { const r = await ocrForPdf(ctx, p, u.id, buf, ex); ex = r.ex; note = r.note; }
       } else throw new LaminaError("extraction_failed", "Fuente sin contenido", 422);
       await saveChunks(ctx, presentationId, s.id, ex);
-      await ctx.db.update(schema.sources).set({ status: "ok", title: s.title || ex.title }).where(eq(schema.sources.id, s.id));
+      const ocrUsed = ex.pages.some((pg) => pg.ocr);
+      await ctx.db.update(schema.sources).set({ status: "ok", title: ocrUsed ? `${s.title || ex.title} (OCR)`.slice(0, 200) : s.title || ex.title, error: note }).where(eq(schema.sources.id, s.id));
     } catch (e) {
       const msg = e instanceof LaminaError ? e.message : "No se pudo procesar la fuente";
       await ctx.db.update(schema.sources).set({ status: "failed", error: msg }).where(eq(schema.sources.id, s.id));
@@ -115,7 +125,11 @@ async function webResearch(ctx: Ctx, p: typeof schema.presentations.$inferSelect
 export async function research(ctx: Ctx, data: { presentationId: string; userId: string }) {
   const p = await expectStage(ctx, data.presentationId, "researching");
   if (!p) return;
-  await processTeacherSources(ctx, p.id);
+  try {
+    await processTeacherSources(ctx, p);
+  } finally {
+    await ctx.db.update(schema.presentations).set({ progress: null }).where(eq(schema.presentations.id, p.id)).catch(() => {});
+  }
   await webResearch(ctx, p);
   const cur = await expectStage(ctx, p.id, "researching");
   if (!cur) return;
