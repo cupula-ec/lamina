@@ -12,15 +12,17 @@ export const dynamic = "force-dynamic";
 
 const hostOf = (u: string) => { try { const x = new URL(u); return x.host || x.protocol; } catch { return u.slice(0, 60); } };
 
-export default async function Autorizar({ searchParams }: { searchParams: Promise<{ client_id?: string; scope?: string }> }) {
+export default async function Autorizar({ searchParams }: { searchParams: Promise<{ client_id?: string; scope?: string; redirect_uri?: string }> }) {
   const u = await requireUser();
   const sp = await searchParams;
   const db = getDb();
   const [client] = sp.client_id ? await db.select().from(schema.oauthClient).where(eq(schema.oauthClient.clientId, sp.client_id)) : [];
-  const scopes = (sp.scope ?? "").split(/\s+/).filter((s) => s in SCOPE_TEXT);
+  const scopes = (sp.scope ?? "").split(/\s+/).filter((s) => Object.hasOwn(SCOPE_TEXT, s));
   const enabled = await mcpEnabled(db);
   const name = client?.name?.trim() || "Una aplicación sin nombre";
-  const hosts = [...new Set((client?.redirectUris ?? []).map(hostOf))].slice(0, 3);
+  // El código viaja al redirect_uri de ESTA solicitud (parte de la consulta firmada), no a cualquiera de los registrados.
+  const dest = sp.redirect_uri ? hostOf(sp.redirect_uri) : null;
+  const loopback = !!sp.redirect_uri && (() => { try { return ["127.0.0.1", "localhost", "[::1]"].includes(new URL(sp.redirect_uri!).hostname); } catch { return false; } })();
   return (
     <div className="bg-graph min-h-dvh">
       <div className="mx-auto max-w-lg px-5 py-10">
@@ -37,7 +39,8 @@ export default async function Autorizar({ searchParams }: { searchParams: Promis
               <ul className="mt-3 list-disc space-y-1 pl-5">{scopes.map((s) => <li key={s}>{SCOPE_TEXT[s]}</li>)}</ul>
               <p className="mt-4 rounded border-2 border-ink p-3 font-bold">No puede aprobar, publicar, compartir ni borrar. Todo lo que envíe te llega como borrador y lo apruebas tú.</p>
               <p className="mt-4 text-sm text-ink-2">
-                El nombre lo declara la propia aplicación y no está verificado. Tras autorizar volverás a: <strong>{hosts.join(", ") || "(la aplicación)"}</strong>. Si no iniciaste tú esta conexión, cancela.
+                El nombre lo declara la propia aplicación y no está verificado. Tras autorizar volverás a: <strong className={loopback ? "" : "text-red-700"}>{dest ?? "(la aplicación)"}</strong>
+                {dest && !loopback ? " (un sitio web externo, no tu computadora)" : ""}. Si no iniciaste tú esta conexión, cancela.
               </p>
               <ConsentForm />
             </>

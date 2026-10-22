@@ -31,6 +31,7 @@ test("componente nuevo: pedir → provisional aislado → usado en la presentaci
   const ap = await adminCtx.newPage();
   await login(ap, ADMIN);
   await ap.goto("/admin?tab=componentes");
+  await ap.waitForLoadState("networkidle"); // el clic debe ocurrir con la página ya hidratada
   const card = ap.locator("article", { hasText: NAME }).first();
   await expect(card).toContainText("Provisional");
   await expect(card).toContainText("✓ Análisis estático");

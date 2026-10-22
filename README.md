@@ -40,6 +40,8 @@ Preparar una clase de Cálculo con buenas gráficas, derivaciones paso a paso y 
 - **16 componentes visuales científicos** listos: gráfica de funciones, derivación paso a paso, ejemplo resuelto, fórmula destacada, vectores 2D, figuras geométricas, tablas, definiciones/teoremas, preguntas para la clase…
 - **Componentes nuevos a pedido.** ¿Falta una recta numérica o un diagrama de fases? La IA lo construye **en un entorno aislado (gVisor)**, lo prueba y lo usa en tu presentación en minutos; un administrador decide si pasa al catálogo de todos.
 - **Revisión automática de diseño.** Un renderizador detecta desbordes, texto ilegible, fórmulas rotas y componentes caídos antes de que lo veas.
+- **Tu marca y 10 temas.** Elige tu institución o sube tu logo; la portada lleva marcas, materia, período y grupo. Temas con variantes de color y layouts propios, intercambiables sin rehacer el contenido.
+- **PDF escaneados.** OCR local (Tesseract) y, con tu permiso aparte, visión gratuita para las fórmulas; lo reconocido queda marcado para revisión.
 - **Presenta en el navegador.** Pantalla completa, transiciones sobrias, aparición progresiva y **notas del presentador en otra ventana**. Pensado para proyector (alto contraste, tipografía legible).
 - **Compartir con control.** Privada, por enlace revocable o pública. La autorización ocurre en el servidor; un UUID nunca basta.
 - **Panel de administración.** Altas de docentes con contraseña temporal por correo, cuotas por usuario, revisión de componentes propuestos, métricas de embudo y estado de los trabajos.

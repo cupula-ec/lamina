@@ -12,6 +12,7 @@ import { schema } from "@lamina/db";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { adminEmails, env } from "./env";
+import { revokeAllConnections } from "./mcp-access";
 
 /** Marca las altas hechas desde el panel admin (única vía para crear cuentas de docentes). */
 // Singleton en globalThis: el bundle del route handler y el de las Server Actions deben compartir el MISMO almacén.
@@ -98,6 +99,10 @@ function build() {
         },
       },
       account: {
+        update: {
+          // Cambiar o restablecer la clave corta también las conexiones MCP (sus refresh tokens no dependen de la sesión).
+          after: async (account) => { if (account?.providerId === "credential" && account.userId) await revokeAllConnections(db, account.userId); },
+        },
         create: {
           // Keycloak (SSO de Cúpula) SOLO para administradores: un usuario del realm no puede vincularse a la cuenta de un docente.
           before: async (account) => {

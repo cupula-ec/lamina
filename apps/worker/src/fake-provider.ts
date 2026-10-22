@@ -96,7 +96,9 @@ export function makeFakeProvider() {
       const base = slidesFromHint(h)[0]!;
       const want = (c.provisional as { id: string; version: string; example: unknown }[]).find((p) => new RegExp(`\\b${p.id}\\b`).test(c.feedback ?? ""));
       if (want) {
-        const text = base.slots.main ?? base.slots.text ?? base.slots.left;
+        // Conserva el bloque que lleva la fórmula (el diseño real debe copiarla tal cual); si no hay, el principal.
+        const rest = Object.entries(base.slots).filter(([k]) => k !== "title").map(([, v]) => v);
+        const text = rest.find((v) => /"latex"/.test(JSON.stringify(v.props))) ?? base.slots.main ?? base.slots.text ?? rest[0];
         return { slide: { ...base, id: h.id, layout: "split-visual", slots: { title: base.slots.title!, text: text!, visual: { componentId: want.id, version: want.version, props: want.example as Record<string, unknown> } }, rationale: `Usa el componente provisional ${want.id} pedido por el docente.` } };
       }
       return { slide: { ...base, id: h.id } };

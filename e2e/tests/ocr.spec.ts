@@ -1,8 +1,9 @@
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import { login } from "./helpers";
 
-const FX = path.join(__dirname, "../../packages/research/test/fixtures");
+const FX = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../packages/research/test/fixtures");
 
 test.skip(process.env.E2E_OCR === "0", "el worker de este entorno no tiene tesseract + poppler (E2E_OCR=0)");
 

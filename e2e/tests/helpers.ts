@@ -9,6 +9,7 @@ export async function login(page: Page, who: { email: string; pass: string } = T
   await page.getByLabel("Contraseña").fill(who.pass);
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await expect(page).toHaveURL(/dashboard|bienvenida/);
+  await page.goto("/dashboard"); // resuelve la redirección del servidor a /bienvenida antes de decidir
   if (/bienvenida/.test(page.url())) await completeOnboarding(page);
   await expect(page).toHaveURL(/dashboard/);
 }

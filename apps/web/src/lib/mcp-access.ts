@@ -87,9 +87,20 @@ export async function revokeConnection(db: Db, userId: string, clientId: string)
   });
 }
 
+/** Revoca todas las conexiones de un docente (cambio o restablecimiento de clave: los refresh tokens con offline_access sobreviven al cierre de sesiones). */
+export async function revokeAllConnections(db: Db, userId: string) {
+  await db.transaction(async (tx) => {
+    await tx.delete(schema.oauthConsent).where(eq(schema.oauthConsent.userId, userId));
+    await tx.update(schema.oauthRefreshToken).set({ revoked: new Date() }).where(and(eq(schema.oauthRefreshToken.userId, userId), isNull(schema.oauthRefreshToken.revoked)));
+    await tx.delete(schema.oauthAccessToken).where(eq(schema.oauthAccessToken.userId, userId));
+    await tx.delete(schema.mcpConnections).where(eq(schema.mcpConnections.userId, userId));
+    await tx.insert(schema.events).values({ name: "mcp.connections_revoked_all", userId, data: { reason: "password" } });
+  });
+}
+
 export type ConnectionRow = { clientId: string; name: string; host: string | null; scopes: string[]; authorizedAt: Date | null; lastUsedAt: Date | null; calls: number; userId: string; userEmail?: string };
 
-const hostOf = (uris: string[] | null) => { try { return uris?.[0] ? new URL(uris[0]).host || new URL(uris[0]).protocol : null; } catch { return null; } };
+const hostOf = (uris: string[] | null) => { try { const hs = [...new Set((uris ?? []).map((u) => new URL(u).host || new URL(u).protocol))]; return hs.length ? hs.join(", ") : null; } catch { return null; } };
 
 /** Aplicaciones autorizadas (de un docente, o de todos si no se indica userId). */
 export async function listConnections(db: Db, userId?: string): Promise<ConnectionRow[]> {

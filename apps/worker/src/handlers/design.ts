@@ -161,7 +161,8 @@ export async function designGenerate(
             if (miss.length) errs.push(`Faltan fórmulas/expresiones del contenido, que deben copiarse tal cual: ${miss.slice(0, 4).join(" | ")}`);
             if (SYSTEM_LAYOUTS.has(sl.layout)) errs.push(`El layout "${sl.layout}" lo coloca el sistema: elige otro para esta diapositiva.`);
             else if (sl.layout === "closing" && !inLastSection) errs.push('El layout "closing" solo se usa en la última sección: elige otro.');
-            const rep = varietyProblem(used, sl.layout, h.blocks);
+            // Con comentarios del docente (p. ej. «usa este componente») no se impone variedad de layouts: manda lo que pidió.
+            const rep = data.feedback ? null : varietyProblem(used, sl.layout, h.blocks);
             if (rep) errs.push(rep);
             return errs;
           },

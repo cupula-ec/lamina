@@ -13,6 +13,6 @@
 | [009](009-verificacion-matematica.md) | Verificación matemática determinista (KaTeX, mathjs, muestreo numérico) | Aceptada |
 | [010](010-reparacion-puntual-y-edicion.md) | Reparación puntual de diapositivas y edición posterior | Aceptada |
 | [011](011-branding-institucional.md) | Branding institucional y datos del docente | Aceptada |
-| [012](012-motor-visual-temas-y-layouts.md) | Motor visual: temas, decoración procedural y layouts | Propuesta |
+| [012](012-motor-visual-temas-y-layouts.md) | Motor visual: temas, decoración procedural y layouts | Aceptada |
 | [013](013-mcp.md) | Servidor MCP con OAuth (IA externa → borradores; el docente aprueba) | Aceptada |
 | [014](014-ocr.md) | OCR de PDF escaneados: Tesseract local + visión `:free` para fórmulas, con consentimiento aparte | Aceptada |

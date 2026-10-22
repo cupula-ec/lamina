@@ -26,3 +26,28 @@ Solo se marca como cumplido lo que tiene evidencia. Fecha: 19–20 oct 2026.
 5. **CLA Assistant** en el repo (GitHub App) y restauración de prueba de backups.
 6. **Prompt injection con un PDF real hostil** en prod y prueba del especialista con modelos reales (la prueba automatizada usa IA fake para el componente).
 7. Una presentación con subida de **PDF** en prod (cubierto por tests de extracción, no por el recorrido real).
+
+---
+
+# Aceptación de Lámina v1.2.0 (22 oct 2026; aún no desplegada)
+
+Solo se marca lo que tiene evidencia; todo se ejecutó en local con IA fake (modelos `:free` no ejercitados en v1.2).
+
+## ✅ Cumplido, con evidencia
+
+| Criterio | Evidencia |
+|---|---|
+| Pruebas unitarias/integración | `pnpm test` (con `heavy.sh`): **475 tests** en contratos, sandbox-kit, ai, engine, validation, db, components, research, mcp, worker y web, todos verdes; `pnpm typecheck` sin errores |
+| E2E Playwright (local, IA fake) | `pnpm --filter @lamina/e2e test`: 39 de 42 en la corrida completa (branding/onboarding con logo, flujo completo, galería 10 temas × 3 acentos × 17 layouts, selector de estilo, PDF escaneado con OCR, seguridad anónima, móvil). El test de componentes falló en esa corrida y pasó al repetirlo solo tras corregir el fake y una espera de hidratación (`components.spec.ts`: 1 passed) |
+| Landing nueva | Accesibilidad Lighthouse **100**; capturas `docs/evidence/landing-desktop.png` y `landing-mobile.png` (sin desborde horizontal a 360 px) |
+| Revisión del MCP/OAuth (reviewer Opus) | Hallazgos corregidos: destino real (`redirect_uri`) en el consentimiento, revocación de conexiones al cambiar/restablecer la clave (test en `apps/web/test/mcp-route.test.ts`), aviso de datos no confiables a la IA, `Object.hasOwn` en scopes |
+| Flujo OAuth del MCP con el cliente del SDK | `docs/evidence/mcp-oauth-smoke.txt`, `mcp-flow.txt`, `mcp-conectar.png`, `mcp-presentacion-lista-para-aprobar.png` |
+
+## ⏳ Pendiente (no se marca como cumplido)
+
+1. **Migraciones 0001–0003 sobre una copia de la BD de producción** y comprobar que decks existentes abren y renderizan igual.
+2. **Imagen del worker** (`docker/Dockerfile` con poppler + tesseract) sin construir.
+3. **Prueba manual del MCP con Claude Code real** (`claude mcp add`); solo se llegó a «Needs authentication».
+4. **Dos e2e saltados**: `prod.spec.ts` (solo contra producción) y «dos cuentas» (requiere correo configurado).
+5. Registro dinámico de clientes anónimo sin limpieza automática, CIMD sin probar contra un dominio público, rate limits en memoria por instancia; validación del logo UPS por la institución; capacidad de cloud-2 para Tesseract + poppler; visión OCR con modelos `:free` reales.
+6. Revisión final del diff completo (7.F.1) aparte del MCP: OCR, logos y migraciones no han tenido un `reviewer` dedicado en esta etapa.

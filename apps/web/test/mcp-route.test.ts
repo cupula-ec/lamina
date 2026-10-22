@@ -164,6 +164,17 @@ describe("transporte HTTP y OAuth del recurso", () => {
     expect(rt!.revoked).toBeTruthy();
   });
 
+  it("cambiar la clave revoca todas las conexiones: consentimiento, refresh y acceso", async () => {
+    await mkUser("upw");
+    const t = await mint({ sub: "upw" });
+    expect((await callRaw(t)).status).toBe(200);
+    await h.db.insert(schema.oauthRefreshToken).values({ id: "rtpw", token: "hashpw", clientId: "client-1", userId: "upw", scopes: ["presentations:read", "offline_access"], expiresAt: new Date(Date.now() + 1e6), createdAt: new Date() });
+    await (await access()).revokeAllConnections(h.db, "upw");
+    expect((await callRaw(t)).status).toBe(401);
+    const [rt] = await h.db.select().from(schema.oauthRefreshToken).where(eq(schema.oauthRefreshToken.id, "rtpw"));
+    expect(rt!.revoked).toBeTruthy();
+  });
+
   it("el administrador puede desactivar el MCP globalmente (503) y reactivarlo", async () => {
     const t = await mint({ sub: "ua" });
     await (await access()).setMcpEnabled(h.db, false);
