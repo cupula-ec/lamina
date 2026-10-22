@@ -8,6 +8,8 @@ const TABS = [
   { id: "code", label: "Claude Code" },
   { id: "desktop", label: "Claude Desktop" },
   { id: "web", label: "claude.ai" },
+  { id: "codex", label: "Codex" },
+  { id: "chatgpt", label: "ChatGPT" },
   { id: "other", label: "Otra IA" },
 ] as const;
 
@@ -44,6 +46,23 @@ export function ConnectGuide({ url, connected }: { url: string; connected: boole
             <li>Pega la dirección del servidor:<CopyBox label="Dirección del servidor (claude.ai)" value={url} /></li>
             <li>Autoriza el acceso cuando se abra Lámina.</li>
           </ol>
+        )}
+        {tab === "codex" && (
+          <ol className="list-decimal space-y-3 pl-5">
+            <li>Añade Lámina en tu terminal:<CopyBox label="Comando para Codex" value={`codex mcp add lamina --url ${url}`} /></li>
+            <li>Inicia sesión:<CopyBox label="Comando de inicio de sesión de Codex" value="codex mcp login lamina" /></li>
+            <li>Se abrirá Lámina en tu navegador: revisa los permisos y pulsa <strong>Autorizar</strong>. Para comprobarlo, escribe <code>/mcp</code> dentro de Codex.</li>
+          </ol>
+        )}
+        {tab === "chatgpt" && (
+          <div className="space-y-3">
+            <ol className="list-decimal space-y-3 pl-5">
+              <li>En ChatGPT activa el <strong>modo desarrollador</strong>: Configuración → Aplicaciones y conectores → Ajustes avanzados. Depende de tu plan y los nombres del menú cambian.</li>
+              <li>Crea un conector nuevo, ponle el nombre «Lámina», pega la dirección y elige autenticación <strong>OAuth</strong>:<CopyBox label="Dirección del servidor (ChatGPT)" value={url} /></li>
+              <li>Deja vacíos el ID y el secreto del cliente, y autoriza en Lámina. Después activa el conector en la conversación donde lo quieras usar.</li>
+            </ol>
+            <p className="text-sm text-ink-2">Los conectores personalizados de ChatGPT no están verificados; Lámina te mostrará de dónde viene la solicitud antes de autorizar.</p>
+          </div>
         )}
         {tab === "other" && (
           <div className="space-y-2">
