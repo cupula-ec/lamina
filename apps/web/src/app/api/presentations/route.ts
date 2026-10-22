@@ -11,6 +11,7 @@ import { getBoss } from "@/lib/boss";
 import { getDb } from "@/lib/db";
 import { presentationDir } from "@/lib/cleanup";
 import { requireUserApi } from "@/lib/session";
+import { OCR_CONSENT_VERSION } from "@/lib/consent";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,6 +21,9 @@ const Fields = z.object({
   topic: z.string().trim().min(3, "Escribe el tema (mínimo 3 caracteres)").max(200),
   level: z.string().trim().min(2, "Indica el nivel").max(120),
   objective: z.string().trim().min(5, "Describe el objetivo (mínimo 5 caracteres)").max(600),
+  subject: z.string().trim().max(160, "Materia: máximo 160 caracteres").optional(),
+  period: z.string().trim().max(80, "Período: máximo 80 caracteres").optional(),
+  group: z.string().trim().max(80, "Grupo: máximo 80 caracteres").optional(),
   notes: z.string().max(20_000).optional(),
   urls: z.string().max(2000).optional(),
 });
@@ -33,7 +37,7 @@ export async function POST(req: Request) {
     const user = await requireUserApi();
     userId = user.id;
     const form = await req.formData();
-    const f = Fields.safeParse({ topic: form.get("topic") ?? "", level: form.get("level") ?? "", objective: form.get("objective") ?? "", notes: String(form.get("notes") ?? ""), urls: String(form.get("urls") ?? "") });
+    const f = Fields.safeParse({ topic: form.get("topic") ?? "", level: form.get("level") ?? "", objective: form.get("objective") ?? "", subject: String(form.get("subject") ?? ""), period: String(form.get("period") ?? ""), group: String(form.get("group") ?? ""), notes: String(form.get("notes") ?? ""), urls: String(form.get("urls") ?? "") });
     if (!f.success) throw new LaminaError("invalid_input", f.error.issues[0]!.message, 400);
     const urls = (f.data.urls ?? "").split(/\s+/).map((u) => u.trim()).filter(Boolean);
     if (urls.length > 5) throw new LaminaError("invalid_input", "Máximo 5 enlaces", 400);
@@ -49,7 +53,7 @@ export async function POST(req: Request) {
 
     await consumeQuota(db, user.id, "presentation_new");
     quotaTaken = true;
-    const p = await wf.createPresentation(db, user.id, { title: f.data.topic.slice(0, 200), topic: f.data.topic, level: f.data.level, objective: f.data.objective });
+    const p = await wf.createPresentation(db, user.id, { title: f.data.topic.slice(0, 200), topic: f.data.topic, level: f.data.level, objective: f.data.objective, subject: f.data.subject || null, period: f.data.period || null, groupName: f.data.group || null });
     presId = p.id;
 
     const notes = (f.data.notes ?? "").trim();
@@ -71,6 +75,8 @@ export async function POST(req: Request) {
         await db.insert(schema.sources).values({ presentationId: p.id, kind: "upload", origin: "teacher", title: file.name.slice(0, 200), uploadId: u!.id, status: "pending" });
       }
     }
+    if (files.some((x) => /\.pdf$/i.test(x.name)) && form.get("consent_ocr_vision") === "on")
+      await db.insert(schema.events).values({ name: "consent_ocr_vision", userId: user.id, presentationId: p.id, data: { version: OCR_CONSENT_VERSION } });
     const payload = { presentationId: p.id, userId: user.id, versionBase: "0" };
     await wf.beginContentGeneration(db, p.id, user.id, { name: "research", payload });
     await enqueue(await getBoss(), "research", payload, { base: "0" });

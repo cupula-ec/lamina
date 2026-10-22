@@ -51,7 +51,7 @@ async function evt(tx: Tx, name: string, p: Pres, data: Record<string, unknown> 
 export async function createPresentation(
   db: Db,
   ownerId: string,
-  input: { title: string; topic: string; level: string; objective: string; language?: string; extraNotes?: string },
+  input: { title: string; topic: string; level: string; objective: string; language?: string; extraNotes?: string; subject?: string | null; period?: string | null; groupName?: string | null },
 ) {
   return db.transaction(async (tx) => {
     const [p] = await tx.insert(presentations).values({ ownerId, ...input, language: input.language ?? "es", stage: "draft" }).returning();

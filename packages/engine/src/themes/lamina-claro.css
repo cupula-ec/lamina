@@ -1,0 +1,14 @@
+/* Tema lamina-claro (claro). Contraste verificado en packages/engine/test/themes.test.ts */
+[data-theme="lamina-claro"], .lm-player, .lm-thumb, .lm-presenter {
+  --lm-bg: #fbfcf8; --lm-ink: #101b2b; --lm-muted: #44505f; --lm-panel: #edf2ea; --lm-rule: #cddbd4;
+  --lm-accent: #1b4f9c; --lm-accent2: #0b6b5f; --lm-mark: #ffe27a; --lm-hl-ink: #14181f;
+  --lm-answer: #e3f1e5; --lm-answer-ink: #17482a; --lm-pen: #c0301c;
+  --lm-plot1: #1b4f9c; --lm-plot2: #c0301c; --lm-plot3: #7a3fa0; --lm-plot4: #0b6b5f;
+  --lm-cp-bg: #fff4d6; --lm-cp-ink: #14181f; --lm-cp-border: #c98b00; --lm-cp-label: #7a4d00;
+  --lm-font-display: "Literata Variable", Literata, Georgia, serif;
+  --lm-font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --lm-radius: 14px; --lm-shadow: none; --lm-title-weight: 600; --lm-title-tracking: -0.01em; --lm-card-border: none;
+  --lm-deco: var(--lm-accent); --lm-deco2: var(--lm-accent2); --lm-deco-opacity: .10; --lm-deco-bg-opacity: 0; --lm-footer-display: none; --lm-footer-ink: var(--lm-muted);
+}
+[data-theme="lamina-claro"][data-accent="b"] { --lm-accent: #8a4b00; --lm-accent2: #1b4f9c; --lm-mark: #ffd58a; }
+[data-theme="lamina-claro"][data-accent="c"] { --lm-accent: #1d6a3a; --lm-accent2: #6b3fa0; --lm-mark: #cdeb9a; }

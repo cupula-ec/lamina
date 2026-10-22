@@ -1,0 +1,14 @@
+/* Tema pizarra (oscuro). Contraste verificado en packages/engine/test/themes.test.ts */
+[data-theme="pizarra"] {
+  --lm-bg: #1e3a33; --lm-ink: #f4f1e8; --lm-muted: #c9d6ce; --lm-panel: #2a4a41; --lm-rule: #4c6d62;
+  --lm-accent: #f5d76e; --lm-accent2: #9fe0c8; --lm-mark: #f5d76e; --lm-hl-ink: #10161d;
+  --lm-answer: #17352a; --lm-answer-ink: #b6efc6; --lm-pen: #ffa594;
+  --lm-plot1: #f5d76e; --lm-plot2: #9fe0c8; --lm-plot3: #ffa594; --lm-plot4: #9ccfff;
+  --lm-cp-bg: #3a3a1f; --lm-cp-ink: #f6f2dc; --lm-cp-border: #e6cf63; --lm-cp-label: #f5d76e;
+  --lm-font-display: "Fraunces Variable", Fraunces, Georgia, serif;
+  --lm-font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --lm-radius: 10px; --lm-shadow: none; --lm-title-weight: 500; --lm-title-tracking: -0.01em; --lm-card-border: 2px dashed var(--lm-rule);
+  --lm-deco: var(--lm-ink); --lm-deco2: var(--lm-accent); --lm-deco-opacity: .12; --lm-deco-bg-opacity: .06; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);
+}
+[data-theme="pizarra"][data-accent="b"] { --lm-accent: #9ccfff; --lm-accent2: #f5d76e; --lm-mark: #bfe0ff; }
+[data-theme="pizarra"][data-accent="c"] { --lm-accent: #ffb38a; --lm-accent2: #b9e6a1; --lm-mark: #ffcfae; }

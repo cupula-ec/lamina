@@ -12,5 +12,6 @@
 | [008](008-licencia-y-catalogo.md) | AGPL-3.0 + CLA; promoción de componentes con PR automático | Aceptada |
 | [009](009-verificacion-matematica.md) | Verificación matemática determinista (KaTeX, mathjs, muestreo numérico) | Aceptada |
 | [010](010-reparacion-puntual-y-edicion.md) | Reparación puntual de diapositivas y edición posterior | Aceptada |
-| [011](011-branding-institucional.md) | Branding institucional y datos del docente | Propuesta |
+| [011](011-branding-institucional.md) | Branding institucional y datos del docente | Aceptada |
 | [012](012-motor-visual-temas-y-layouts.md) | Motor visual: temas, decoración procedural y layouts | Propuesta |
+| [014](014-ocr.md) | OCR de PDF escaneados: Tesseract local + visión `:free` para fórmulas, con consentimiento aparte | Aceptada |

@@ -1,0 +1,14 @@
+/* Tema institucional-sobrio (claro). Contraste verificado en packages/engine/test/themes.test.ts */
+[data-theme="institucional-sobrio"] {
+  --lm-bg: #f8f8f6; --lm-ink: #1a1d21; --lm-muted: #4f555d; --lm-panel: #ecece8; --lm-rule: #d2d3cf;
+  --lm-accent: #1f3a5f; --lm-accent2: #515a65; --lm-mark: #e6dcb8; --lm-hl-ink: #14181f;
+  --lm-answer: #e1eee4; --lm-answer-ink: #1d4a2c; --lm-pen: #a8331f;
+  --lm-plot1: #1f3a5f; --lm-plot2: #a8331f; --lm-plot3: #5c6670; --lm-plot4: #2f6b52;
+  --lm-cp-bg: #f3ecd6; --lm-cp-ink: #1a1d21; --lm-cp-border: #9a7a2a; --lm-cp-label: #6b4f10;
+  --lm-font-display: "Literata Variable", Literata, Georgia, serif;
+  --lm-font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --lm-radius: 6px; --lm-shadow: none; --lm-title-weight: 600; --lm-title-tracking: -0.005em; --lm-card-border: 1px solid var(--lm-rule);
+  --lm-deco: var(--lm-brand, var(--lm-accent)); --lm-deco2: var(--lm-accent2); --lm-deco-opacity: .14; --lm-deco-bg-opacity: .05; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);
+}
+[data-theme="institucional-sobrio"][data-accent="b"] { --lm-accent: #6b1f2a; --lm-accent2: #3d4650; --lm-mark: #e8d6d6; }
+[data-theme="institucional-sobrio"][data-accent="c"] { --lm-accent: #1d5a4a; --lm-accent2: #3d4650; --lm-mark: #cfe5d9; }

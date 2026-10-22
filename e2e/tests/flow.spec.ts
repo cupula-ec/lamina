@@ -1,16 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-import { approveDesign, DESIGN_SUMMARY, designReady } from "./helpers";
-
-const EMAIL = process.env.E2E_EMAIL ?? "docente@test.ec";
-const PASS = process.env.E2E_PASSWORD ?? "ClaveDocente123";
-
-async function login(page: Page) {
-  await page.goto("/login");
-  await page.getByLabel("Correo").fill(EMAIL);
-  await page.getByLabel("Contraseña").fill(PASS);
-  await page.getByRole("button", { name: "Entrar", exact: true }).click();
-  await expect(page).toHaveURL(/dashboard/);
-}
+import { expect, test } from "@playwright/test";
+import { approveDesign, DESIGN_SUMMARY, designReady, login } from "./helpers";
 
 test("flujo completo: crear → contenido → diseño → pulido → publicar → enlace → revocar", async ({ page, browser }) => {
   await login(page);

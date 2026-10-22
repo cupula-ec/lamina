@@ -6,7 +6,7 @@ import { LaminaError } from "@lamina/contracts";
 import { getAuth } from "./auth";
 import { getDb } from "./db";
 
-export type SessionUser = { id: string; email: string; name: string; role: string; mustChangePassword: boolean; consentAt: Date | null; image?: string | null };
+export type SessionUser = { id: string; email: string; name: string; role: string; mustChangePassword: boolean; consentAt: Date | null; onboardedAt: Date | null; image?: string | null };
 
 export async function getSessionUser(): Promise<SessionUser | null> {
   const s = await getAuth().api.getSession({ headers: await headers() });
@@ -15,17 +15,18 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const [p] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, s.user.id));
   return {
     id: s.user.id, email: s.user.email, name: s.user.name, role: (s.user as { role?: string }).role ?? "teacher",
-    mustChangePassword: p?.mustChangePassword ?? false, consentAt: p?.consentAt ?? null, image: s.user.image,
+    mustChangePassword: p?.mustChangePassword ?? false, consentAt: p?.consentAt ?? null, onboardedAt: p?.onboardedAt ?? null, image: s.user.image,
   };
 }
 
-/** Páginas del docente: exige sesión, cambio de clave y consentimiento hechos. */
+/** Páginas del docente: exige sesión, cambio de clave, consentimiento y onboarding (nombre e institución) hechos. */
 export async function requireUser(opts: { allowPending?: boolean } = {}): Promise<SessionUser> {
   const u = await getSessionUser();
   if (!u) redirect("/login");
   if (!opts.allowPending) {
     if (u.mustChangePassword) redirect("/cambiar-clave");
     if (!u.consentAt) redirect("/consentimiento");
+    if (!u.onboardedAt) redirect("/bienvenida");
   }
   return u;
 }

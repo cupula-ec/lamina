@@ -5,6 +5,7 @@ import { schema } from "@lamina/db";
 import { getDb } from "@/lib/db";
 import { loadDeck, provisionalForDeck, tokenHash } from "@/lib/presentation-view";
 import { getSessionUser } from "@/lib/session";
+import { withSignedBranding } from "@/lib/branding";
 import { ViewClient } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -37,5 +38,5 @@ export default async function ViewPage({ params, searchParams }: { params: Promi
   const dv = await loadDeck(deckId ?? null);
   if (!dv) notFound();
   const prov = await provisionalForDeck(p.id, dv.row.componentPins);
-  return <ViewClient deck={dv.deck} prov={prov} presenter={sp.presenter === "1" && isOwner} channelKey={`${p.id}:${dv.row.sha256.slice(0, 12)}`} preview={!published || showDraft} />;
+  return <ViewClient deck={withSignedBranding(dv.deck, 6 * 3600)} prov={prov} presenter={sp.presenter === "1" && isOwner} channelKey={`${p.id}:${dv.row.sha256.slice(0, 12)}`} preview={!published || showDraft} />;
 }

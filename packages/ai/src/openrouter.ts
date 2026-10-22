@@ -21,7 +21,9 @@ export class OpenRouterProvider implements Provider {
       model: req.model,
       messages: [
         { role: "system", content: req.system },
-        { role: "user", content: req.user },
+        { role: "user", content: req.images?.length
+          ? [{ type: "text", text: req.user }, ...req.images.map((i) => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.base64}` } }))]
+          : req.user },
       ],
       temperature: req.temperature ?? 0.3,
       max_tokens: req.maxTokens ?? 6000,

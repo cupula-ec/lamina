@@ -1,5 +1,8 @@
-export const ROLES = ["research", "content", "design", "component", "review"] as const;
+export const ROLES = ["research", "content", "design", "component", "review", "vision"] as const;
 export type Role = (typeof ROLES)[number];
+
+/** Imagen adjunta (solo roles con visión). Nunca se registra ni se guarda. */
+export type ChatImage = { mime: "image/png" | "image/jpeg"; base64: string };
 
 export type ChatRequest = {
   role: Role;
@@ -9,6 +12,7 @@ export type ChatRequest = {
   system: string;
   user: string;
   json: boolean;
+  images?: ChatImage[];
   maxTokens?: number;
   temperature?: number;
   signal?: AbortSignal;

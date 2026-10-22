@@ -2,14 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { JobWatcher } from "@/components/JobWatcher";
+import { MetaEditor } from "@/components/MetaEditor";
 import { StageBar, StageTag } from "@/components/StageBar";
+import { buildBranding } from "@lamina/db";
+import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { requireOwner } from "@/lib/guard";
 import { contentVersions, loadContent, sourcesFor } from "@/lib/presentation-view";
 import { STAGE_LABEL, stageTone } from "@/lib/stages";
-import type { Stage } from "@lamina/contracts";
+import { parseStylePref, proposeStyle, type Stage } from "@lamina/contracts";
 import { ContentEditor } from "./editor";
 import { StartDesign } from "./start-design";
+import { StyleProposal } from "./style-proposal";
 
 export const metadata = { title: "Revisar contenido" };
 export const dynamic = "force-dynamic";
@@ -23,6 +27,9 @@ export default async function InformationPage({ params }: { params: Promise<{ id
   const cur = await loadContent(p.currentContentVersionId);
   const versions = await contentVersions(p.id);
   const { sources, chunks } = await sourcesFor(p.id);
+  const chosenStyle = parseStylePref(p.themeId);
+  const showStyle = !!cur && ["content_review", "content_approved"].includes(stage);
+  const branding = showStyle ? await buildBranding(getDb(), p).catch(() => null) : null;
   const showEditor = !!cur && ["content_review", "content_approved"].includes(stage) || (!!cur && (stage === "quota_wait" || stage === "failed_recoverable"));
 
   return (
@@ -32,6 +39,7 @@ export default async function InformationPage({ params }: { params: Promise<{ id
           <Link href="/dashboard" className="text-sm font-bold underline underline-offset-4">← Mis presentaciones</Link>
           <h1 className="mt-2 text-3xl font-bold">{p.title}</h1>
           <p className="text-ink-2">{p.level} · {p.objective}</p>
+          <MetaEditor presentationId={p.id} initial={{ subject: p.subject ?? "", period: p.period ?? "", group: p.groupName ?? "" }} />
         </div>
         <div className="space-y-2 text-right">
           <StageBar stage={stage} prevStage={p.prevStage} />
@@ -44,6 +52,17 @@ export default async function InformationPage({ params }: { params: Promise<{ id
           <JobWatcher id={p.id} initial={{ stage: p.stage, prevStage: p.prevStage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />
         )}
         {stage === "draft" && <p className="sheet p-5">La presentación está lista para empezar. Si esta pantalla no avanza, vuelve a <Link href="/presentations/new" className="underline">crearla</Link>.</p>}
+
+        {showStyle && cur && (
+          <StyleProposal
+            presentationId={p.id}
+            initial={chosenStyle ?? proposeStyle({ subject: p.subject ?? undefined, topic: cur.draft.meta.topic, level: cur.draft.meta.level, objective: cur.draft.meta.objective })}
+            chosen={!!chosenStyle}
+            topic={cur.draft.meta.topic}
+            branding={branding}
+            readOnly={stage !== "content_review" && stage !== "content_approved"}
+          />
+        )}
 
         {showEditor && cur && (
           <ContentEditor

@@ -1,6 +1,7 @@
-import type { Block, ComponentRef, Slide, SlideHint, ContentDraft } from "@lamina/contracts";
+import type { AccentId, Block, Branding, ComponentRef, Slide, SlideHint, ContentDraft, ThemeId } from "@lamina/contracts";
 import { ENGINE_VERSION, type DeckDocument } from "@lamina/contracts";
 import { NATIVE_CATALOG } from "./registry";
+import { hasBranding, varietyProblem } from "./variety";
 
 const ref = (componentId: string, props: Record<string, unknown>): ComponentRef => {
   const e = NATIVE_CATALOG.find((c) => c.def.id === componentId)!;
@@ -45,12 +46,17 @@ function blockRef(b: Block): ComponentRef | null {
 
 const VISUAL = new Set(["graphSpec", "table", "diagramSpec"]);
 
-function mapGroup(blocks: Block[]): Mapped {
+function mapGroup(blocks: Block[], prev: string[] = [], closing = false): Mapped {
   const refs = blocks.map(blockRef).filter(Boolean) as ComponentRef[];
   const visualIdx = blocks.findIndex((b) => VISUAL.has(b.type));
   if (blocks.length === 1) {
     const b = blocks[0]!;
-    if (b.type === "formula") return { layout: "formula-focus", slots: { main: refs[0]! } };
+    if (closing && b.type === "text") return { layout: "closing", slots: { main: ref("Summary", { heading: "Ideas clave", points: mdToItems(b.md, 5).map((i) => i.text) }) } };
+    if (b.type === "formula") {
+      // Variedad: una fórmula aislada alterna entre dos layouts para no repetir el mismo tres veces seguidas.
+      const hero = varietyProblem(prev, "formula-focus", [b]) !== null;
+      return { layout: hero ? "hero-formula" : "formula-focus", slots: { main: refs[0]! } };
+    }
     return { layout: "title-content", slots: { main: refs[0]! } };
   }
   if (visualIdx >= 0 && blocks.length === 2) {
@@ -76,13 +82,15 @@ function groupBlocks(blocks: Block[]): Block[][] {
 }
 
 /** Slide(s) estable(s) determinista(s) para un hint: garantiza un deck válido si la IA falla. */
-export function slidesFromHint(hint: SlideHint): Slide[] {
+export function slidesFromHint(hint: SlideHint, prevLayouts: string[] = [], opts: { closing?: boolean } = {}): Slide[] {
   const groups = groupBlocks(hint.blocks);
+  const used = [...prevLayouts];
   return groups.map((g, gi) => {
-    const m = mapGroup(g);
+    const m = mapGroup(g, used, !!opts.closing);
+    used.push(m.layout);
     const title = clip(hint.intent.replace(/\.$/, ""), 100);
     const slots: Record<string, ComponentRef> = { ...m.slots };
-    if (m.layout !== "title" && m.layout !== "section") slots.title = ref("SectionHeader", { title: gi === 0 ? title : clip(`${title} (cont.)`, 105) });
+    if (m.layout !== "title" && m.layout !== "section" && m.layout !== "cover-branded") slots.title = ref("SectionHeader", { title: gi === 0 ? title : clip(`${title} (cont.)`, 105) });
     return {
       id: gi === 0 ? hint.id : `${hint.id}-${String.fromCharCode(98 + gi - 1)}`,
       layout: m.layout, slots, notes: "", build: { steps: [] }, transition: "fade" as const,
@@ -91,23 +99,28 @@ export function slidesFromHint(hint: SlideHint): Slide[] {
   });
 }
 
-export function titleSlide(meta: ContentDraft["meta"], author?: string): Slide {
-  return { id: "title", layout: "title", slots: { main: ref("Title", { title: clip(meta.topic, 105), subtitle: clip(`${meta.level} · ${meta.objective}`, 155), ...(author ? { author } : {}) }) }, notes: "", build: { steps: [] }, transition: "fade" };
+/** Portada: `cover-branded` cuando hay marcas o datos del docente; si no, la portada simple `title`. */
+export function titleSlide(meta: ContentDraft["meta"], author?: string, branding?: Branding): Slide {
+  const branded = hasBranding(branding);
+  const teacher = branding?.teacher?.trim();
+  const props = { title: clip(meta.topic, 105), subtitle: clip(`${meta.level} · ${meta.objective}`, 155), ...(author && !(branded && teacher) ? { author } : {}) };
+  return { id: "title", layout: branded ? "cover-branded" : "title", slots: { main: ref("Title", props) }, notes: "", build: { steps: [] }, transition: "fade" };
 }
 export function sectionSlide(id: string, title: string, index: number): Slide {
   return { id: `sec-${id}`, layout: "section", slots: { main: ref("SectionHeader", { title: clip(title, 105), kicker: `Sección ${index + 1}` }) }, notes: "", build: { steps: [] }, transition: "slide" };
 }
 
 /** Deck completo 100 % determinista (respaldo y proveedor fake). */
-export function deckFromContent(content: ContentDraft, author?: string): DeckDocument {
-  const slides: Slide[] = [titleSlide(content.meta, author)];
+export function deckFromContent(content: ContentDraft, author?: string, opts: { branding?: Branding; themeId?: ThemeId; accent?: AccentId } = {}): DeckDocument {
+  const slides: Slide[] = [titleSlide(content.meta, author, opts.branding)];
   content.sections.forEach((s, i) => {
     if (content.sections.length > 1) slides.push(sectionSlide(s.id, s.title, i));
-    for (const h of s.slidesHint) slides.push(...slidesFromHint(h));
+    const last = i === content.sections.length - 1 && content.sections.length > 1;
+    for (const h of s.slidesHint) slides.push(...slidesFromHint(h, slides.map((x) => x.layout), { closing: last }));
   });
   return {
-    schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: "lamina-claro",
-    meta: { title: clip(content.meta.topic, 190), topic: content.meta.topic, level: content.meta.level, language: content.meta.language, ...(author ? { author } : {}) },
+    schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: opts.themeId ?? "lamina-claro", ...(opts.accent ? { accent: opts.accent } : {}),
+    meta: { title: clip(content.meta.topic, 190), topic: content.meta.topic, level: content.meta.level, language: content.meta.language, ...(author ? { author } : {}), ...(opts.branding ? { branding: opts.branding } : {}) },
     slides,
   };
 }

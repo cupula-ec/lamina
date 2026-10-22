@@ -74,6 +74,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
       <h1 className="text-3xl font-bold">Administración</h1>
       <nav className="mt-4 flex flex-wrap gap-2 border-b-2 border-ink pb-3" aria-label="Secciones">
         {TABS.map(([k, l]) => <Link key={k} href={`/admin?tab=${k}`} className={`btn btn-sm ${tab === k ? "btn-mark" : ""}`} aria-current={tab === k ? "page" : undefined}>{l}</Link>)}
+        <Link href="/admin/instituciones" className="btn btn-sm">Instituciones</Link>
       </nav>
       <div className="mt-6">{body}</div>
     </AppShell>

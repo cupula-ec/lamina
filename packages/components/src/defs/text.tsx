@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { Md, Latex } from "@lamina/engine";
+import { Icon, Latex, Md, type IconName } from "@lamina/engine";
 import { defineComponent } from "../define";
 
 /* ───── Title ───── */
 export const Title = defineComponent({
   id: "Title",
   title: "Portada",
-  purpose: "Portada de la presentación: título, subtítulo y autoría. Siempre el primer slide.",
+  purpose: "Portada de la presentación: título, subtítulo y autoría. Siempre el primer slide (layout 'title' o 'cover-branded'; en este último el docente, la materia y las marcas los pone el layout).",
   useCases: ["Primer slide con tema, nivel y docente"],
-  constraints: ["Título ≤ 90 caracteres", "Usar solo en el slot main del layout 'title'"],
+  constraints: ["Título ≤ 90 caracteres", "Usar solo en el slot main de los layouts 'title' y 'cover-branded'"],
   fitsSlots: ["main"],
   schema: z.object({
     title: z.string().min(1).max(110),
@@ -56,7 +56,7 @@ export const BulletPoints = defineComponent({
   purpose: "Lista breve de ideas clave (Markdown inline y $LaTeX$ permitidos), con subpuntos opcionales.",
   useCases: ["Ideas clave de un concepto", "Pasos de un procedimiento (ordered)", "Condiciones o propiedades"],
   constraints: ["Máx. 6 ítems recomendados (8 duro)", "Cada ítem ≤ 110 caracteres", "Subpuntos ≤ 3 por ítem"],
-  fitsSlots: ["main", "left", "right", "text", "note"],
+  fitsSlots: ["main", "left", "right", "text", "note", "col1", "col2", "col3", "context", "caption", "aside", "side", "refs"],
   schema: z.object({
     items: z.array(z.object({ text: z.string().min(1).max(200), sub: z.array(z.string().max(140)).max(3).optional() })).min(1).max(8),
     ordered: z.boolean().default(false),
@@ -109,7 +109,7 @@ export const Definition = defineComponent({
   purpose: "Enunciado formal destacado: definición, teorema, propiedad o lema, con nombre y nota opcional.",
   useCases: ["Definir un concepto", "Enunciar un teorema (con hipótesis)", "Resaltar una propiedad"],
   constraints: ["statement ≤ 500 caracteres; fórmulas con $…$ o $$…$$", "note ≤ 200 caracteres"],
-  fitsSlots: ["main", "text", "left", "right", "note"],
+  fitsSlots: ["main", "text", "left", "right", "note", "col1", "col2", "col3", "context", "aside", "side", "verdict"],
   schema: z.object({
     kind: z.enum(["definicion", "teorema", "propiedad", "lema", "corolario"]).default("definicion"),
     name: z.string().max(120).optional(),
@@ -119,9 +119,10 @@ export const Definition = defineComponent({
   examples: [{ name: "derivada", props: { kind: "definicion", name: "Derivada en un punto", statement: "Si el límite existe, la derivada de $f$ en $a$ es $$f'(a)=\\lim_{h\\to 0}\\frac{f(a+h)-f(a)}{h}.$$", note: "Interpretación: pendiente de la recta tangente en $(a,f(a))$." } }],
   Component: ({ props }) => {
     const label = { definicion: "Definición", teorema: "Teorema", propiedad: "Propiedad", lema: "Lema", corolario: "Corolario" }[props.kind];
+    const icon: IconName = { definicion: "lupa", teorema: "check", propiedad: "funcion", lema: "vector", corolario: "flecha" }[props.kind] as IconName;
     return (
       <article className={`lm-definition lm-def-${props.kind}`}>
-        <div className="lm-def-head"><span className="lm-def-kind">{label}</span>{props.name && <span className="lm-def-name">{props.name}</span>}</div>
+        <div className="lm-def-head"><Icon name={icon} size={34} /><span className="lm-def-kind">{label}</span>{props.name && <span className="lm-def-name">{props.name}</span>}</div>
         <Md>{props.statement}</Md>
         {props.note && <Md className="lm-def-note">{props.note}</Md>}
       </article>
@@ -143,9 +144,16 @@ export const FormulaHighlight = defineComponent({
     variables: z.array(z.object({ symbol: z.string().max(40), meaning: z.string().max(120) })).max(5).optional(),
   }),
   examples: [{ name: "cadena", props: { latex: "\\frac{d}{dx}f(g(x)) = f'(g(x))\\,g'(x)", caption: "Regla de la cadena", variables: [{ symbol: "f", meaning: "función externa" }, { symbol: "g", meaning: "función interna" }] } }],
-  Component: ({ props }) => (
+  Component: ({ props, ctx }) => {
+    // Tamaño según el ancho del área y la longitud de la fórmula (las órdenes TeX cuentan como un símbolo): cabe sin cortarse en columnas angostas.
+    const symbols = Math.max(4, props.latex.replace(/\\[a-zA-Z]+/g, "x").replace(/[{}\s]/g, "").length);
+    const hero = ctx.layout === "hero-formula";
+    const base = hero ? 132 : ctx.width >= 1500 ? 76 : ctx.width >= 900 ? 64 : 52;
+    const size = Math.round(Math.max(36, Math.min(base, (ctx.width * 0.8) / (symbols * 0.5))));
+    const pad = ctx.width < 1000 ? "28px 28px" : undefined;
+    return (
     <figure className="lm-formula">
-      <div className="lm-formula-box"><Latex tex={props.latex} /></div>
+      <div className="lm-formula-box" style={{ fontSize: size, padding: pad }}><Latex tex={props.latex} /></div>
       {props.caption && <figcaption>{props.caption}</figcaption>}
       {props.variables && (
         <dl className="lm-vars">
@@ -153,7 +161,8 @@ export const FormulaHighlight = defineComponent({
         </dl>
       )}
     </figure>
-  ),
+    );
+  },
 });
 
 /* ───── Derivation ───── */

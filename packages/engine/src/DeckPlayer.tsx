@@ -3,7 +3,7 @@ import { createElement as h, useCallback, useEffect, useLayoutEffect, useRef, us
 import type { DeckDocument } from "@lamina/contracts";
 import { CANVAS } from "./geometry";
 import { entryStep, nextPos, prevPos, stepsOf } from "./build";
-import { SlideView } from "./SlideView";
+import { SlideView, deckViewProps } from "./SlideView";
 import type { Resolver } from "./types";
 
 /** Slide escalado para caber en su contenedor (miniaturas, vista previa, capturas). */
@@ -20,9 +20,9 @@ export function SlideThumb({ deck, index, resolver, step = 0, className }: { dec
   }, []);
   const slide = deck.slides[index];
   if (!slide) return null;
-  return h("div", { ref: box, className: `lm-thumb ${className ?? ""}`, style: { aspectRatio: "16 / 9", position: "relative", overflow: "hidden" }, "data-theme": deck.themeId },
+  return h("div", { ref: box, className: `lm-thumb ${className ?? ""}`, style: { aspectRatio: "16 / 9", position: "relative", overflow: "hidden" }, "data-theme": deck.themeId, "data-accent": deck.accent },
     h("div", { style: { position: "absolute", left: 0, top: 0, transform: `scale(${scale})`, transformOrigin: "top left", width: CANVAS.width, height: CANVAS.height } },
-      h(SlideView, { slide, resolver, step, themeId: deck.themeId })));
+      h(SlideView, { slide, resolver, step, ...deckViewProps(deck), page: { n: index + 1, total: deck.slides.length } })));
 }
 
 type Pos = { slide: number; step: number };
@@ -93,7 +93,7 @@ export function DeckPlayer({ deck, resolver, channelKey, presenter = false, init
   const slide = slides[pos.slide]!;
   const total = slides.length;
 
-  return h("div", { className: "lm-player", "data-theme": deck.themeId, "data-lm-player": "1" },
+  return h("div", { className: "lm-player", "data-theme": deck.themeId, "data-accent": deck.accent, "data-lm-player": "1" },
     h("div", {
       ref: wrap, className: "lm-stage", tabIndex: 0, role: "region", "aria-roledescription": "presentación", "aria-label": `${deck.meta.title}, diapositiva ${pos.slide + 1} de ${total}`,
       onTouchStart: (e: React.TouchEvent) => { touch.current = e.touches[0]!.clientX; },
@@ -101,7 +101,7 @@ export function DeckPlayer({ deck, resolver, channelKey, presenter = false, init
     },
       h("div", { className: "lm-canvas-pos", style: { width: CANVAS.width * scale, height: CANVAS.height * scale, visibility: fitted ? "visible" : "hidden" } },
         h("div", { key: slide.id, className: `lm-canvas lm-tr-${slide.transition} lm-dir-${dir}`, style: { transform: `scale(${scale})`, transformOrigin: "top left", width: CANVAS.width, height: CANVAS.height } },
-          h(SlideView, { slide, resolver, step: pos.step, themeId: deck.themeId }))),
+          h(SlideView, { slide, resolver, step: pos.step, ...deckViewProps(deck), page: { n: pos.slide + 1, total } }))),
     ),
     showChrome ? h("div", { className: "lm-chrome", "aria-live": "polite" },
       h("button", { type: "button", onClick: prev, "aria-label": "Anterior", disabled: pos.slide === 0 && pos.step <= entryStep(slides[0]!) }, "‹"),
@@ -127,7 +127,7 @@ export function PresenterView({ deck, resolver, channelKey }: { deck: DeckDocume
   const cur = deck.slides[pos.slide];
   const nxt = deck.slides[pos.slide + 1];
   const mm = String(Math.floor(secs / 60)).padStart(2, "0"), ss = String(secs % 60).padStart(2, "0");
-  return h("div", { className: "lm-presenter", "data-theme": deck.themeId },
+  return h("div", { className: "lm-presenter", "data-theme": deck.themeId, "data-accent": deck.accent },
     h("div", { className: "lm-presenter-main" }, cur ? h(SlideThumb, { deck, index: pos.slide, resolver, step: pos.step }) : null),
     h("aside", { className: "lm-presenter-side" },
       h("div", { className: "lm-presenter-timer" }, `${mm}:${ss}`),

@@ -8,14 +8,32 @@ export async function login(page: Page, who: { email: string; pass: string } = T
   await page.getByLabel("Correo").fill(who.email);
   await page.getByLabel("Contraseña").fill(who.pass);
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(page).toHaveURL(/dashboard|bienvenida/);
+  if (/bienvenida/.test(page.url())) await completeOnboarding(page);
   await expect(page).toHaveURL(/dashboard/);
 }
 
+/** Onboarding obligatorio tras el consentimiento: nombre completo, institución (UPS) y, opcionalmente, un logo personal. */
+export async function completeOnboarding(page: Page, opts: { fullName?: string; institution?: string | null; logo?: { name: string; mimeType: string; buffer: Buffer } } = {}) {
+  await expect(page).toHaveURL(/bienvenida/);
+  await page.getByLabel("Nombre completo").fill(opts.fullName ?? "Docente de Prueba E2E");
+  if (opts.institution !== null) await page.getByLabel("Institución").selectOption({ label: opts.institution ?? "Universidad Politécnica Salesiana (UPS)" });
+  if (opts.logo) await page.getByLabel(/Logo personal/).setInputFiles(opts.logo);
+  await page.getByRole("button", { name: "Guardar y continuar" }).click();
+  await expect(page).toHaveURL(/dashboard/);
+}
+
+/** PNG 64×32 válido (rojo) para pruebas de subida de logo (el mínimo aceptado es 16 px por lado). */
+export const TINY_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAQUlEQVRo3u3QMQEAAAQAMH0k0F4zerBjBRZdOZ+FAAECBAgQIECAAAECBAgQIECAAAECBAgQIECAAAECBAgQcN8C+2IZAA/GInIAAAAASUVORK5CYII=", "base64");
+
 /** Crea una presentación y la lleva hasta la revisión de diseño. Devuelve su id. */
-export async function createToDesignReview(page: Page, topic = "La derivada y su interpretación geométrica"): Promise<string> {
+export async function createToDesignReview(page: Page, topic = "La derivada y su interpretación geométrica", meta: { subject?: string; period?: string; group?: string } = {}): Promise<string> {
   await page.goto("/presentations/new");
   await page.getByLabel("Tema").fill(topic);
   await page.getByLabel("¿Qué deben lograr tus estudiantes?").fill("Calcular derivadas básicas e interpretarlas como pendientes");
+  if (meta.subject) await page.getByLabel(/Materia/).fill(meta.subject);
+  if (meta.period) await page.getByLabel(/Período/).fill(meta.period);
+  if (meta.group) await page.getByLabel(/Grupo/).fill(meta.group);
   await page.getByRole("button", { name: "Continuar" }).click();
   await page.getByRole("button", { name: "Crear y empezar a investigar" }).click();
   await expect(page).toHaveURL(/preview\/information/);

@@ -6,3 +6,6 @@ export * from "./SlideView";
 export * from "./SandboxFrame";
 export * from "./DeckPlayer";
 export * from "./issues";
+export * from "./icons";
+export { DECOR_KINDS, SlideDecor, THEME_DECOR, decorKindFor, decorRole, hashSeed, makeRand, type DecorKind, type DecorRole } from "./decor";
+export * from "./fonts";

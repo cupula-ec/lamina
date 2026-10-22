@@ -125,6 +125,8 @@ export const presentations = pgTable("presentations", {
   prevStage: text("prev_stage"),
   resumeAt: ts("resume_at"),
   lastError: text("last_error"),
+  /** Progreso legible del job en curso (p. ej. «OCR página 12 de 40»); el worker lo limpia al terminar. */
+  progress: text("progress"),
   /** Job en curso o a reanudar: { name, payload }. */
   pendingJob: jsonb("pending_job").$type<{ name: string; payload: Record<string, unknown> }>(),
   visibility: text("visibility").notNull().default("private"),

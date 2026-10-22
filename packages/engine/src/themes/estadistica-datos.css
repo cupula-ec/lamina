@@ -1,0 +1,14 @@
+/* Tema estadistica-datos (claro). Contraste verificado en packages/engine/test/themes.test.ts */
+[data-theme="estadistica-datos"] {
+  --lm-bg: #ffffff; --lm-ink: #111827; --lm-muted: #475467; --lm-panel: #f1f5f9; --lm-rule: #d5dde6;
+  --lm-accent: #0b5cad; --lm-accent2: #00805a; --lm-mark: #ffe08a; --lm-hl-ink: #14181f;
+  --lm-answer: #e3f3ea; --lm-answer-ink: #14532d; --lm-pen: #c2410c;
+  --lm-plot1: #0072b2; --lm-plot2: #c2410c; --lm-plot3: #8e3a7c; --lm-plot4: #00805a;
+  --lm-cp-bg: #fff4d6; --lm-cp-ink: #111827; --lm-cp-border: #c98b00; --lm-cp-label: #7a4d00;
+  --lm-font-display: "IBM Plex Sans", system-ui, sans-serif;
+  --lm-font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --lm-radius: 10px; --lm-shadow: 0 1px 3px rgba(16, 24, 40, .12); --lm-title-weight: 600; --lm-title-tracking: -0.02em; --lm-card-border: 1px solid var(--lm-rule);
+  --lm-deco: var(--lm-accent); --lm-deco2: var(--lm-accent2); --lm-deco-opacity: .18; --lm-deco-bg-opacity: .06; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);
+}
+[data-theme="estadistica-datos"][data-accent="b"] { --lm-accent: #b34a00; --lm-accent2: #0b5cad; --lm-mark: #ffd9a8; }
+[data-theme="estadistica-datos"][data-accent="c"] { --lm-accent: #6b3fa0; --lm-accent2: #b34a00; --lm-mark: #e4d2fa; }

@@ -1,12 +1,13 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import {
-  ContentDraft, DeckDocument, ENGINE_VERSION, LAYOUTS, Slide, type DeckDocument as Deck, type Slide as SlideT, type SlideHint,
+  ACCENT_IDS, ContentDraft, DeckDocument, ENGINE_VERSION, LAYOUT_IDS, LAYOUTS, Slide, THEME_IDS, formatStylePref, parseStylePref, proposeStyle, themesForPrompt,
+  type DeckDocument as Deck, type Slide as SlideT, type SlideHint, type StyleChoice,
 } from "@lamina/contracts";
-import { designSlideSystem } from "@lamina/ai";
-import { consumeQuota, hashJson, schema, workflow as wf } from "@lamina/db";
+import { chooseStyleSystem, designSlideSystem } from "@lamina/ai";
+import { buildBranding, consumeQuota, hashJson, schema, workflow as wf } from "@lamina/db";
 import { enqueue } from "@lamina/jobs";
-import { catalogForPrompt, deckFromContent, sectionSlide, slidesFromHint, titleSlide, validateDeckAgainstCatalog } from "@lamina/components";
+import { catalogForPrompt, deckFromContent, sectionSlide, slidesFromHint, titleSlide, validateDeckAgainstCatalog, varietyProblem } from "@lamina/components";
 import type { Ctx } from "../ctx";
 import { expectStage } from "../run";
 import { loadProvisional, lookupFor, manifestsFor, type ProvisionalComponent } from "../catalog";
@@ -17,8 +18,35 @@ const SlideOut = z.object({
   missingComponent: z.object({ name: z.string().min(2).max(60).regex(/^[A-Za-z][A-Za-z0-9]*$/), purpose: z.string().min(10).max(500) }).optional(),
 });
 
+/** Layouts que coloca el sistema (portadas y separadores): el modelo de diseño no los elige. */
+const SYSTEM_LAYOUTS = new Set<string>(["title", "section", "cover-branded"]);
+
 export const layoutsDoc = () =>
-  Object.values(LAYOUTS).map((l) => `- ${l.id}: ${l.purpose}. Slots: ${l.slots.map((s) => `${s.name}${s.required ? "*" : ""} (${s.hint})`).join("; ")}`).join("\n");
+  Object.values(LAYOUTS).map((l) => `- ${l.id}${SYSTEM_LAYOUTS.has(l.id) ? " [lo coloca el sistema]" : ""}: ${l.purpose}. Slots: ${l.slots.map((s) => `${s.name}${s.required ? "*" : ""} (${s.hint})`).join("; ")}`).join("\n");
+
+const StyleOut = z.object({ themeId: z.enum(THEME_IDS), accent: z.enum(ACCENT_IDS).default("a"), rationale: z.string().max(500).default("") });
+export type ChosenStyle = StyleChoice & { rationale: string; source: "ia" | "reglas" };
+
+/**
+ * Paso previo al diseño: la IA (rol design) propone tema y acento según materia, nivel y objetivo; ante cualquier fallo
+ * (modelo caído, cupo, respuesta inválida) se usa la propuesta determinista por palabras clave. Nunca bloquea el diseño.
+ */
+export async function chooseStyle(ctx: Ctx, input: { presentationId: string; topic: string; level: string; objective: string; subject?: string | null }): Promise<ChosenStyle> {
+  const rules = proposeStyle({ subject: input.subject ?? undefined, topic: input.topic, level: input.level, objective: input.objective });
+  const fallback: ChosenStyle = { ...rules, rationale: "Propuesta por la materia y el tema de la clase.", source: "reglas" };
+  try {
+    const out = await ctx.ai.structured({
+      role: "design", task: "design.style", schema: StyleOut, presentationId: input.presentationId, maxTokens: 400, temperature: 0.2,
+      system: chooseStyleSystem(themesForPrompt()),
+      user: `DATOS DE LA CLASE:\n${JSON.stringify({ materia: input.subject ?? null, tema: input.topic, nivel: input.level, objetivo: input.objective })}\n\nSugerencia por reglas (cámbiala solo si hay una razón clara): ${rules.themeId}.\nDevuelve { "themeId", "accent", "rationale" }.`,
+      fakeContext: { rules },
+    });
+    return { themeId: out.themeId, accent: out.accent, rationale: out.rationale || fallback.rationale, source: "ia" };
+  } catch (e) {
+    ctx.log("design.style: se usa la propuesta por reglas", { error: (e as Error).message?.slice(0, 160) });
+    return fallback;
+  }
+}
 
 /** Fórmulas/expresiones que deben aparecer literalmente en la diapositiva (fidelidad matemática). */
 export function mustKeep(hint: SlideHint): string[] {
@@ -51,6 +79,16 @@ export function missingFormulas(hint: SlideHint, slide: SlideT): string[] {
 
 const wrap = (slides: SlideT[], base?: Deck): Deck => ({ schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: base?.themeId ?? "lamina-claro", meta: base?.meta ?? { title: "x", topic: "x", level: "x", language: "es" }, slides });
 
+/** Portada con zona de marcas (layout `cover-branded`) solo si el catálogo de layouts ya lo contiene y la portada actual encaja en sus slots. */
+export function withBrandedCover(slides: SlideT[]): SlideT[] {
+  const spec = (LAYOUT_IDS as string[]).includes("cover-branded") ? (LAYOUTS as Record<string, (typeof LAYOUTS)[keyof typeof LAYOUTS]>)["cover-branded"] : undefined;
+  const first = slides[0];
+  if (!spec || !first || first.id !== "title" || first.layout !== "title") return slides;
+  const names = new Set<string>(spec.slots.map((x) => x.name));
+  if (Object.keys(first.slots).some((k) => !names.has(k)) || spec.slots.some((x) => x.required && !(x.name in first.slots))) return slides;
+  return [{ ...first, layout: "cover-branded" as SlideT["layout"] }, ...slides.slice(1)];
+}
+
 export const ownsHint = (hintId: string, slideId: string) => slideId === hintId || slideId.startsWith(`${hintId}-`);
 
 export async function designGenerate(
@@ -64,12 +102,20 @@ export async function designGenerate(
   const content = ContentDraft.parse(cv!.content);
   const [owner] = await ctx.db.select().from(schema.user).where(eq(schema.user.id, p.ownerId));
   const author = owner?.name;
+  const branding = await buildBranding(ctx.db, p);
 
   let prevDeck: Deck | null = null;
   if (data.baseDeckVersionId) {
     const [dv] = await ctx.db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, data.baseDeckVersionId));
     if (dv) prevDeck = DeckDocument.parse(dv.deck);
   }
+
+  // Estilo: el de la versión anterior (el docente pudo cambiarlo), si no el que eligió el docente y, si no, la propuesta de la IA.
+  const chosen = prevDeck ? null : parseStylePref(p.themeId);
+  const style: StyleChoice = prevDeck
+    ? { themeId: prevDeck.themeId, accent: prevDeck.accent ?? "a" }
+    : chosen ?? await chooseStyle(ctx, { presentationId: p.id, topic: content.meta.topic, level: content.meta.level, objective: content.meta.objective, subject: p.subject });
+  if (!prevDeck && !chosen) await ctx.db.update(schema.presentations).set({ themeId: formatStylePref(style) }).where(eq(schema.presentations.id, p.id));
 
   const prov = await loadProvisional(ctx, p.id);
   const lookup = lookupFor(prov);
@@ -84,7 +130,7 @@ export async function designGenerate(
 
   const slides: SlideT[] = [];
   const keep = (id: string) => prevDeck?.slides.find((s) => s.id === id);
-  slides.push(!regenAll && keep("title") ? keep("title")! : titleSlide(content.meta, author));
+  slides.push(!regenAll && keep("title") ? keep("title")! : titleSlide(content.meta, author, branding));
 
   for (const [si, s] of content.sections.entries()) {
     if (content.sections.length > 1) slides.push(!regenAll && keep(`sec-${s.id}`) ? keep(`sec-${s.id}`)! : sectionSlide(s.id, s.title, si));
@@ -96,7 +142,9 @@ export async function designGenerate(
 
       const prev = hints[idx - 1]?.hint.intent, next = hints[idx + 1]?.hint.intent;
       const current = existing[0];
-      const user = `CONTENIDO DE LA DIAPOSITIVA (id "${h.id}", sección «${s.title}»):\n${JSON.stringify({ intent: h.intent, blocks: h.blocks })}\n\nContinuidad: anterior = ${prev ?? "(ninguna)"}; siguiente = ${next ?? "(ninguna)"}.\nNivel: ${content.meta.level}. Idioma: ${content.meta.language}.${current && data.feedback ? `\n\nVERSIÓN ACTUAL de la diapositiva (JSON):\n${JSON.stringify(current)}` : ""}${data.feedback ? `\n\nCOMENTARIOS DEL DOCENTE (aplícalos): ${data.feedback}` : ""}\n\nDevuelve { "slide": {...con id "${h.id}"}, "missingComponent"?: {...} }.`;
+      const used = slides.map((x) => x.layout);
+      const inLastSection = si === content.sections.length - 1 && content.sections.length > 1;
+      const user = `CONTENIDO DE LA DIAPOSITIVA (id "${h.id}", sección «${s.title}»):\n${JSON.stringify({ intent: h.intent, blocks: h.blocks })}\n\nContinuidad: anterior = ${prev ?? "(ninguna)"}; siguiente = ${next ?? "(ninguna)"}.\nNivel: ${content.meta.level}. Idioma: ${content.meta.language}.\nLayouts de las diapositivas anteriores (en orden): ${used.slice(-4).join(", ") || "(ninguna)"}.${inLastSection ? " Esta diapositiva es de la última sección (puedes usar \"closing\" si resume ideas clave)." : ""}${current && data.feedback ? `\n\nVERSIÓN ACTUAL de la diapositiva (JSON):\n${JSON.stringify(current)}` : ""}${data.feedback ? `\n\nCOMENTARIOS DEL DOCENTE (aplícalos): ${data.feedback}` : ""}\n\nDevuelve { "slide": {...con id "${h.id}"}, "missingComponent"?: {...} }.`;
       try {
         const out = await ctx.ai.structured({
           role: "design", task: "design.slide", schema: SlideOut, presentationId: p.id, maxTokens: 3500, temperature: 0.3, system, user,
@@ -107,6 +155,10 @@ export async function designGenerate(
             const errs = v.ok ? [] : v.errors;
             const miss = missingFormulas(h, sl);
             if (miss.length) errs.push(`Faltan fórmulas/expresiones del contenido, que deben copiarse tal cual: ${miss.slice(0, 4).join(" | ")}`);
+            if (SYSTEM_LAYOUTS.has(sl.layout)) errs.push(`El layout "${sl.layout}" lo coloca el sistema: elige otro para esta diapositiva.`);
+            else if (sl.layout === "closing" && !inLastSection) errs.push('El layout "closing" solo se usa en la última sección: elige otro.');
+            const rep = varietyProblem(used, sl.layout, h.blocks);
+            if (rep) errs.push(rep);
             return errs;
           },
         });
@@ -116,20 +168,21 @@ export async function designGenerate(
           await requestComponent(ctx, p.id, p.ownerId, out.missingComponent.name, out.missingComponent.purpose, h.id);
         }
       } catch (e) {
-        if (e instanceof LaminaError && e.code === "provider_failed") slides.push(...slidesFromHint(h)); // fallback estable
+        if (e instanceof LaminaError && e.code === "provider_failed") slides.push(...slidesFromHint(h, used, { closing: inLastSection })); // fallback estable
         else throw e; // QuotaWaitError y demás: el wrapper decide
       }
     }
   }
 
   const deck: Deck = DeckDocument.parse({
-    schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: prevDeck?.themeId ?? "lamina-claro",
-    meta: { title: content.meta.topic.slice(0, 190), topic: content.meta.topic, level: content.meta.level, language: content.meta.language, ...(author ? { author } : {}) },
-    slides,
+    schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: style.themeId, accent: style.accent,
+    meta: { title: content.meta.topic.slice(0, 190), topic: content.meta.topic, level: content.meta.level, language: content.meta.language, ...(author ? { author } : {}), branding },
+    slides: withBrandedCover(slides),
   });
   const final = validateDeckAgainstCatalog(deck, lookup);
   // Último recurso: si algo no valida, deck 100 % determinista (nunca se bloquea al docente).
-  const safe: Deck = final.ok ? final.deck : deckFromContent(content, author);
+  const fallback = (): Deck => { const d = deckFromContent(content, author, { branding, themeId: style.themeId, accent: style.accent }); return { ...d, meta: { ...d.meta, branding }, slides: withBrandedCover(d.slides) }; };
+  const safe: Deck = final.ok ? final.deck : fallback();
   const pins: Record<string, { version: string; bundleHash?: string }> = {};
   const provById = new Map(prov.map((x) => [x.manifest.id, x]));
   for (const sl of safe.slides) for (const r of Object.values(sl.slots)) pins[r.componentId] = { version: r.version, bundleHash: provById.get(r.componentId)?.bundleHash };

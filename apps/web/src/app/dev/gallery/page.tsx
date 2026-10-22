@@ -1,13 +1,21 @@
 import { notFound } from "next/navigation";
-import { NATIVE_CATALOG } from "@lamina/components";
-import { LAYOUTS } from "@lamina/contracts";
+import { NATIVE_CATALOG, galleryDeck } from "@lamina/components";
+import { ACCENT_IDS, LAYOUTS, THEME_IDS, isThemeId, type AccentId } from "@lamina/contracts";
 import { GalleryClient } from "./client";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Galería de estilos" };
 
-export default function Gallery() {
+type SP = { theme?: string; accent?: string; view?: string };
+
+export default async function Gallery({ searchParams }: { searchParams: Promise<SP> }) {
   if (process.env.NODE_ENV === "production" && process.env.LAMINA_GALLERY !== "1") notFound();
-  const slides = NATIVE_CATALOG.flatMap((c) =>
+  const sp = await searchParams;
+  const themeId = isThemeId(sp.theme) ? sp.theme : THEME_IDS[0];
+  const accent = ((ACCENT_IDS as readonly string[]).includes(sp.accent ?? "") ? sp.accent : "a") as AccentId;
+  const view = sp.view === "components" || sp.view === "picker" ? sp.view : "layouts";
+  const deck = galleryDeck({ themeId, accent });
+  const components = NATIVE_CATALOG.flatMap((c) =>
     c.examples.map((ex, i) => {
       const slot = c.fitsSlots[0]!;
       const layout = slot === "main" ? "title-content" : (Object.values(LAYOUTS).find((l) => l.slots.some((s) => s.name === slot)) ?? LAYOUTS["title-content"]).id;
@@ -18,5 +26,5 @@ export default function Gallery() {
       return { id: `${c.def.id}-${i}`, layout, slots, notes: "", build: { steps: [] }, transition: "none" };
     }),
   );
-  return <GalleryClient slides={slides as any} />;
+  return <GalleryClient deck={deck} components={components as never} view={view} themeId={themeId} accent={accent} />;
 }

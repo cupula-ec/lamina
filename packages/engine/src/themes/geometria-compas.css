@@ -1,0 +1,14 @@
+/* Tema geometria-compas (claro). Contraste verificado en packages/engine/test/themes.test.ts */
+[data-theme="geometria-compas"] {
+  --lm-bg: #f4f1e8; --lm-ink: #14213d; --lm-muted: #464f60; --lm-panel: #e7e4d6; --lm-rule: #c7c8c4;
+  --lm-accent: #1d3a78; --lm-accent2: #a64a14; --lm-mark: #f2d27c; --lm-hl-ink: #14181f;
+  --lm-answer: #dfeadd; --lm-answer-ink: #1f4a2a; --lm-pen: #b0301c;
+  --lm-plot1: #1d3a78; --lm-plot2: #b4551d; --lm-plot3: #0f6b6b; --lm-plot4: #8a2f5a;
+  --lm-cp-bg: #f4e6c3; --lm-cp-ink: #14213d; --lm-cp-border: #b4551d; --lm-cp-label: #8a3f10;
+  --lm-font-display: "Literata Variable", Literata, Georgia, serif;
+  --lm-font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --lm-radius: 2px; --lm-shadow: none; --lm-title-weight: 600; --lm-title-tracking: -0.01em; --lm-card-border: 1.5px solid var(--lm-rule);
+  --lm-deco: var(--lm-accent); --lm-deco2: var(--lm-accent2); --lm-deco-opacity: .20; --lm-deco-bg-opacity: .07; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);
+}
+[data-theme="geometria-compas"][data-accent="b"] { --lm-accent: #7a1f3d; --lm-accent2: #1d3a78; --lm-mark: #f2d27c; }
+[data-theme="geometria-compas"][data-accent="c"] { --lm-accent: #0f6b6b; --lm-accent2: #a64a14; --lm-mark: #f2d27c; }

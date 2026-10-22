@@ -2,7 +2,7 @@ import { z, type ZodType } from "zod";
 import { LaminaError } from "@lamina/contracts";
 import { chainFor } from "./models";
 import { assertFreeModel } from "./guard";
-import { ProviderError, QuotaWaitError, type AiHooks, type Provider, type Role } from "./types";
+import { ProviderError, QuotaWaitError, type AiHooks, type ChatImage, type Provider, type Role } from "./types";
 
 /** Limitador de ventana deslizante (OpenRouter free = 20 req/min por cuenta). */
 export class RateLimiter {
@@ -27,6 +27,7 @@ export type StructuredOpts<T> = {
   schema: ZodType<T>;
   system: string;
   user: string;
+  images?: ChatImage[];
   presentationId?: string;
   maxTokens?: number;
   temperature?: number;
@@ -92,7 +93,7 @@ export class AiClient {
         const t0 = this.now();
         try {
           const r = await this.deps.provider.chat({
-            role: o.role, task: o.task, model, system: fullSystem, user, json: true,
+            role: o.role, task: o.task, model, system: fullSystem, user, json: true, images: o.images,
             maxTokens: o.maxTokens, temperature: o.temperature, signal: o.signal, fakeContext: o.fakeContext,
           });
           let parsed: T | undefined;

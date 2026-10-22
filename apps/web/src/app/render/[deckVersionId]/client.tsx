@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo } from "react";
-import { SlideView, detectSlideIssues } from "@lamina/engine";
+import { SlideView, deckViewProps, detectSlideIssues, waitForThemeFonts } from "@lamina/engine";
 import type { DeckDocument } from "@lamina/contracts";
 import { makeResolver, type ProvisionalClient } from "@/lib/resolver";
 
@@ -19,15 +19,17 @@ export function RenderClient({ deck, index, step, prov, deckHash, storedHash }: 
     const onMsg = (e: MessageEvent) => { if (e.data?.type === "lamina:ready") ready++; };
     window.addEventListener("message", onMsg);
     const t = setInterval(async () => {
-      await document.fonts.ready;
-      if (ready >= sandboxCount) { clearInterval(t); setTimeout(() => { window.__laminaReady = true; }, 350); }
+      await waitForThemeFonts(deck.themeId);
+      await Promise.all(Array.from(document.images).map((i) => i.decode().catch(() => {})));
+      const imgs = Array.from(document.images).every((i) => i.complete);
+      if (imgs && ready >= sandboxCount) { clearInterval(t); setTimeout(() => { window.__laminaReady = true; }, 350); }
     }, 100);
     return () => { clearInterval(t); window.removeEventListener("message", onMsg); };
-  }, [slide.id, deck.slides.length, deckHash, storedHash, sandboxCount]);
+  }, [slide.id, deck.slides.length, deck.themeId, deckHash, storedHash, sandboxCount]);
 
   return (
     <div style={{ width: 1920, height: 1080, overflow: "hidden", background: "#fff" }} data-render-slide={index}>
-      <SlideView slide={slide} resolver={resolver} step={step} themeId={deck.themeId} />
+      <SlideView slide={slide} resolver={resolver} step={step} {...deckViewProps(deck)} page={{ n: index + 1, total: deck.slides.length }} />
     </div>
   );
 }

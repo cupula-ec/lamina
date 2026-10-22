@@ -1,5 +1,5 @@
 import { expect, test, request as pwRequest } from "@playwright/test";
-import { ADMIN, TEACHER, createToDesignReview, login } from "./helpers";
+import { ADMIN, TEACHER, completeOnboarding, createToDesignReview, login } from "./helpers";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3100";
 
@@ -52,7 +52,11 @@ test("dos cuentas: el docente B no puede ver ni tocar la presentación del docen
   await expect(bp).toHaveURL(/consentimiento/);
   await bp.getByRole("checkbox").check();
   await bp.getByRole("button", { name: "Acepto y continúo" }).click();
-  await expect(bp).toHaveURL(/dashboard/);
+  // onboarding obligatorio: sin completarlo no se llega a ninguna otra página
+  await expect(bp).toHaveURL(/bienvenida/);
+  await bp.goto("/dashboard");
+  await expect(bp).toHaveURL(/bienvenida/);
+  await completeOnboarding(bp, { fullName: "Docente B de Prueba", institution: null });
 
   for (const path of [`/presentations/${id}/preview/information`, `/presentations/${id}/preview/design`, `/presentations/${id}/view`]) {
     const r = await bp.goto(path);

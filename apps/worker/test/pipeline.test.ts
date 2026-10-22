@@ -42,7 +42,7 @@ async function user() {
 describe("pipeline completo con proveedor fake", () => {
   it("research → contenido → aprobar → diseño → aprobar → pulido → publicar", async () => {
     const o = await user();
-    const p = await wf.createPresentation(h.db, o, { title: "t", topic: "La derivada", level: "Universidad", objective: "Entender la derivada" });
+    const p = await wf.createPresentation(h.db, o, { title: "t", topic: "La derivada", level: "Universidad", objective: "Entender la derivada", subject: "Cálculo I", period: " Abr–Ago 2026 " });
     await wf.beginContentGeneration(h.db, p.id, o, { name: "research", payload: { presentationId: p.id, userId: o } });
 
     await research(ctx, { presentationId: p.id, userId: o });
@@ -74,6 +74,9 @@ describe("pipeline completo con proveedor fake", () => {
     const [dv] = await h.db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, cur.currentDeckVersionId!));
     const deck = DeckDocument.parse(dv!.deck);
     expect(deck.slides.length).toBeGreaterThan(8);
+    // branding: solo lo que existe (sin institución, logo ni grupo → sin claves vacías)
+    expect(deck.meta.branding).toEqual({ teacher: "Prof. Prueba", subject: "Cálculo I", period: "Abr–Ago 2026" });
+    expect(deck.slides[0]).toMatchObject({ id: "title", layout: "cover-branded" });
     const used = new Set(deck.slides.flatMap((s) => Object.values(s.slots).map((r) => r.componentId)));
     for (const c of ["FunctionPlot", "Derivation", "WorkedExample", "Definition", "Table"]) expect(used.has(c)).toBe(true);
 

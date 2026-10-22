@@ -5,11 +5,13 @@ import type { CatalogEntry } from "./define";
 import * as text from "./defs/text";
 import * as visual from "./defs/visual";
 import * as misc from "./defs/misc";
+import * as rich from "./defs/rich";
 
 export const NATIVE_CATALOG: CatalogEntry[] = [
   text.Title, text.SectionHeader, text.BulletPoints, text.TwoColumn, text.Definition, text.FormulaHighlight, text.Derivation, text.WorkedExample,
   visual.FunctionPlot, visual.Table, visual.VectorDiagram, visual.GeometryFigure,
   misc.UnitsCallout, misc.Quote, misc.Summary, misc.Checkpoint,
+  rich.Callout, rich.StatCard, rich.StepsList, rich.ComparisonTable, rich.IconBullets, rich.SectionNumber, rich.AgendaItem,
 ];
 
 const byId = new Map(NATIVE_CATALOG.map((c) => [c.def.id, c]));

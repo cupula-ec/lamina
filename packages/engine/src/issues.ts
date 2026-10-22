@@ -19,6 +19,8 @@ export type SlideIssue = {
 const SLOT_LABEL: Record<string, string> = {
   title: "el título", main: "el contenido principal", left: "la columna izquierda", right: "la columna derecha",
   text: "el texto", visual: "el recurso visual", note: "la nota",
+  col1: "la primera columna", col2: "la segunda columna", col3: "la tercera columna", context: "el contexto", caption: "la leyenda",
+  steps: "los pasos", verdict: "la conclusión", side: "el recuadro lateral", aside: "la columna de notas", refs: "las referencias",
 };
 export const slotLabel = (slot: string | null) => (slot ? SLOT_LABEL[slot] ?? `el área «${slot}»` : "la diapositiva");
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -66,7 +68,7 @@ export function detectSlideIssues(root: HTMLElement): SlideIssue[] {
     let worst: { c: HTMLElement; over: number } | null = null;
     const dirs = new Set<string>();
     for (const c of Array.from(el.querySelectorAll<HTMLElement>("*")).slice(0, 800)) {
-      if (c.closest(".katex-mathml")) continue;
+      if (c.closest(".katex-mathml") || c.closest("[clip-path]")) continue; // KaTeX accesible y trazos recortados por clip-path no se ven fuera
       const r = c.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
       const tol = 6 * scale;
@@ -97,7 +99,8 @@ export function detectSlideIssues(root: HTMLElement): SlideIssue[] {
       const t = (n.textContent ?? "").trim();
       const p = n.parentElement;
       if (!t || !p || p.closest(".katex-mathml") || p.closest("svg") || p.closest("[data-lm-allow-small]")) continue;
-      const fs = parseFloat(getComputedStyle(p).fontSize);
+      // Los sub/superíndices de KaTeX son pequeños por diseño: se mide el tamaño base de la fórmula.
+      const fs = parseFloat(getComputedStyle(p.closest(".katex") ?? p).fontSize);
       if (fs < MIN_FONT_PX) small++;
     }
     if (small > 0) issues.push({ slot, kind: "small_text", severity: "warning", message: `Hay texto demasiado pequeño para leerse al proyectar (en ${slotLabel(slot)}).`, detail: `Texto menor de ${MIN_FONT_PX}px.`, element: "texto", bbox: slotBbox });

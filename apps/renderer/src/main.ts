@@ -48,6 +48,7 @@ export async function renderDeck(deckVersionId: string) {
         const token = await newToken(deckVersionId);
         await page.goto(`${env.WEB_INTERNAL_URL}/render/${deckVersionId}?slide=${i}&step=max&token=${token}`, { waitUntil: "load", timeout: 45_000 });
         await page.waitForFunction(() => (window as any).__laminaReady === true, undefined, { timeout: 30_000 });
+        await page.evaluate(() => document.fonts.ready); // las tipografías autoalojadas del tema deben estar cargadas antes de medir y capturar
         const issues = (await page.evaluate(() => (window as any).__laminaDetect())) as unknown[];
         const meta = (await page.evaluate(() => (window as any).__laminaMeta)) as { hashOk: boolean };
         const file = path.join(dir, `${slide.id.replace(/[^A-Za-z0-9_-]/g, "_")}.png`);
@@ -73,6 +74,7 @@ export async function renderComponent(componentVersionId: string, presentationId
     const token = await newToken(componentVersionId);
     await page.goto(`${env.WEB_INTERNAL_URL}/render/component/${componentVersionId}?token=${token}`, { waitUntil: "load", timeout: 45_000 });
     await page.waitForFunction(() => (window as any).__laminaReady === true, undefined, { timeout: 30_000 });
+    await page.evaluate(() => document.fonts.ready);
     const file = path.join(dir, `${componentVersionId}.png`);
     await page.screenshot({ path: file, clip: { x: 0, y: 0, width: 988, height: 750 } });
     await db.update(schema.componentVersions).set({ screenshots: [file] }).where(eq(schema.componentVersions.id, componentVersionId));

@@ -15,7 +15,7 @@ type Version = { id: string; n: number; authorKind: string; kind: string; note: 
 type Req = { id: string; name: string; purpose: string; status: string; error: string | null; slideId: string | null };
 
 const KIND: Record<string, string> = { overflow: "Se sale", small_text: "Texto pequeño", katex_error: "Fórmula con error", empty_slot: "Área vacía", component_error: "Componente caído" };
-const VERSION_KIND: Record<string, string> = { polish: "pulido", repair: "corrección automática", edit: "edición manual", design: "diseño" };
+const VERSION_KIND: Record<string, string> = { polish: "pulido", repair: "corrección automática", edit: "edición manual", design: "diseño", style: "cambio de estilo" };
 const active = (iss: Issue[]) => iss.filter((i) => !i.ignored);
 
 export function DesignReview(props: {

@@ -1,0 +1,14 @@
+/* Tema algebra-grafito (oscuro). Contraste verificado en packages/engine/test/themes.test.ts */
+[data-theme="algebra-grafito"] {
+  --lm-bg: #1d2127; --lm-ink: #f2f3f5; --lm-muted: #bcc2ca; --lm-panel: #272d35; --lm-rule: #434c58;
+  --lm-accent: #ffb454; --lm-accent2: #8ec5ff; --lm-mark: #ffc97a; --lm-hl-ink: #10161d;
+  --lm-answer: #1b3326; --lm-answer-ink: #a8e6bd; --lm-pen: #ff9b94;
+  --lm-plot1: #ffb454; --lm-plot2: #8ec5ff; --lm-plot3: #ff9b94; --lm-plot4: #7fd1c8;
+  --lm-cp-bg: #2f2a1c; --lm-cp-ink: #f4efe2; --lm-cp-border: #e0a02a; --lm-cp-label: #ffb454;
+  --lm-font-display: "Space Grotesk Variable", "Space Grotesk", system-ui, sans-serif;
+  --lm-font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --lm-radius: 6px; --lm-shadow: none; --lm-title-weight: 600; --lm-title-tracking: -0.025em; --lm-card-border: 1px solid var(--lm-rule);
+  --lm-deco: var(--lm-muted); --lm-deco2: var(--lm-accent); --lm-deco-opacity: .16; --lm-deco-bg-opacity: .07; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);
+}
+[data-theme="algebra-grafito"][data-accent="b"] { --lm-accent: #7fd1c8; --lm-accent2: #ffb454; --lm-mark: #8fe3d9; }
+[data-theme="algebra-grafito"][data-accent="c"] { --lm-accent: #ff9b94; --lm-accent2: #9bd3ff; --lm-mark: #ffb3ad; }

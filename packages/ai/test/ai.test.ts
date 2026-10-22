@@ -16,7 +16,7 @@ describe("guard :free", () => {
       expect(() => assertFreeModel(bad)).toThrow(/no es :free/);
   });
   it("las cadenas por defecto y las de env pasan el guard; una de pago en env falla", () => {
-    expect(() => (["research", "content", "design", "component", "review"] as const).forEach((r) => chainFor(r, {}))).not.toThrow();
+    expect(() => (["research", "content", "design", "component", "review", "vision"] as const).forEach((r) => chainFor(r, {}))).not.toThrow();
     expect(() => chainFor("content", { LAMINA_MODELS_CONTENT: "openai/gpt-5" })).toThrow();
   });
   it("el fetch protegido bloquea modelos de pago ANTES de salir a la red", async () => {

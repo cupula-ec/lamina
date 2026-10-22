@@ -1,4 +1,4 @@
-import { FakeProvider } from "@lamina/ai";
+import { FakeProvider, VISION_TASK } from "@lamina/ai";
 import { slidesFromHint } from "@lamina/components";
 import type { SlideHint } from "@lamina/contracts";
 
@@ -90,6 +90,7 @@ export function makeFakeProvider() {
   return new FakeProvider({
     "research.queries": (r) => ({ queries: [`${(r.fakeContext as any).topic} explicación`, `${(r.fakeContext as any).topic} ejemplos resueltos`] }),
     "content.generate": (r) => { const c = r.fakeContext as any; return fakeContent(c.meta, c.chunkIds, c.regen, c.onlySectionIds); },
+    "design.style": (r) => { const rules = (r.fakeContext as any).rules; return { themeId: rules.themeId, accent: rules.accent, rationale: "Estilo de prueba (proveedor fake)." }; },
     "design.slide": (r) => {
       const c = r.fakeContext as any; const h = c.hint as SlideHint;
       const base = slidesFromHint(h)[0]!;
@@ -102,6 +103,7 @@ export function makeFakeProvider() {
     },
     "design.repair": (r) => ({ slide: (r.fakeContext as any).slide }),
     "component.generate": (r) => fakeComponent((r.fakeContext as any).name),
+    [VISION_TASK]: (r) => ({ text_md: `Transcripción de prueba de la página ${(r.fakeContext as any)?.page ?? 1}: $$x^2+1$$`, formulas: [{ latex: "x^2+1", display: true }] }),
     polish: () => ({ slides: [] }),
   });
 }
