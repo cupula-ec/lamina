@@ -8,8 +8,8 @@ const TABS = [
   { id: "code", label: "Claude Code" },
   { id: "desktop", label: "Claude Desktop" },
   { id: "web", label: "claude.ai" },
-  { id: "codex", label: "Codex" },
-  { id: "chatgpt", label: "ChatGPT" },
+  { id: "codex", label: "App de ChatGPT / Codex" },
+  { id: "chatgpt", label: "ChatGPT web" },
   { id: "other", label: "Otra IA" },
 ] as const;
 
@@ -48,16 +48,30 @@ export function ConnectGuide({ url, connected }: { url: string; connected: boole
           </ol>
         )}
         {tab === "codex" && (
-          <ol className="list-decimal space-y-3 pl-5">
-            <li>Añade Lámina en tu terminal:<CopyBox label="Comando para Codex" value={`codex mcp add lamina --url ${url}`} /></li>
-            <li>Inicia sesión:<CopyBox label="Comando de inicio de sesión de Codex" value="codex mcp login lamina" /></li>
-            <li>Se abrirá Lámina en tu navegador: revisa los permisos y pulsa <strong>Autorizar</strong>. Para comprobarlo, escribe <code>/mcp</code> dentro de Codex.</li>
-          </ol>
+          <div className="space-y-5">
+            <div>
+              <h3 className="font-bold">En la app de ChatGPT (incluye Codex)</h3>
+              <ol className="mt-2 list-decimal space-y-3 pl-5">
+                <li>Abre <strong>Configuración → Servidores MCP → Añadir servidor</strong>.</li>
+                <li>Pon el nombre «lamina», elige <strong>HTTP transmitible (Streamable HTTP)</strong> y pega la dirección:<CopyBox label="Dirección del servidor (app de ChatGPT)" value={url} /></li>
+                <li>Guarda, pulsa <strong>Reiniciar</strong> y luego <strong>Autenticar</strong> en la lista. Se abrirá Lámina: revisa los permisos y pulsa <strong>Autorizar</strong>.</li>
+                <li>Comprueba escribiendo <code>/mcp</code> en el cuadro de mensaje.</li>
+              </ol>
+            </div>
+            <div>
+              <h3 className="font-bold">En la terminal (Codex CLI)</h3>
+              <ol className="mt-2 list-decimal space-y-3 pl-5">
+                <li>Añade Lámina:<CopyBox label="Comando para Codex" value={`codex mcp add lamina --url ${url}`} /></li>
+                <li>Inicia sesión:<CopyBox label="Comando de inicio de sesión de Codex" value="codex mcp login lamina" /></li>
+              </ol>
+              <p className="mt-2 text-sm text-ink-2">La app y la terminal comparten la configuración: lo que añadas en una aparece en la otra. Los nombres del menú pueden variar según la versión.</p>
+            </div>
+          </div>
         )}
         {tab === "chatgpt" && (
           <div className="space-y-3">
             <ol className="list-decimal space-y-3 pl-5">
-              <li>En ChatGPT activa el <strong>modo desarrollador</strong>: Configuración → Aplicaciones y conectores → Ajustes avanzados. Depende de tu plan y los nombres del menú cambian.</li>
+              <li>En ChatGPT (navegador) activa el <strong>modo desarrollador</strong>: Configuración → Aplicaciones y conectores → Ajustes avanzados. Depende de tu plan y los nombres del menú cambian.</li>
               <li>Crea un conector nuevo, ponle el nombre «Lámina», pega la dirección y elige autenticación <strong>OAuth</strong>:<CopyBox label="Dirección del servidor (ChatGPT)" value={url} /></li>
               <li>Deja vacíos el ID y el secreto del cliente, y autoriza en Lámina. Después activa el conector en la conversación donde lo quieras usar.</li>
             </ol>
