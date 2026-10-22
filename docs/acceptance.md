@@ -41,12 +41,14 @@ Solo se marca lo que tiene evidencia; todo se ejecutó en local con IA fake (mod
 | E2E Playwright (local, IA fake) | `pnpm --filter @lamina/e2e test`: 39 de 42 en la corrida completa (branding/onboarding con logo, flujo completo, galería 10 temas × 3 acentos × 17 layouts, selector de estilo, PDF escaneado con OCR, seguridad anónima, móvil). El test de componentes falló en esa corrida y pasó al repetirlo solo tras corregir el fake y una espera de hidratación (`components.spec.ts`: 1 passed) |
 | Landing nueva | Accesibilidad Lighthouse **100**; capturas `docs/evidence/landing-desktop.png` y `landing-mobile.png` (sin desborde horizontal a 360 px) |
 | Revisión del MCP/OAuth (reviewer Opus) | Hallazgos corregidos: destino real (`redirect_uri`) en el consentimiento, revocación de conexiones al cambiar/restablecer la clave (test en `apps/web/test/mcp-route.test.ts`), aviso de datos no confiables a la IA, `Object.hasOwn` en scopes |
+| Migraciones 0001–0003 sobre datos de producción | `pg_dump` de solo lectura de cloud-2 (3 presentaciones, 5 versiones de deck) restaurado en un Postgres desechable: las 3 migraciones se aplican, la institución UPS queda sembrada y los 5 decks (`themeId` legado, sin `meta.branding`) pasan `DeckDocument` y sus **105 diapositivas se renderizan sin errores** con el motor v1.2. Copia destruida después |
+| Imagen del worker | Construida desde `docker/Dockerfile` (target `worker`): `tesseract --list-langs` → `eng`, `osd`, `spa`; `pdftoppm` 22.12; usuario 10001 |
 | Flujo OAuth del MCP con el cliente del SDK | `docs/evidence/mcp-oauth-smoke.txt`, `mcp-flow.txt`, `mcp-conectar.png`, `mcp-presentacion-lista-para-aprobar.png` |
 
 ## ⏳ Pendiente (no se marca como cumplido)
 
-1. **Migraciones 0001–0003 sobre una copia de la BD de producción** y comprobar que decks existentes abren y renderizan igual.
-2. **Imagen del worker** (`docker/Dockerfile` con poppler + tesseract) sin construir.
+1. **Backups de producción**: `/opt/lamina/backups` no existe y `scripts/` no está en `/opt/lamina` de cloud-2, por lo que el cron de las 03:40 nunca ha podido ejecutarse; el deploy (rsync de todo el árbol) lo corrige, pero debe verificarse tras desplegar y probarse una restauración.
+2. La imagen del worker se construyó sin BuildKit (no hay `buildx` local); el build de producción usa el Dockerfile original con BuildKit y no se probó aquí.
 3. **Prueba manual del MCP con Claude Code real** (`claude mcp add`); solo se llegó a «Needs authentication».
 4. **Dos e2e saltados**: `prod.spec.ts` (solo contra producción) y «dos cuentas» (requiere correo configurado).
 5. Registro dinámico de clientes anónimo sin limpieza automática, CIMD sin probar contra un dominio público, rate limits en memoria por instancia; validación del logo UPS por la institución; capacidad de cloud-2 para Tesseract + poppler; visión OCR con modelos `:free` reales.
