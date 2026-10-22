@@ -6,13 +6,14 @@ import { getDb } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { UsersPanel } from "./users";
 import { ComponentsPanel } from "./components-panel";
+import { McpPanel } from "./mcp-panel";
 import { STAGE_LABEL } from "@/lib/stages";
 import type { Stage } from "@lamina/contracts";
 
 export const metadata = { title: "Administración" };
 export const dynamic = "force-dynamic";
 
-const TABS = [["usuarios", "Usuarios"], ["componentes", "Componentes"], ["trabajos", "Trabajos y errores"], ["metricas", "Métricas"]] as const;
+const TABS = [["usuarios", "Usuarios"], ["componentes", "Componentes"], ["trabajos", "Trabajos y errores"], ["metricas", "Métricas"], ["ia-externa", "IA externa (MCP)"]] as const;
 
 export default async function Admin({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const user = await requireAdmin();
@@ -27,6 +28,8 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     body = <UsersPanel defaults={DEFAULT_QUOTAS} users={users.map(({ u, p }) => ({ id: u.id, email: u.email, name: u.name, role: u.role ?? "teacher", banned: !!u.banned, mustChange: !!p?.mustChangePassword, consent: !!p?.consentAt, quotas: p?.quotaOverrides ?? {}, presentations: nBy.get(u.id) ?? 0, createdAt: u.createdAt.toISOString() }))} />;
   } else if (tab === "componentes") {
     body = await ComponentsPanel();
+  } else if (tab === "ia-externa") {
+    body = await McpPanel();
   } else if (tab === "trabajos") {
     const jobs = await db.execute(sql`select name, state, count(*)::int as n from pgboss.job where created_on > now() - interval '7 days' group by 1,2 order by 1,2`).then((r) => r.rows as { name: string; state: string; n: number }[]).catch(() => []);
     const errs = await db.select().from(schema.jobErrors).orderBy(desc(schema.jobErrors.createdAt)).limit(30);

@@ -10,7 +10,7 @@ import { requireUser } from "@/lib/session";
 import { requireOwner } from "@/lib/guard";
 import { contentVersions, loadContent, sourcesFor } from "@/lib/presentation-view";
 import { STAGE_LABEL, stageTone } from "@/lib/stages";
-import { parseStylePref, proposeStyle, type Stage } from "@lamina/contracts";
+import { isStyleProposal, parseStylePref, proposeStyle, type Stage } from "@lamina/contracts";
 import { ContentEditor } from "./editor";
 import { StartDesign } from "./start-design";
 import { StyleProposal } from "./style-proposal";
@@ -27,7 +27,8 @@ export default async function InformationPage({ params }: { params: Promise<{ id
   const cur = await loadContent(p.currentContentVersionId);
   const versions = await contentVersions(p.id);
   const { sources, chunks } = await sourcesFor(p.id);
-  const chosenStyle = parseStylePref(p.themeId);
+  const savedStyle = parseStylePref(p.themeId);
+  const chosenStyle = isStyleProposal(p.themeId) ? null : savedStyle; // la propuesta de la IA no se presenta como elección
   const showStyle = !!cur && ["content_review", "content_approved"].includes(stage);
   const branding = showStyle ? await buildBranding(getDb(), p).catch(() => null) : null;
   const showEditor = !!cur && ["content_review", "content_approved"].includes(stage) || (!!cur && (stage === "quota_wait" || stage === "failed_recoverable"));
@@ -51,12 +52,13 @@ export default async function InformationPage({ params }: { params: Promise<{ id
         {(stage === "researching" || stage === "quota_wait" || stage === "failed_recoverable") && (
           <JobWatcher id={p.id} initial={{ stage: p.stage, prevStage: p.prevStage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />
         )}
-        {stage === "draft" && <p className="sheet p-5">La presentación está lista para empezar. Si esta pantalla no avanza, vuelve a <Link href="/presentations/new" className="underline">crearla</Link>.</p>}
+        {stage === "draft" && p.origin === "mcp" && <p className="sheet p-5">Creada desde una IA externa (MCP). Está esperando que la IA envíe el contenido; cuando lo haga aparecerá aquí para que lo revises y apruebes.</p>}
+        {stage === "draft" && p.origin !== "mcp" && <p className="sheet p-5">La presentación está lista para empezar. Si esta pantalla no avanza, vuelve a <Link href="/presentations/new" className="underline">crearla</Link>.</p>}
 
         {showStyle && cur && (
           <StyleProposal
             presentationId={p.id}
-            initial={chosenStyle ?? proposeStyle({ subject: p.subject ?? undefined, topic: cur.draft.meta.topic, level: cur.draft.meta.level, objective: cur.draft.meta.objective })}
+            initial={savedStyle ?? proposeStyle({ subject: p.subject ?? undefined, topic: cur.draft.meta.topic, level: cur.draft.meta.level, objective: cur.draft.meta.objective })}
             chosen={!!chosenStyle}
             topic={cur.draft.meta.topic}
             branding={branding}

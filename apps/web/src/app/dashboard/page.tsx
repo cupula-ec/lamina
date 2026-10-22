@@ -13,7 +13,7 @@ import type { Stage } from "@lamina/contracts";
 export const metadata = { title: "Mis presentaciones" };
 export const dynamic = "force-dynamic";
 
-const QL: Record<string, string> = { presentation_new: "Presentaciones nuevas", content_regen: "Regeneraciones de contenido", design_regen: "Regeneraciones de diseño", component_request: "Componentes nuevos", ocr_vision_page: "Páginas con visión (OCR)" };
+const QL: Record<string, string> = { presentation_new: "Presentaciones nuevas", content_regen: "Regeneraciones de contenido", design_regen: "Regeneraciones de diseño", component_request: "Componentes nuevos", ocr_vision_page: "Páginas con visión (OCR)", mcp_call: "Llamadas de IA externa (MCP)", mcp_submit: "Envíos de IA externa (MCP)" };
 
 export default async function Dashboard() {
   const user = await requireUser();

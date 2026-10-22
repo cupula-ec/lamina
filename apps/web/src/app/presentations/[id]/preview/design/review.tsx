@@ -1,4 +1,5 @@
 "use client";
+import { authorLabel } from "@/lib/stages";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -247,7 +248,7 @@ export function DesignReview(props: {
           <ol className="mt-2 space-y-2 text-sm">
             {props.versions.map((v) => (
               <li key={v.id} className={v.id === props.deckVersionId ? "font-bold" : ""}>
-                v{v.n} · {VERSION_KIND[v.kind] ?? "diseño"} · {v.authorKind === "ia" ? "IA" : "Tú"} · {new Date(v.createdAt).toLocaleString("es-EC", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                v{v.n} · {VERSION_KIND[v.kind] ?? "diseño"} · {authorLabel(v.authorKind)} · {new Date(v.createdAt).toLocaleString("es-EC", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                 {v.note && <span className="block font-normal text-ink-2">{v.note}</span>}
                 {v.id !== props.deckVersionId && <Link className="btn btn-ghost btn-sm" href={`/presentations/${id}/preview/design?v=${v.id}`}>Ver</Link>}
               </li>

@@ -1,11 +1,19 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { BRAND_MIN_CONTRAST, BRAND_THEMES, brandColorFor, contrastRatio } from "@lamina/contracts";
 import { createInstitutionAction, deleteInstitutionAction, setInstitutionActiveAction, updateInstitutionAction } from "@/actions/institutions";
 
 type Item = { id: string; name: string; short: string; slug: string; primaryColor: string | null; secondaryColor: string | null; active: boolean; logoUrl: string | null; users: number };
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const FALLBACK = "#003976";
+
+/** Aviso si el color principal no contrasta lo suficiente con el fondo del tema institucional (allí se usaría el acento del tema). */
+function ContrastWarning({ color }: { color: string }) {
+  const bg = BRAND_THEMES["institucional-sobrio"]!.bg;
+  if (!HEX.test(color) || brandColorFor("institucional-sobrio", color) !== undefined) return null;
+  return <p role="note" className="hint sm:col-span-2 font-bold">Este color tiene poco contraste con el fondo del tema institucional ({contrastRatio(color, bg).toFixed(1)}:1; se pide al menos {BRAND_MIN_CONTRAST}:1). En las presentaciones se usará el acento del tema en lugar de este color; el logo y los textos de la institución no cambian. Prueba con un tono más oscuro.</p>;
+}
 
 function CoverPreview({ name, short, primary, secondary, logoUrl }: { name: string; short: string; primary: string; secondary: string; logoUrl: string | null }) {
   const p = HEX.test(primary) ? primary : FALLBACK;
@@ -65,6 +73,7 @@ function Row({ item, onDone }: { item: Item; onDone: () => void }) {
             <div><label className="label text-sm" htmlFor={`p-${item.id}`}>Color principal</label><input id={`p-${item.id}`} className="field" value={f.primaryColor} onChange={set("primaryColor")} placeholder="#003976" maxLength={7} /></div>
             <div><label className="label text-sm" htmlFor={`c-${item.id}`}>Color secundario</label><input id={`c-${item.id}`} className="field" value={f.secondaryColor} onChange={set("secondaryColor")} placeholder="#FCC000" maxLength={7} /></div>
           </div>
+          <ContrastWarning color={f.primaryColor.trim()} />
           <div className="sm:col-span-2">
             <label className="label text-sm" htmlFor={`l-${item.id}`}>Logo (PNG, JPEG, WebP o SVG; máx. 1 MB)</label>
             <input id={`l-${item.id}`} className="field" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
@@ -101,6 +110,7 @@ export function InstitutionsPanel({ items }: { items: Item[] }) {
           <div><label className="label text-sm" htmlFor="in-p">Color principal</label><input id="in-p" className="field" value={f.primaryColor} onChange={set("primaryColor")} placeholder="#003976" maxLength={7} /></div>
           <div><label className="label text-sm" htmlFor="in-s">Color secundario</label><input id="in-s" className="field" value={f.secondaryColor} onChange={set("secondaryColor")} placeholder="#FCC000" maxLength={7} /></div>
           <button className="btn btn-primary self-end" disabled={pending}>Crear</button>
+          <ContrastWarning color={f.primaryColor.trim()} />
         </form>
         {msg && <p role="status" className="mt-3 font-bold text-ok">{msg}</p>}
         {err && <p role="alert" className="err mt-3">{err}</p>}

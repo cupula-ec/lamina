@@ -60,3 +60,6 @@ export function stageTone(stage: string): "ok" | "warn" | "bad" | "info" | "mute
   if (stage === "content_review" || stage === "design_review" || stage === "final_review") return "warn";
   return "mute";
 }
+
+/** Quién creó una versión: IA de Lámina, el docente o una IA externa conectada por MCP. */
+export const authorLabel = (kind: string) => (kind === "ia" ? "IA" : kind === "mcp" ? "Creado por IA externa (MCP)" : "Tú");

@@ -4,6 +4,7 @@ import { eq, inArray } from "drizzle-orm";
 import { schema } from "@lamina/db";
 import { getDb } from "./db";
 import { env } from "./env";
+import { purgeLogos } from "./branding";
 
 export const presentationDir = (id: string) => path.join(env().DATA_DIR, "presentations", id);
 
@@ -18,5 +19,6 @@ export async function deleteUserData(userId: string) {
   const rows = await db.select({ id: schema.presentations.id }).from(schema.presentations).where(eq(schema.presentations.ownerId, userId));
   for (const r of rows) await fs.rm(presentationDir(r.id), { recursive: true, force: true });
   if (rows.length) await db.delete(schema.presentations).where(inArray(schema.presentations.id, rows.map((r) => r.id)));
+  await purgeLogos("personal", userId).catch(() => {});
   await db.delete(schema.user).where(eq(schema.user.id, userId));
 }

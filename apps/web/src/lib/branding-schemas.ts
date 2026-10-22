@@ -4,7 +4,7 @@ const optional = (max: number, label: string) =>
   z.string().trim().max(max, `${label}: máximo ${max} caracteres`).optional().transform((s) => (s ? s : null));
 
 export const ProfileInput = z.object({
-  fullName: z.string().trim().min(3, "Escribe tu nombre completo (mínimo 3 caracteres)").max(160, "El nombre es demasiado largo (máximo 160 caracteres)"),
+  fullName: z.string().trim().min(3, "Escribe tu nombre completo (mínimo 3 caracteres)").max(120, "El nombre es demasiado largo (máximo 120 caracteres)"),
   institutionId: z.string().uuid("Institución no válida").nullable(),
 });
 export type ProfileInput = z.infer<typeof ProfileInput>;

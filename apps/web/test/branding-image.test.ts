@@ -93,6 +93,7 @@ describe("SVG hostil", () => {
     ["onload", svgWrap(rect, ' onload="alert(1)"')],
     ["onclick en hijo", svgWrap('<rect width="10" height="10" onclick="alert(1)"/>')],
     ["on* con comillas simples y mayúsculas", svgWrap(rect, " ONLOAD='alert(1)'")],
+    ["filter (carga costosa)", svgWrap('<filter id="f"><feGaussianBlur stdDeviation="9999"/></filter><rect width="10" height="10" filter="url(#f)"/>')],
     ["foreignObject", svgWrap('<foreignObject width="100" height="40"><body xmlns="http://www.w3.org/1999/xhtml"><iframe src="//evil"></iframe></body></foreignObject>')],
     ["href javascript:", svgWrap('<a href="javascript:alert(1)"><rect width="10" height="10"/></a>')],
     ["xlink:href javascript:", svgWrap('<a xlink:href="javascript:alert(1)"><rect width="10" height="10"/></a>')],

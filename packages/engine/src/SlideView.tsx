@@ -1,7 +1,7 @@
 "use client";
-import { Component, createElement, useMemo, type ReactNode } from "react";
+import { Component, createElement, useMemo, useState, type ReactNode } from "react";
 import type { AccentId, Branding, DeckDocument, Slide } from "@lamina/contracts";
-import { DEFAULT_THEME_ID, LAYOUTS } from "@lamina/contracts";
+import { DEFAULT_THEME_ID, LAYOUTS, brandColorFor } from "@lamina/contracts";
 import { CANVAS, adjustedBox } from "./geometry";
 import { isSlotVisible, revealCounts } from "./build";
 import { ErrorCard } from "./primitives";
@@ -55,7 +55,10 @@ export function brandingLine(b?: Branding): string {
 }
 
 function Logo({ src, alt, side }: { src: string; alt: string; side: "inst" | "personal" }) {
-  return createElement("img", { className: `lm-logo lm-logo-${side}`, src, alt, "data-lm-logo": side, decoding: "async" });
+  const [failed, setFailed] = useState(false);
+  // Si el archivo ya no existe (versión retirada, 404) no se deja un icono roto ni el texto alternativo visible.
+  if (failed) return null;
+  return createElement("img", { className: `lm-logo lm-logo-${side}`, src, alt, "data-lm-logo": side, decoding: "async", onError: () => setFailed(true) });
 }
 
 /** Elementos propios del layout fuera de los slots (marcas, datos del docente, pie). No participan en la detección de problemas. */
@@ -88,7 +91,7 @@ export function SlideView({ slide, resolver, step = 0, themeId, accent, branding
   const counts = useMemo(() => revealCounts(slide, step), [slide, step]);
   const spec = LAYOUTS[slide.layout];
   const theme = themeId ?? DEFAULT_THEME_ID;
-  const brand = branding?.institution?.colors?.primary;
+  const brand = brandColorFor(theme, branding?.institution?.colors?.primary); // si no contrasta con el fondo del tema, se usa el acento del tema
   return createElement(
     "div",
     { className: `lm-slide lm-layout-${slide.layout}`, "data-lm-slide": slide.id, "data-theme": theme, "data-accent": accent, style: { width: CANVAS.width, height: CANVAS.height, ...(brand ? { "--lm-brand": brand } : {}) } },

@@ -1,4 +1,5 @@
 "use client";
+import { authorLabel } from "@/lib/stages";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import katex from "katex";
@@ -368,7 +369,7 @@ export function ContentEditor({ presentationId, stage, versionId, sha256, versio
           <ol className="mt-2 space-y-2 text-sm">
             {versions.map((v) => (
               <li key={v.id} className={v.id === versionId ? "font-bold" : ""}>
-                v{v.n} · {v.authorKind === "ia" ? "IA" : "Tú"} · {new Date(v.createdAt).toLocaleString("es-EC", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}{v.id === versionId && " (vigente)"}
+                v{v.n} · {authorLabel(v.authorKind)} · {new Date(v.createdAt).toLocaleString("es-EC", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}{v.id === versionId && " (vigente)"}
                 {v.note && <span className="block font-normal text-ink-2">{v.note}</span>}
                 {!readOnly && v.id !== versionId && <button className="btn btn-ghost btn-sm" disabled={pending || dirty} onClick={() => restore(v.id)}>Restaurar como nueva versión</button>}
               </li>

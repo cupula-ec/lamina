@@ -80,13 +80,17 @@ export function missingFormulas(hint: SlideHint, slide: SlideT): string[] {
 const wrap = (slides: SlideT[], base?: Deck): Deck => ({ schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: base?.themeId ?? "lamina-claro", meta: base?.meta ?? { title: "x", topic: "x", level: "x", language: "es" }, slides });
 
 /** Portada con zona de marcas (layout `cover-branded`) solo si el catálogo de layouts ya lo contiene y la portada actual encaja en sus slots. */
-export function withBrandedCover(slides: SlideT[]): SlideT[] {
+export function withBrandedCover(slides: SlideT[], branding?: { teacher?: string }): SlideT[] {
   const spec = (LAYOUT_IDS as string[]).includes("cover-branded") ? (LAYOUTS as Record<string, (typeof LAYOUTS)[keyof typeof LAYOUTS]>)["cover-branded"] : undefined;
   const first = slides[0];
   if (!spec || !first || first.id !== "title" || first.layout !== "title") return slides;
   const names = new Set<string>(spec.slots.map((x) => x.name));
   if (Object.keys(first.slots).some((k) => !names.has(k)) || spec.slots.some((x) => x.required && !(x.name in first.slots))) return slides;
-  return [{ ...first, layout: "cover-branded" as SlideT["layout"] }, ...slides.slice(1)];
+  // El docente ya sale en la zona de marcas: una portada conservada (rediseño parcial) que llevaba `author` no debe repetirlo.
+  const main = first.slots.main;
+  const dup = !!branding?.teacher?.trim() && main?.componentId === "Title" && typeof (main.props as { author?: unknown })?.author === "string";
+  const slots = dup ? { ...first.slots, main: { ...main!, props: Object.fromEntries(Object.entries(main!.props as object).filter(([k]) => k !== "author")) } } : first.slots;
+  return [{ ...first, slots, layout: "cover-branded" as SlideT["layout"] }, ...slides.slice(1)];
 }
 
 export const ownsHint = (hintId: string, slideId: string) => slideId === hintId || slideId.startsWith(`${hintId}-`);
@@ -101,7 +105,7 @@ export async function designGenerate(
   const [cv] = await ctx.db.select().from(schema.contentVersions).where(eq(schema.contentVersions.id, data.contentVersionId));
   const content = ContentDraft.parse(cv!.content);
   const [owner] = await ctx.db.select().from(schema.user).where(eq(schema.user.id, p.ownerId));
-  const author = owner?.name;
+  const author = owner?.name?.trim().slice(0, 120) || undefined; // meta.author admite máx. 120
   const branding = await buildBranding(ctx.db, p);
 
   let prevDeck: Deck | null = null;
@@ -115,7 +119,7 @@ export async function designGenerate(
   const style: StyleChoice = prevDeck
     ? { themeId: prevDeck.themeId, accent: prevDeck.accent ?? "a" }
     : chosen ?? await chooseStyle(ctx, { presentationId: p.id, topic: content.meta.topic, level: content.meta.level, objective: content.meta.objective, subject: p.subject });
-  if (!prevDeck && !chosen) await ctx.db.update(schema.presentations).set({ themeId: formatStylePref(style) }).where(eq(schema.presentations.id, p.id));
+  if (!prevDeck && !chosen) await ctx.db.update(schema.presentations).set({ themeId: formatStylePref(style, true) }).where(eq(schema.presentations.id, p.id));
 
   const prov = await loadProvisional(ctx, p.id);
   const lookup = lookupFor(prov);
@@ -177,11 +181,11 @@ export async function designGenerate(
   const deck: Deck = DeckDocument.parse({
     schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: style.themeId, accent: style.accent,
     meta: { title: content.meta.topic.slice(0, 190), topic: content.meta.topic, level: content.meta.level, language: content.meta.language, ...(author ? { author } : {}), branding },
-    slides: withBrandedCover(slides),
+    slides: withBrandedCover(slides, branding),
   });
   const final = validateDeckAgainstCatalog(deck, lookup);
   // Último recurso: si algo no valida, deck 100 % determinista (nunca se bloquea al docente).
-  const fallback = (): Deck => { const d = deckFromContent(content, author, { branding, themeId: style.themeId, accent: style.accent }); return { ...d, meta: { ...d.meta, branding }, slides: withBrandedCover(d.slides) }; };
+  const fallback = (): Deck => { const d = deckFromContent(content, author, { branding, themeId: style.themeId, accent: style.accent }); return { ...d, meta: { ...d.meta, branding }, slides: withBrandedCover(d.slides, branding) }; };
   const safe: Deck = final.ok ? final.deck : fallback();
   const pins: Record<string, { version: string; bundleHash?: string }> = {};
   const provById = new Map(prov.map((x) => [x.manifest.id, x]));

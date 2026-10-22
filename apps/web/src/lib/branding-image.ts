@@ -5,6 +5,8 @@ export const LOGO_MAX_BYTES = 1024 * 1024;
 export const LOGO_MAX_INPUT_SIDE = 4000;
 export const LOGO_OUT_SIDE = 1024;
 const LOGO_MIN_SIDE = 16;
+/** Tope de tiempo de rasterizado/re-encode (un SVG o imagen hostil no debe colgar la petición). */
+export const LOGO_TIMEOUT_S = 10;
 
 export type LogoKind = "png" | "jpeg" | "webp" | "svg";
 
@@ -28,7 +30,7 @@ const SAFE_DATA_URI = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=\s]+$/i;
  */
 export function assertSafeSvg(svg: string): void {
   const reject = (why: string) => { throw bad(`El SVG no es seguro (${why}). Exporta el logo como PNG o SVG simple sin scripts ni enlaces.`); };
-  if (/<\s*(script|foreignObject|iframe|object|embed|audio|video|animate|animateTransform|animateMotion|set|handler|listener)\b/i.test(svg)) reject("contiene elementos activos");
+  if (/<\s*(script|foreignObject|iframe|object|embed|audio|video|animate|animateTransform|animateMotion|set|handler|listener|filter)\b/i.test(svg)) reject("contiene elementos activos o filtros");
   if (/[\s"'/]on[a-z]+\s*=/i.test(svg)) reject("contiene manejadores de eventos");
   if (/javascript\s*:|vbscript\s*:/i.test(svg)) reject("contiene código ejecutable");
   if (/<!ENTITY/i.test(svg) || /<!DOCTYPE[^>]*\[/i.test(svg)) reject("define entidades XML");
@@ -67,7 +69,7 @@ export async function processLogo(input: Buffer): Promise<ProcessedLogo> {
     if (!meta.width || !meta.height) throw bad("No se pudo leer la imagen.");
     if (meta.width > LOGO_MAX_INPUT_SIDE || meta.height > LOGO_MAX_INPUT_SIDE) throw bad(`La imagen es demasiado grande (máximo ${LOGO_MAX_INPUT_SIDE} px por lado).`);
     if (meta.width < LOGO_MIN_SIDE || meta.height < LOGO_MIN_SIDE) throw bad("La imagen es demasiado pequeña.");
-    const { data, info } = await sharp(src, opts).rotate().resize({ width: LOGO_OUT_SIDE, height: LOGO_OUT_SIDE, fit: "inside", withoutEnlargement: kind !== "svg" }).png({ compressionLevel: 9 }).toBuffer({ resolveWithObject: true });
+    const { data, info } = await sharp(src, opts).timeout({ seconds: LOGO_TIMEOUT_S }).rotate().resize({ width: LOGO_OUT_SIDE, height: LOGO_OUT_SIDE, fit: "inside", withoutEnlargement: kind !== "svg" }).png({ compressionLevel: 9 }).toBuffer({ resolveWithObject: true });
     return { png: data, width: info.width, height: info.height, kind };
   } catch (e) {
     if (e instanceof LaminaError) throw e;

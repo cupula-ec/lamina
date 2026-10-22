@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { LaminaError, type DeckDocument } from "@lamina/contracts";
+import { logoVersion } from "@lamina/db";
 import { env } from "./env";
 
 const NAME = /^[A-Za-z0-9_-]{1,80}\.png$/;
@@ -23,10 +24,33 @@ export async function saveLogo(kind: LogoKind, name: string, png: Buffer) {
   await fs.writeFile(path.join(dir, name), png, { mode: 0o600 });
 }
 
-export async function removeLogo(kind: LogoKind, name: string | null | undefined) {
-  if (!name || BUILTIN.test(name) || !NAME.test(name)) return;
-  await fs.rm(path.join(brandingDir(kind), name), { force: true });
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const ownedName = (ownerId: string) => new RegExp(`^${escapeRe(ownerId)}-[0-9a-f]{8}\\.png$`);
+async function ownedFiles(kind: LogoKind, ownerId: string) {
+  const re = ownedName(ownerId);
+  const dir = brandingDir(kind);
+  const names = (await fs.readdir(dir).catch(() => [] as string[])).filter((n) => re.test(n));
+  return Promise.all(names.map(async (n) => ({ name: n, mtime: (await fs.stat(path.join(dir, n)).catch(() => null))?.mtimeMs ?? 0 })));
 }
+
+/** Versiones anteriores que se conservan por dueño: los decks guardados siguen apuntando a su `?v=` (ADR-011). */
+export const KEEP_OLD_LOGOS = 3;
+
+/**
+ * Política de logos mutables (ADR-011): al reemplazar o quitar un logo NO se borra el archivo anterior (las versiones de deck ya
+ * guardadas lo referencian por `?v=`). Se conservan las `keep` versiones anteriores más recientes y se purga el resto.
+ */
+export async function retireLogos(kind: LogoKind, ownerId: string, current: string | null | undefined, keep = KEEP_OLD_LOGOS) {
+  const old = (await ownedFiles(kind, ownerId)).filter((f) => f.name !== current).sort((a, b) => b.mtime - a.mtime);
+  for (const f of old.slice(keep)) await fs.rm(path.join(brandingDir(kind), f.name), { force: true });
+}
+
+/** Borrado definitivo de TODOS los logos de un dueño (institución eliminada o cuenta eliminada). */
+export async function purgeLogos(kind: LogoKind, ownerId: string) {
+  for (const f of await ownedFiles(kind, ownerId)) await fs.rm(path.join(brandingDir(kind), f.name), { force: true });
+}
+
+const builtinRoots = () => [path.join(process.cwd(), "public", "institutions"), path.join(process.cwd(), "apps", "web", "public", "institutions")];
 
 /** Lee un logo ya normalizado; null si no existe. Los recursos `builtin:` salen de `public/institutions` (empaquetados con la web). */
 export async function readLogo(kind: LogoKind, stored: string | null | undefined): Promise<Buffer | null> {
@@ -34,7 +58,7 @@ export async function readLogo(kind: LogoKind, stored: string | null | undefined
   const b = BUILTIN.exec(stored);
   try {
     if (b) {
-      for (const root of [path.join(process.cwd(), "public", "institutions"), path.join(process.cwd(), "apps", "web", "public", "institutions")]) {
+      for (const root of builtinRoots()) {
         try { return await fs.readFile(path.join(root, b[1]!)); } catch { /* siguiente raíz */ }
       }
       return null;
@@ -42,6 +66,19 @@ export async function readLogo(kind: LogoKind, stored: string | null | undefined
     if (!NAME.test(stored)) return null;
     return await fs.readFile(path.join(brandingDir(kind), stored));
   } catch { return null; }
+}
+
+/**
+ * Como readLogo, pero respeta `?v=`: si la versión pedida es la vigente (o no se pide) sirve la vigente; si es otra, busca esa
+ * versión entre las retenidas del dueño (o los recursos empaquetados). Si ya no existe: null (404; la vista oculta la imagen).
+ */
+export async function readLogoVersion(kind: LogoKind, ownerId: string, stored: string | null | undefined, v: string | null): Promise<Buffer | null> {
+  if (!v || !/^[0-9a-f]{8}$/.test(v) || (stored && logoVersion(stored) === v)) return readLogo(kind, stored);
+  for (const f of await ownedFiles(kind, ownerId)) if (logoVersion(f.name) === v) return readLogo(kind, f.name);
+  for (const root of builtinRoots()) {
+    for (const n of await fs.readdir(root).catch(() => [] as string[])) if (/^[A-Za-z0-9_-]{1,40}\.png$/.test(n) && logoVersion(`builtin:${n}`) === v) return readLogo(kind, `builtin:${n}`);
+  }
+  return null;
 }
 
 /** Cabeceras fijas para servir un logo: tipo fijo, sin sniffing, sin capacidad de ejecutar nada. */
@@ -67,18 +104,22 @@ export function verifyPersonalSig(userId: string, exp: string | null, s: string 
   return want.length === got.length && timingSafeEqual(want, got);
 }
 
+const PERSONAL_URL = /^\/api\/branding\/personal\/([A-Za-z0-9_-]{1,64})(\?v=[0-9a-f]{8})?$/;
+
 /**
  * Resuelve las URLs de marca del deck para quien lo va a mostrar. La institución es pública; el logo personal se firma con
- * caducidad (el visor ya fue autorizado por la página). No cambia el contenido guardado ni su hash.
+ * caducidad (el visor ya fue autorizado por la página) SOLO si pertenece al dueño de la presentación: cualquier otra URL
+ * personal (otro usuario, forma no canónica) se descarta. No cambia el contenido guardado ni su hash.
  */
-export function withSignedBranding(deck: DeckDocument, ttlSeconds: number): DeckDocument {
+export function withSignedBranding(deck: DeckDocument, ttlSeconds: number, ownerId: string): DeckDocument {
   const b = deck.meta.branding;
-  const m = b?.personalLogoUrl ? /^\/api\/branding\/personal\/([A-Za-z0-9_-]{1,64})(\?.*)?$/.exec(b.personalLogoUrl) : null;
-  if (!b || !m) return deck;
+  if (!b?.personalLogoUrl) return deck;
+  const m = PERSONAL_URL.exec(b.personalLogoUrl);
+  const { personalLogoUrl: _drop, ...rest } = b;
+  if (!m || m[1] !== ownerId) return { ...deck, meta: { ...deck.meta, branding: rest } };
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
-  const base = m[2] ?? "";
-  const url = `/api/branding/personal/${m[1]}${base ? `${base}&` : "?"}exp=${exp}&sig=${sig(m[1]!, exp)}`;
-  return { ...deck, meta: { ...deck.meta, branding: { ...b, personalLogoUrl: url } } };
+  const url = `/api/branding/personal/${m[1]}${m[2] ?? ""}${m[2] ? "&" : "?"}exp=${exp}&sig=${sig(m[1]!, exp)}`;
+  return { ...deck, meta: { ...deck.meta, branding: { ...rest, personalLogoUrl: url } } };
 }
 
 /* ───── Entrada de subida: límite duro de bytes antes de parsear ───── */

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { banUserAction, createTeacherAction, deleteUserAction, resetTeacherPasswordAction, setQuotaAction } from "@/actions/admin";
 
 type U = { id: string; email: string; name: string; role: string; banned: boolean; mustChange: boolean; consent: boolean; quotas: Record<string, number>; presentations: number; createdAt: string };
-const QL: Record<string, string> = { presentation_new: "Presentaciones nuevas/día", content_regen: "Regen. contenido/día", design_regen: "Regen. diseño/día", component_request: "Componentes/día", ocr_vision_page: "Páginas OCR con visión/día" };
+const QL: Record<string, string> = { presentation_new: "Presentaciones nuevas/día", content_regen: "Regen. contenido/día", design_regen: "Regen. diseño/día", component_request: "Componentes/día", ocr_vision_page: "Páginas OCR con visión/día", mcp_call: "Llamadas MCP/día", mcp_submit: "Envíos MCP/día" };
 
 export function UsersPanel({ users, defaults }: { users: U[]; defaults: Record<string, number> }) {
   const router = useRouter();

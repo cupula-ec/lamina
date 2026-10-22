@@ -5,7 +5,7 @@ import { personalLogoUrl, schema } from "@lamina/db";
 import { getDb } from "@/lib/db";
 import { requireUserApi } from "@/lib/session";
 import { processLogo } from "@/lib/branding-image";
-import { newLogoName, rateLimitUpload, readLogoUpload, removeLogo, saveLogo } from "@/lib/branding";
+import { newLogoName, rateLimitUpload, readLogoUpload, retireLogos, saveLogo } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,12 +23,11 @@ export async function POST(req: Request) {
     rateLimitUpload(`personal:${u.id}`);
     const { png } = await processLogo(await readLogoUpload(req));
     const db = getDb();
-    const [prev] = await db.select({ path: schema.userProfiles.personalLogoPath }).from(schema.userProfiles).where(eq(schema.userProfiles.userId, u.id));
     const name = newLogoName(u.id);
     await saveLogo("personal", name, png);
     await db.insert(schema.userProfiles).values({ userId: u.id, personalLogoPath: name, personalLogoMime: "image/png" })
       .onConflictDoUpdate({ target: schema.userProfiles.userId, set: { personalLogoPath: name, personalLogoMime: "image/png" } });
-    await removeLogo("personal", prev?.path);
+    await retireLogos("personal", u.id, name);
     return NextResponse.json({ url: personalLogoUrl(u.id, name) });
   } catch (e) { return fail(e); }
 }
@@ -37,9 +36,8 @@ export async function DELETE() {
   try {
     const u = await requireUserApi();
     const db = getDb();
-    const [prev] = await db.select({ path: schema.userProfiles.personalLogoPath }).from(schema.userProfiles).where(eq(schema.userProfiles.userId, u.id));
     await db.update(schema.userProfiles).set({ personalLogoPath: null, personalLogoMime: null }).where(eq(schema.userProfiles.userId, u.id));
-    await removeLogo("personal", prev?.path);
+    await retireLogos("personal", u.id, null);
     return NextResponse.json({ ok: true });
   } catch (e) { return fail(e); }
 }

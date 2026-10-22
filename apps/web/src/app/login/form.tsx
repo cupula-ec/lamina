@@ -21,12 +21,15 @@ export function LoginForm({ google, keycloak, initialError }: { google: boolean;
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setError(null);
-    const { error } = await authClient.signIn.email({ email: email.trim().toLowerCase(), password });
+    const { data, error } = await authClient.signIn.email({ email: email.trim().toLowerCase(), password });
     if (error) {
       setBusy(false);
       setError(error.status === 429 ? "Demasiados intentos. Espera un minuto." : (MSG[error.code ?? ""] ?? MSG[error.message ?? ""] ?? "Correo o contraseña incorrectos."));
       return;
     }
+    // Flujo OAuth (conexión de una IA): el servidor devuelve la URL que continúa la autorización.
+    const next = (data as { url?: string; redirect?: boolean } | null)?.url;
+    if (next && new URLSearchParams(window.location.search).has("sig")) { window.location.href = next; return; }
     router.replace("/dashboard");
     router.refresh();
   }

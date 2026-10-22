@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ContentDraft } from "@lamina/contracts";
+import { ContentDraft, DeckDocument } from "@lamina/contracts";
 import { deckFromContent, validateDeckAgainstCatalog } from "../src";
 
 const content = ContentDraft.parse({
@@ -27,5 +27,18 @@ describe("deckFromContent (fallback estable)", () => {
     expect(deck.slides[0]!.layout).toBe("title");
     expect(deck.slides.filter((s) => s.layout === "section")).toHaveLength(2);
     expect(new Set(deck.slides.map((s) => s.id)).size).toBe(deck.slides.length);
+  });
+});
+
+describe("nombre del docente muy largo", () => {
+  it.each([121, 160])("%i caracteres: el deck sigue siendo válido (portada simple y con marca)", (n) => {
+    const name = "Ñ".repeat(n);
+    for (const branding of [undefined, { teacher: name.slice(0, 120) }]) {
+      const deck = deckFromContent(content, name, { branding });
+      expect(() => DeckDocument.parse(deck)).not.toThrow();
+      expect(deck.meta.author!.length).toBeLessThanOrEqual(120);
+      const r = validateDeckAgainstCatalog(deck);
+      expect(r.ok, !r.ok ? r.errors.join("\n") : "").toBe(true);
+    }
   });
 });

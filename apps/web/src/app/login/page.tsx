@@ -7,10 +7,10 @@ import { LoginForm } from "./form";
 export const metadata = { title: "Entrar" };
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; sig?: string }> }) {
   const u = await getSessionUser();
-  if (u) redirect("/dashboard");
   const sp = await searchParams;
+  if (u && !sp.sig) redirect("/dashboard");
   const e = env();
   return (
     <div className="bg-graph min-h-dvh">

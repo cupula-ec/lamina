@@ -26,8 +26,10 @@ export default async function RenderPage({ params, searchParams }: { params: Pro
   const [dv] = await db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, deckVersionId));
   if (!dv) notFound();
   const deck = DeckDocument.parse(dv.deck);
+  const [pres] = await db.select({ ownerId: schema.presentations.ownerId }).from(schema.presentations).where(eq(schema.presentations.id, dv.presentationId));
+  if (!pres) notFound();
   const prov = await provisionalForDeck(dv.presentationId, dv.componentPins);
   const idx = Math.max(0, Math.min(deck.slides.length - 1, Number(sp.slide ?? 0) || 0));
   const step = sp.step === "max" ? deck.slides[idx]!.build.steps.length : Math.max(0, Number(sp.step ?? 0) || 0);
-  return <RenderClient deck={withSignedBranding(deck, 600)} index={idx} step={step} prov={prov} deckHash={hashJson(deck)} storedHash={dv.sha256} />;
+  return <RenderClient deck={withSignedBranding(deck, 600, pres.ownerId)} index={idx} step={step} prov={prov} deckHash={hashJson(deck)} storedHash={dv.sha256} />;
 }

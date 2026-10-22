@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SlideView, deckViewProps, brandingLine } from "@lamina/engine";
-import { ContentDraft, DeckDocument, LAYOUT_IDS, THEME_IDS, type Branding, type Slide } from "@lamina/contracts";
-import { NATIVE_CATALOG, catalogForPrompt, deckFromContent, galleryDeck, nativeResolver, previewDeck, sampleSlides, slidesFromHint, titleSlide, validateDeckAgainstCatalog, varietyProblem, varietyViolations } from "../src";
+import { Branding as BrandingSchema, ContentDraft, DeckDocument, LAYOUT_IDS, THEME_IDS, type Branding, type Slide } from "@lamina/contracts";
+import { MAX_BRANDING, NATIVE_CATALOG, catalogForPrompt, deckFromContent, galleryDeck, nativeResolver, previewDeck, sampleSlides, slidesFromHint, titleSlide, validateDeckAgainstCatalog, varietyProblem, varietyViolations } from "../src";
 
 const html = (slide: Slide, extra: Record<string, unknown> = {}) => renderToStaticMarkup(createElement(SlideView, { slide, resolver: nativeResolver, ...extra }));
 
@@ -89,6 +89,9 @@ describe("cover-branded y marcas", () => {
   it("el color de la institución llega como variable --lm-brand", () => {
     expect(cover({ institution: { name: "U", short: "U", colors: { primary: "#0a3d91" } } })).toContain("--lm-brand:#0a3d91");
   });
+  it("un color institucional sin contraste con el fondo del tema no se aplica (cae al acento)", () => {
+    expect(cover({ institution: { name: "U", short: "U", colors: { primary: "#FCC000" } } })).not.toContain("--lm-brand");
+  });
   it("titleSlide usa cover-branded solo cuando hay marcas o datos, y no duplica al docente", () => {
     const meta = { topic: "Tema", level: "Univ", objective: "Obj", language: "es" } as ContentDraft["meta"];
     expect(titleSlide(meta, "Prof. A").layout).toBe("title");
@@ -96,6 +99,22 @@ describe("cover-branded y marcas", () => {
     expect(s.layout).toBe("cover-branded");
     expect((s.slots.main!.props as { author?: string }).author).toBeUndefined();
     expect(titleSlide(meta, "Prof. A", {}).layout).toBe("title");
+  });
+});
+
+describe("portada y cierre con valores máximos", () => {
+  it("MAX_BRANDING está en los límites del esquema y la portada/cierre se dibujan con las clases acotadas", () => {
+    expect(BrandingSchema.safeParse(MAX_BRANDING).success).toBe(true);
+    expect(MAX_BRANDING.institution!.name.length).toBeGreaterThan(120);
+    expect(MAX_BRANDING.institution!.short).toHaveLength(24);
+    for (const themeId of THEME_IDS) {
+      const deck = galleryDeck({ themeId, branding: MAX_BRANDING });
+      const cover = html(deck.slides.find((x) => x.layout === "cover-branded")!, deckViewProps(deck));
+      expect(cover, themeId).toContain("lm-wordmark");
+      expect(cover).toContain("lm-cover-meta");
+      const closing = html(deck.slides.find((x) => x.layout === "closing")!, deckViewProps(deck));
+      expect(closing, themeId).toContain("lm-closing-foot");
+    }
   });
 });
 

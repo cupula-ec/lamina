@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { personalLogoUrl, schema } from "@lamina/db";
 import { AppShell } from "@/components/AppShell";
@@ -24,6 +25,9 @@ export default async function Cuenta() {
         <section className="sheet p-5"><h2 className="text-xl font-bold">Tu perfil y marca</h2>
           <p className="mt-1 max-w-[60ch] text-ink-2">Tu logo se mostrará junto al de tu institución en las carátulas de las presentaciones nuevas. Las ya diseñadas se actualizan al editar sus datos de carátula.</p>
           <ProfileForm mode="account" institutions={visible} initial={{ fullName: p?.fullName ?? u.name, institutionId: p?.institutionId ?? null, logoUrl: personalLogoUrl(u.id, p?.personalLogoPath ?? null) ?? null }} /></section>
+        <section className="sheet p-5"><h2 className="text-xl font-bold">Conectar con IA</h2>
+          <p className="mt-1 max-w-[60ch] text-ink-2">Usa una IA potente (como Claude) para redactar y diseñar presentaciones en tu cuenta. Tú sigues aprobando todo en Lámina.</p>
+          <Link href="/cuenta/conectar" className="btn mt-3 inline-block">Conectar con IA</Link></section>
         <section className="sheet p-5"><h2 className="text-xl font-bold">Cambiar contraseña</h2><PasswordForm /></section>
         <section className="sheet border-pen p-5"><h2 className="text-xl font-bold text-pen">Eliminar mi cuenta</h2>
           <p className="mt-2 max-w-[60ch]">Se borrarán tu cuenta, todas tus presentaciones con sus versiones, fuentes, archivos subidos y capturas. No se puede deshacer.</p>

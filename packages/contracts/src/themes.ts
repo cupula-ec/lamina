@@ -128,16 +128,22 @@ export function isThemeId(v: unknown): v is ThemeId {
 
 export type StyleChoice = { themeId: ThemeId; accent: AccentId };
 
-/** Preferencia de estilo guardada en `presentations.theme_id`: "tema" (acento a) o "tema:acento". */
-export function formatStylePref(s: StyleChoice): string {
+/**
+ * Preferencia de estilo guardada en `presentations.theme_id`: "tema" (acento a) o "tema:acento" = ELECCIÓN del docente.
+ * Con `proposed` se marca como PROPUESTA de la IA ("tema:acento:ia"): se reutiliza al rediseñar pero la UI no la presenta como elegida.
+ */
+export function formatStylePref(s: StyleChoice, proposed = false): string {
+  if (proposed) return `${s.themeId}:${s.accent}:ia`;
   return s.accent === "a" ? s.themeId : `${s.themeId}:${s.accent}`;
 }
 export function parseStylePref(v: string | null | undefined): StyleChoice | null {
   if (!v) return null;
-  const [t, a = "a"] = v.split(":");
-  if (!isThemeId(t) || !(ACCENT_IDS as readonly string[]).includes(a)) return null;
+  const [t, a = "a", flag] = v.split(":");
+  if (!isThemeId(t) || !(ACCENT_IDS as readonly string[]).includes(a) || (flag !== undefined && flag !== "ia")) return null;
   return { themeId: t, accent: a as AccentId };
 }
+/** true si el valor guardado es una propuesta de la IA y no una elección del docente. */
+export const isStyleProposal = (v: string | null | undefined): boolean => !!v && parseStylePref(v) !== null && v.endsWith(":ia");
 
 const plain = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -168,4 +174,29 @@ export function themesForPrompt(): string {
     const t: ThemeSpec = THEMES[id];
     return `- ${id}: ${t.name} (${t.mode === "dark" ? "oscuro" : "claro"}; ${t.mood}). Ideal para: ${t.area}. Acentos: a=${t.accents[0]}, b=${t.accents[1]}, c=${t.accents[2]}.`;
   }).join("\n");
+}
+
+/* ───── Contraste del color institucional (--lm-brand) ───── */
+const lin = (c: number) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+const lum = (h: string) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number]; return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b); };
+/** Razón de contraste WCAG entre dos colores #RRGGBB. */
+export function contrastRatio(a: string, b: string): number {
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p) as [number, number];
+  return (x + 0.05) / (y + 0.05);
+}
+/** Contraste mínimo del color institucional sobre el fondo del tema (texto grande y filetes: WCAG 3:1). */
+export const BRAND_MIN_CONTRAST = 3;
+/** Temas que pintan con `--lm-brand` (texto, filete, decoración): fondo y acentos a/b/c (verificado contra su CSS en engine/test/themes.test.ts). */
+export const BRAND_THEMES: Partial<Record<ThemeId, { bg: string; accents: readonly [string, string, string] }>> = {
+  "institucional-sobrio": { bg: "#f8f8f6", accents: ["#1f3a5f", "#6b1f2a", "#1d5a4a"] },
+};
+/**
+ * Color institucional a aplicar como `--lm-brand`: el primario si contrasta ≥ 3:1 con el fondo del tema; si no, `undefined`
+ * (el CSS cae al acento del tema). Los temas que no usan la marca lo reciben tal cual.
+ */
+export function brandColorFor(themeId: string | undefined, primary: string | undefined): string | undefined {
+  if (!primary || !/^#[0-9a-fA-F]{6}$/.test(primary)) return undefined;
+  const t = isThemeId(themeId) ? BRAND_THEMES[themeId] : undefined;
+  if (!t) return primary;
+  return contrastRatio(primary, t.bg) >= BRAND_MIN_CONTRAST ? primary : undefined;
 }

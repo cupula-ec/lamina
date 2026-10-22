@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, runMigrations, schema, workflow as wf } from "@lamina/db";
 import { AiClient } from "@lamina/ai";
-import { DeckDocument } from "@lamina/contracts";
+import { DeckDocument, isStyleProposal } from "@lamina/contracts";
 import { varietyViolations, validateDeckAgainstCatalog } from "@lamina/components";
 import { eq } from "drizzle-orm";
 import type { Ctx } from "../src/ctx";
@@ -47,7 +47,8 @@ describe("diseño: estilo y variedad", () => {
   it("la IA propone el estilo y se guarda en presentations.theme_id y deck.themeId", async () => {
     const r = await design("Cinemática del movimiento", "Física I");
     expect(r.deck.themeId).toBe("fisica-aurora");
-    expect(r.p.themeId).toBe("fisica-aurora");
+    expect(r.p.themeId).toBe("fisica-aurora:a:ia"); // propuesta de la IA, no elección del docente
+    expect(isStyleProposal(r.p.themeId)).toBe(true);
     expect(validateDeckAgainstCatalog(r.deck).ok).toBe(true);
   });
   it("Cálculo y Física generan estilos distintos con el mismo código", async () => {

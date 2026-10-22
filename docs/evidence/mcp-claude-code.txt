@@ -1,0 +1,11 @@
+$ claude --version
+2.1.308 (Claude Code)
+$ claude mcp add --transport http lamina http://localhost:3100/api/mcp
+Added HTTP MCP server lamina with URL: http://localhost:3100/api/mcp to local config
+$ claude mcp list
+lamina: http://localhost:3100/api/mcp (HTTP) - ! Needs authentication
+
+Claude Code descubre el servidor (401 con WWW-Authenticate + resource_metadata) y pide autenticación.
+La autenticación interactiva en el navegador no se automatizó: el mismo flujo (descubrimiento, DCR, login, consentimiento, PKCE, token,
+refresco y revocación) está en docs/evidence/mcp-oauth-smoke.txt, y el flujo de la presentación en mcp-flow.txt, mcp-conectar.png y
+mcp-presentacion-lista-para-aprobar.png. PENDIENTE de Esteban: completar /mcp → Authenticate con Claude Code real y crear una presentación de Cálculo.

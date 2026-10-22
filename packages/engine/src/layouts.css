@@ -10,11 +10,13 @@
 .lm-brandbar { position: absolute; left: 96px; right: 96px; top: 60px; height: 120px; display: flex; justify-content: space-between; align-items: center; gap: 48px; }
 .lm-brand-left, .lm-brand-right { display: flex; align-items: center; height: 100%; min-width: 0; }
 .lm-logo { max-height: 108px; max-width: 440px; width: auto; height: auto; object-fit: contain; background: var(--lm-logo-bg, transparent); padding: var(--lm-logo-pad, 0); border-radius: 10px; }
-.lm-wordmark { font: var(--lm-title-weight, 600) 42px/1.1 var(--lm-font-display); color: var(--lm-ink); }
-.lm-cover-meta { position: absolute; left: 96px; right: 96px; top: 862px; margin: 0; padding-top: 22px; border-top: 3px solid var(--lm-rule); font: 500 38px/1.3 var(--lm-font-body); color: var(--lm-muted); }
+.lm-wordmark { font: var(--lm-title-weight, 600) 42px/1.1 var(--lm-font-display); color: var(--lm-ink); max-width: 760px; max-height: 2.3em; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
+.lm-cover-meta { position: absolute; left: 96px; right: 96px; top: 862px; margin: 0; padding-top: 22px; border-top: 3px solid var(--lm-rule); font: 500 38px/1.3 var(--lm-font-body); color: var(--lm-muted); max-height: 2.6em; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .lm-cover-foot { position: absolute; left: 96px; bottom: 44px; margin: 0; font: 700 32px var(--lm-font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--lm-accent); }
 .lm-closing-foot { position: absolute; left: 96px; right: 96px; bottom: 30px; margin: 0; padding-top: 14px; border-top: 3px solid var(--lm-rule); display: flex; justify-content: space-between; gap: 32px; font: 500 28px var(--lm-font-body); color: var(--lm-muted); }
-.lm-closing-foot strong { color: var(--lm-accent); letter-spacing: .12em; text-transform: uppercase; }
+.lm-closing-foot { max-height: 1.4em; overflow: hidden; white-space: nowrap; }
+.lm-closing-foot > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lm-closing-foot strong { color: var(--lm-accent); letter-spacing: .12em; text-transform: uppercase; flex: none; max-width: 40%; }
 .lm-footer { display: var(--lm-footer-display, none); position: absolute; left: 96px; right: 96px; bottom: 18px; margin: 0; justify-content: space-between; font: 500 24px var(--lm-font-body); color: var(--lm-footer-ink, var(--lm-muted)); letter-spacing: .06em; }
 .lm-footer-n { font-variant-numeric: tabular-nums; }
 [data-theme="lamina-oscuro"], [data-theme="algebra-grafito"], [data-theme="fisica-aurora"], [data-theme="pizarra"] { --lm-logo-bg: #fff; --lm-logo-pad: 10px 16px; }

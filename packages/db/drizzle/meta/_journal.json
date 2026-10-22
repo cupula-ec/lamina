@@ -22,6 +22,13 @@
       "when": 1792679484741,
       "tag": "0002_ocr_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792680353239,
+      "tag": "0003_mcp_oauth",
+      "breakpoints": true
     }
   ]
 }

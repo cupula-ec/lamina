@@ -48,7 +48,9 @@ export const Slide = z.object({
 export type Slide = z.infer<typeof Slide>;
 
 /** Ruta interna servida por la app (nunca data: ni URLs externas). */
-const InternalAsset = z.string().max(300).regex(/^\/api\/branding\/[A-Za-z0-9/_\-.?=&]+$/);
+const InternalAsset = z.string().max(300).regex(
+  /^\/api\/branding\/(institution\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|personal\/[A-Za-z0-9_-]{1,64})(\?v=[0-9a-f]{8})?$/i,
+);
 
 /** Marca institucional y datos del docente. Todo opcional: el renderizado omite lo vacío. */
 export const Branding = z.object({

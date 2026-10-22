@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { ACCENT_IDS, THEME_IDS, THEMES } from "@lamina/contracts";
+import { ACCENT_IDS, BRAND_MIN_CONTRAST, BRAND_THEMES, THEME_IDS, THEMES, brandColorFor, contrastRatio, type ThemeId } from "@lamina/contracts";
 
 const DIR = path.join(__dirname, "../src/themes");
 type Vars = Record<string, string>;
@@ -100,3 +100,26 @@ describe("temas: CSS y contraste AA", () => {
     for (const hex of ["#8a5a00", "#2a2410", "#fff4d6", "#c98b00", "#14181f"]) expect(base).not.toContain(hex);
   });
 });
+
+describe("color institucional (--lm-brand): contraste con el fondo del tema", () => {
+  it("las constantes de BRAND_THEMES coinciden con el CSS del tema (fondo y acentos a/b/c)", () => {
+    for (const [id, t] of Object.entries(BRAND_THEMES) as [ThemeId, NonNullable<(typeof BRAND_THEMES)[ThemeId]>][]) {
+      const v = parseTheme(id);
+      expect(hexOf(v.a!, "--lm-bg")).toBe(t.bg);
+      expect([hexOf(v.a!, "--lm-accent"), hexOf(v.b!, "--lm-accent"), hexOf(v.c!, "--lm-accent")]).toEqual([...t.accents]);
+      for (const a of t.accents) expect(ratio(a, t.bg)).toBeGreaterThanOrEqual(BRAND_MIN_CONTRAST);
+    }
+  });
+  it("contrastRatio coincide con la implementación de referencia del test", () => {
+    expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 5);
+    expect(contrastRatio("#f8f8f6", "#1f3a5f")).toBeCloseTo(ratio("#f8f8f6", "#1f3a5f"), 8);
+  });
+  it("un color institucional claro (amarillo) no se usa en el tema sobrio; uno oscuro sí", () => {
+    expect(brandColorFor("institucional-sobrio", "#FCC000")).toBeUndefined();
+    expect(brandColorFor("institucional-sobrio", "#ffffff")).toBeUndefined();
+    expect(brandColorFor("institucional-sobrio", "#003976")).toBe("#003976");
+    expect(brandColorFor("lamina-claro", "#FCC000")).toBe("#FCC000"); // ese tema no pinta con la marca
+    expect(brandColorFor("institucional-sobrio", undefined)).toBeUndefined();
+  });
+});
+

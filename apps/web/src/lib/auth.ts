@@ -3,7 +3,11 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
-import { admin, genericOAuth } from "better-auth/plugins";
+import { admin, genericOAuth, jwt } from "better-auth/plugins";
+import { oauthProvider } from "@better-auth/oauth-provider";
+import { cimd } from "@better-auth/cimd";
+import { fetchClientMetadataResource } from "@better-auth/cimd/node";
+import { MCP_SCOPES } from "@lamina/mcp";
 import { schema } from "@lamina/db";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
@@ -13,6 +17,10 @@ import { adminEmails, env } from "./env";
 // Singleton en globalThis: el bundle del route handler y el de las Server Actions deben compartir el MISMO almacén.
 const gg = globalThis as unknown as { __laminaAdminCreate?: AsyncLocalStorage<{ allowed: true }> };
 export const adminCreate = (gg.__laminaAdminCreate ??= new AsyncLocalStorage<{ allowed: true }>());
+
+/** Identificador (audience) del servidor MCP: los tokens de OAuth solo valen para este recurso. */
+export const mcpResource = () => `${env().APP_URL.replace(/\/$/, "")}/api/mcp`;
+export const MCP_OAUTH_SCOPES = [...MCP_SCOPES, "offline_access"] as const;
 
 function build() {
   const e = env();
@@ -37,7 +45,11 @@ function build() {
     baseURL: e.APP_URL,
     secret: e.BETTER_AUTH_SECRET,
     trustedOrigins: [e.APP_URL],
-    database: drizzleAdapter(db, { provider: "pg", schema: { user: schema.user, session: schema.session, account: schema.account, verification: schema.verification, rateLimit: schema.rateLimit } }),
+    database: drizzleAdapter(db, { provider: "pg", schema: {
+      user: schema.user, session: schema.session, account: schema.account, verification: schema.verification, rateLimit: schema.rateLimit,
+      jwks: schema.jwks, oauthClient: schema.oauthClient, oauthResource: schema.oauthResource, oauthClientResource: schema.oauthClientResource,
+      oauthRefreshToken: schema.oauthRefreshToken, oauthAccessToken: schema.oauthAccessToken, oauthConsent: schema.oauthConsent, oauthClientAssertion: schema.oauthClientAssertion,
+    } }),
     emailAndPassword: { enabled: true, disableSignUp: true, minPasswordLength: 10, maxPasswordLength: 128, autoSignIn: false, revokeSessionsOnPasswordReset: true },
     socialProviders: social,
     account: { accountLinking: { enabled: true, trustedProviders: ["google"], allowDifferentEmails: false } },
@@ -45,9 +57,32 @@ function build() {
     advanced: { useSecureCookies: e.NODE_ENV === "production", defaultCookieAttributes: { sameSite: "lax", httpOnly: true }, ipAddress: { ipAddressHeaders: ["x-forwarded-for"] } },
     rateLimit: {
       enabled: process.env.AUTH_RATE_LIMIT !== "off", window: 60, max: 120, storage: "database",
-      customRules: { "/sign-in/email": { window: 60, max: Number(process.env.AUTH_SIGNIN_MAX ?? 6) }, "/change-password": { window: 60, max: 6 }, "/sign-in/social": { window: 60, max: 20 } },
+      customRules: { "/oauth2/register": { window: 60, max: 10 }, "/oauth2/token": { window: 60, max: 60 }, "/sign-in/email": { window: 60, max: Number(process.env.AUTH_SIGNIN_MAX ?? 6) }, "/change-password": { window: 60, max: 6 }, "/sign-in/social": { window: 60, max: 20 } },
     },
-    plugins: [admin({ defaultRole: "teacher", adminRoles: ["admin"] }), ...oauth, nextCookies()],
+    plugins: [
+      admin({ defaultRole: "teacher", adminRoles: ["admin"] }), ...oauth,
+      // OAuth 2.1 para el servidor MCP (ADR-013): solo cuentas ya dadas de alta; no hay registro ni creación de usuarios por OAuth.
+      jwt(),
+      oauthProvider({
+        loginPage: "/login",
+        consentPage: "/cuenta/conectar/autorizar",
+        scopes: [...MCP_OAUTH_SCOPES],
+        resources: [{ identifier: mcpResource(), name: "Lámina MCP", allowedScopes: [...MCP_OAUTH_SCOPES] }],
+        enforcePerClientResources: false,
+        accessTokenExpiresIn: 10 * 60,
+        refreshTokenExpiresIn: 14 * 24 * 3600,
+        codeExpiresIn: 120,
+        grantTypes: ["authorization_code", "refresh_token"],
+        storeTokens: "hashed",
+        allowDynamicClientRegistration: true,
+        allowUnauthenticatedClientRegistration: true,
+        clientRegistrationDefaultScopes: [...MCP_SCOPES],
+        clientRegistrationAllowedScopes: ["offline_access"],
+        clientRegistrationDefaultApplicationType: "infer",
+      }),
+      cimd({ fetchClientMetadataResource, metadataProfile: "mcp-2026-07-28" }),
+      nextCookies(),
+    ],
     databaseHooks: {
       user: {
         create: {

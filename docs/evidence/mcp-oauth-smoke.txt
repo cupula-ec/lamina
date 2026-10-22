@@ -1,0 +1,128 @@
+
+## 1. Metadatos del recurso protegido (RFC 9728)
+{
+  "resource": "http://localhost:3100/api/mcp",
+  "authorization_servers": [
+    "http://localhost:3100/api/auth"
+  ],
+  "scopes_supported": [
+    "presentations:read",
+    "presentations:write"
+  ],
+  "bearer_methods_supported": [
+    "header"
+  ],
+  "resource_name": "Lámina",
+  "resource_documentation": "http://localhost:3100/cuenta/conectar"
+}
+
+## 2. Metadatos del servidor de autorización (RFC 8414)
+{
+  "issuer": "http://localhost:3100/api/auth",
+  "registration_endpoint": "http://localhost:3100/api/auth/oauth2/register",
+  "code_challenge_methods_supported": [
+    "S256"
+  ],
+  "grant_types_supported": [
+    "authorization_code",
+    "client_credentials",
+    "refresh_token"
+  ],
+  "client_id_metadata_document_supported": true
+}
+
+## 3. Sin token
+{
+  "status": 401,
+  "www-authenticate": "Bearer scope=\"presentations:read presentations:write\", resource_metadata=\"http://localhost:3100/.well-known/oauth-protected-resource/api/mcp\""
+}
+
+## 3b. Origin ajeno
+{
+  "status": 403
+}
+
+## 4. Registro dinámico de cliente
+{
+  "client_id": "wETUzymLUJQBMZWPsmtGgypYWJymmuUI",
+  "token_endpoint_auth_method": "none",
+  "scope": "presentations:read presentations:write offline_access"
+}
+
+## 5. Authorize → pantalla de consentimiento
+{
+  "status": 200,
+  "path": "/cuenta/conectar/autorizar",
+  "scope": "presentations:read presentations:write offline_access"
+}
+
+## 6. Consentimiento aceptado
+{
+  "redirect": "http://127.0.0.1:9999/callback",
+  "hasCode": true,
+  "iss": "http://localhost:3100/api/auth"
+}
+
+## 7. Token
+{
+  "token_type": "Bearer",
+  "expires_in": 600,
+  "scope": "presentations:read presentations:write offline_access",
+  "hasRefresh": true
+}
+
+## 8. Tools
+[
+  "list_presentations",
+  "get_presentation",
+  "create_presentation",
+  "submit_content_draft",
+  "validate_deck",
+  "submit_deck",
+  "get_render_issues"
+]
+
+## 8b. Resources
+[
+  "lamina://schemas/content-draft",
+  "lamina://schemas/deck",
+  "lamina://catalog",
+  "lamina://layouts",
+  "lamina://themes",
+  "lamina://guides/authoring",
+  "lamina://presentations/7975075b-7c74-4467-a083-d3ddc8a447f8"
+]
+
+## 9. create_presentation
+{
+  "id": "5b11dce0-e59d-41a9-bb70-bf7639bdc2f0",
+  "stage": "draft",
+  "origin": "mcp",
+  "url": "http://localhost:3100/presentations/5b11dce0-e59d-41a9-bb70-bf7639bdc2f0"
+}
+
+## 9b. Esquema leído
+{
+  "required": [
+    "schemaVersion",
+    "meta",
+    "sections"
+  ]
+}
+
+## 10. Refresco
+{
+  "ok": true,
+  "rotated": true
+}
+
+## 11. Tras revocar: el token aún no expiró pero ya no sirve
+{
+  "status": 401
+}
+
+## 12. Tras revocar: el refresco también falla
+{
+  "error": "invalid_grant",
+  "gotAccessToken": false
+}

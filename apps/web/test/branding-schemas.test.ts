@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { InstitutionInput, MetaFields, ProfileInput, slugify } from "../src/lib/branding-schemas";
 
 describe("ProfileInput", () => {
-  it("exige nombre completo (3–160) y limpia espacios", () => {
+  it("exige nombre completo (3–120) y limpia espacios", () => {
     expect(ProfileInput.parse({ fullName: "  Gustavo Bravo Quezada  ", institutionId: null }).fullName).toBe("Gustavo Bravo Quezada");
     expect(ProfileInput.safeParse({ fullName: "ab", institutionId: null }).success).toBe(false);
     expect(ProfileInput.safeParse({ fullName: "   ", institutionId: null }).success).toBe(false);
-    expect(ProfileInput.safeParse({ fullName: "x".repeat(161), institutionId: null }).success).toBe(false);
+    expect(ProfileInput.safeParse({ fullName: "x".repeat(120), institutionId: null }).success).toBe(true);
+    expect(ProfileInput.safeParse({ fullName: "x".repeat(121), institutionId: null }).success).toBe(false);
   });
   it("la institución es un UUID o null", () => {
     expect(ProfileInput.safeParse({ fullName: "Ana Pérez", institutionId: "00000000-0000-4000-8000-000000000000" }).success).toBe(true);

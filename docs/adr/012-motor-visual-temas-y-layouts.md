@@ -26,3 +26,7 @@
 - El acento no tiene columna propia: se codifica en `theme_id`.
 - `full-visual` superpone título y leyenda a un visual de lienzo completo: apto para visuales poco densos en los bordes.
 - El detector ignora trazos SVG recortados por `clip-path` y mide los sub/superíndices KaTeX con el tamaño base de la fórmula.
+- **Propuesta vs elección.** `theme_id` distingue la elección del docente (`tema` / `tema:acento`) de la propuesta de la IA (`tema:acento:ia`, `isStyleProposal`): la propuesta se reutiliza al rediseñar pero la UI sigue mostrándola como «propuesto». El cambio de estilo vive en `workflow.styleChanged` (versión `kind: "style"`).
+- **Contraste del color institucional.** `--lm-brand` solo se aplica si contrasta ≥ 3:1 con el fondo del tema (`brandColorFor`, `BRAND_THEMES`, verificado contra el CSS en `engine/test/themes.test.ts`); si no, el CSS cae al acento del tema. El formulario de instituciones avisa al administrador.
+- **Zonas de marca acotadas.** `.lm-cover-meta` y `.lm-wordmark` (2 líneas, `line-clamp`) y `.lm-closing-foot` (1 línea, elipsis) no desbordan con los valores máximos (`MAX_BRANDING`; galería `?branding=max`).
+

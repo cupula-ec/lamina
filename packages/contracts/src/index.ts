@@ -8,3 +8,4 @@ export * from "./component";
 export * from "./jobs";
 export * from "./canonical";
 export * from "./geometry";
+export * from "./jsonschema";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCENT_IDS, CANVAS, DEFAULT_THEME_ID, LAYOUTS, LAYOUT_IDS, SLOT_GEOMETRY, THEMES, THEME_IDS, formatStylePref, parseStylePref, proposeStyle, themesForPrompt, type Box } from "../src";
+import { ACCENT_IDS, CANVAS, DEFAULT_THEME_ID, LAYOUTS, LAYOUT_IDS, SLOT_GEOMETRY, THEMES, THEME_IDS, formatStylePref, isStyleProposal, parseStylePref, proposeStyle, themesForPrompt, type Box } from "../src";
 
 const LEGACY = ["title", "section", "title-content", "two-column", "split-visual", "formula-focus"];
 const NEW = ["cover-branded", "hero-formula", "full-visual", "three-column", "steps-timeline", "comparison", "big-number", "quote-source", "agenda", "closing", "sidebar-notes"];
@@ -81,5 +81,11 @@ describe("catálogo de temas", () => {
     expect(parseStylePref("nope")).toBeNull();
     expect(parseStylePref("pizarra:z")).toBeNull();
     expect(parseStylePref(null)).toBeNull();
+    expect(formatStylePref({ themeId: "pizarra", accent: "a" }, true)).toBe("pizarra:a:ia");
+    expect(parseStylePref("pizarra:a:ia")).toEqual({ themeId: "pizarra", accent: "a" });
+    expect(isStyleProposal("pizarra:a:ia")).toBe(true);
+    expect(isStyleProposal("pizarra:c")).toBe(false);
+    expect(isStyleProposal("nope:a:ia")).toBe(false);
+    expect(parseStylePref("pizarra:a:xx")).toBeNull();
   });
 });

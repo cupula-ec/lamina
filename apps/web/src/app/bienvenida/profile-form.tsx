@@ -59,7 +59,7 @@ export function ProfileForm({ mode, institutions, initial }: { mode: "onboarding
     <form className="mt-6 space-y-5" onSubmit={(e) => { e.preventDefault(); if (nameOk) submit(); }}>
       <div>
         <label className="label" htmlFor="fullName">Nombre completo</label>
-        <input id="fullName" className="field" value={fullName} onChange={(e) => setFullName(e.target.value)} minLength={3} maxLength={160} autoComplete="name" placeholder="Ej.: María Fernanda López Pérez" required autoFocus={mode === "onboarding"} />
+        <input id="fullName" className="field" value={fullName} onChange={(e) => setFullName(e.target.value)} minLength={3} maxLength={120} autoComplete="name" placeholder="Ej.: María Fernanda López Pérez" required autoFocus={mode === "onboarding"} />
         <p className="hint mt-1">Aparece como autor en la carátula de tus presentaciones.</p>
       </div>
       <div>

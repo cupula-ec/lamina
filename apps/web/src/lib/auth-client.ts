@@ -1,8 +1,9 @@
 "use client";
 import { createAuthClient } from "better-auth/react";
 import { adminClient } from "better-auth/client/plugins";
+import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 
-export const authClient = createAuthClient({ plugins: [adminClient()] });
+export const authClient = createAuthClient({ plugins: [adminClient(), oauthProviderClient()] });
 
 /** Inicio de sesión con Keycloak (CUPULA SSO): en Better Auth 1.7 el plugin genericOAuth se registra como proveedor social. */
 export async function signInKeycloak() {

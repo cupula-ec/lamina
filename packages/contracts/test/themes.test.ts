@@ -22,6 +22,8 @@ describe("temas y branding", () => {
     expect(DeckDocument.safeParse(base).success).toBe(true);
     expect(Branding.safeParse({ personalLogoUrl: "data:image/svg+xml;base64,AAAA" }).success).toBe(false);
     expect(Branding.safeParse({ personalLogoUrl: "https://evil.example/x.png" }).success).toBe(false);
-    expect(Branding.safeParse({ personalLogoUrl: "/api/branding/institution/abc-123" }).success).toBe(true);
+    const uuid = "00000000-0000-4000-8000-000000000000";
+    for (const ok of [`/api/branding/institution/${uuid}`, `/api/branding/institution/${uuid}?v=0a1b2c3d`, "/api/branding/personal/userA1", "/api/branding/personal/userA1?v=0a1b2c3d"]) expect(Branding.safeParse({ personalLogoUrl: ok }).success, ok).toBe(true);
+    for (const bad of ["/api/branding/institution/abc-123", "/api/branding/personal/..", "/api/branding/personal/../institution/x", "/api/branding/personal/a/b", "/api/branding/personal/a?v=1&exp=9&sig=z", "/api/branding/other/x"]) expect(Branding.safeParse({ personalLogoUrl: bad }).success, bad).toBe(false);
   });
 });

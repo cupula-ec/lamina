@@ -103,7 +103,7 @@ export function slidesFromHint(hint: SlideHint, prevLayouts: string[] = [], opts
 export function titleSlide(meta: ContentDraft["meta"], author?: string, branding?: Branding): Slide {
   const branded = hasBranding(branding);
   const teacher = branding?.teacher?.trim();
-  const props = { title: clip(meta.topic, 105), subtitle: clip(`${meta.level} · ${meta.objective}`, 155), ...(author && !(branded && teacher) ? { author } : {}) };
+  const props = { title: clip(meta.topic, 105), subtitle: clip(`${meta.level} · ${meta.objective}`, 155), ...(author && !(branded && teacher) ? { author: clip(author, 100) } : {}) };
   return { id: "title", layout: branded ? "cover-branded" : "title", slots: { main: ref("Title", props) }, notes: "", build: { steps: [] }, transition: "fade" };
 }
 export function sectionSlide(id: string, title: string, index: number): Slide {
@@ -120,7 +120,7 @@ export function deckFromContent(content: ContentDraft, author?: string, opts: { 
   });
   return {
     schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: opts.themeId ?? "lamina-claro", ...(opts.accent ? { accent: opts.accent } : {}),
-    meta: { title: clip(content.meta.topic, 190), topic: content.meta.topic, level: content.meta.level, language: content.meta.language, ...(author ? { author } : {}), ...(opts.branding ? { branding: opts.branding } : {}) },
+    meta: { title: clip(content.meta.topic, 190), topic: content.meta.topic, level: content.meta.level, language: content.meta.language, ...(author ? { author: clip(author, 120) } : {}), ...(opts.branding ? { branding: opts.branding } : {}) },
     slides,
   };
 }

@@ -16,6 +16,15 @@ export const SAMPLE_BRANDING: Branding = {
   group: "Grupo 2",
 };
 
+/** Valores en los máximos que admite el esquema (nombre 160, sigla 24, docente 120, materia 160, período 80, grupo 80): prueba de desborde de portada y cierre. */
+export const MAX_BRANDING: Branding = {
+  institution: { name: "Universidad Nacional Autónoma de la Región Andina y Amazónica de Estudios Superiores Técnicos y Humanísticos Internacionales del Sur", short: "WWWWWWWWWWWWWWWWWWWWWWWW" },
+  teacher: "Dr. Ing. Gustavo Alejandro Bravo Quezada de la Torre y Villacís-Montenegro, Ph.D. en Matemática Aplicada",
+  subject: "Fundamentos de Cálculo Diferencial e Integral para Ingeniería y Ciencias de la Computación Avanzada",
+  period: "Período lectivo ordinario abril–agosto de 2026 (segundo parcial)",
+  group: "Grupo 2 · Jornada vespertina · Aula 305-B",
+};
+
 const PLOT = { functions: [{ expr: "x^3/3 - x", label: "f(x) = x³/3 − x" }], xDomain: [-2.5, 2.5], yDomain: [-3, 3], points: [{ x: 1.5, fnIndex: 0, label: "a = 1,5" }], tangents: [{ fnIndex: 0, at: 1.5 }] };
 const FORMULA = { latex: "f'(a)=\\lim_{h\\to 0}\\frac{f(a+h)-f(a)}{h}", caption: "Definición de derivada", variables: [{ symbol: "h", meaning: "incremento de la variable" }] };
 
@@ -63,11 +72,11 @@ export function previewDeck(opts: { themeId: ThemeId; accent?: AccentId; topic?:
 }
 
 /** Deck con todos los layouts (galería y pruebas de render/contraste). */
-export function galleryDeck(opts: { themeId: ThemeId; accent?: AccentId }): DeckDocument {
+export function galleryDeck(opts: { themeId: ThemeId; accent?: AccentId; branding?: Branding }): DeckDocument {
   const s = sampleSlides();
   return {
     schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: opts.themeId, ...(opts.accent ? { accent: opts.accent } : {}),
-    meta: { title: "La derivada", topic: "La derivada", level: "Universidad", language: "es", branding: SAMPLE_BRANDING },
+    meta: { title: "La derivada", topic: "La derivada", level: "Universidad", language: "es", branding: opts.branding ?? SAMPLE_BRANDING },
     slides: Object.values(s),
   };
 }

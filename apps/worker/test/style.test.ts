@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LaminaError, THEME_IDS } from "@lamina/contracts";
-import { chooseStyle, layoutsDoc } from "../src/handlers/design";
+import { chooseStyle, layoutsDoc, withBrandedCover } from "../src/handlers/design";
 import type { Ctx } from "../src/ctx";
 
 const ctxWith = (structured: (o: any) => Promise<unknown>) => ({ ai: { structured }, log: () => {} }) as unknown as Ctx;
@@ -34,5 +34,18 @@ describe("chooseStyle", () => {
     const doc = layoutsDoc();
     for (const id of ["cover-branded", "hero-formula", "full-visual", "three-column", "steps-timeline", "comparison", "big-number", "quote-source", "agenda", "closing", "sidebar-notes", "title-content"]) expect(doc).toContain(`- ${id}`);
     expect(doc).toContain("cover-branded [lo coloca el sistema]");
+  });
+});
+
+describe("withBrandedCover", () => {
+  const cover = (props: Record<string, unknown>) => ({ id: "title", layout: "title", slots: { main: { componentId: "Title", version: "1.0.0", props } }, notes: "", build: { steps: [] }, transition: "fade" }) as any;
+  it("una portada conservada con `author` no repite al docente cuando la marca ya lo lleva", () => {
+    const c = withBrandedCover([cover({ title: "T", author: "Prof. Ana" })], { teacher: "Prof. Ana" })[0] as any;
+    expect(c.layout).toBe("cover-branded");
+    expect(c.slots.main.props).toEqual({ title: "T" });
+  });
+  it("sin docente en la marca conserva el autor", () => {
+    const c = withBrandedCover([cover({ title: "T", author: "Prof. Ana" })], {})[0] as any;
+    expect(c.slots.main.props.author).toBe("Prof. Ana");
   });
 });

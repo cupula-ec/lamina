@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { personalLogoUrl, schema } from "@lamina/db";
 import { Brand } from "@/components/Brand";
+import { LogoutButton } from "@/components/LogoutButton";
+import { DeleteAccount } from "../cuenta/delete";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { ProfileForm } from "./profile-form";
@@ -20,12 +22,17 @@ export default async function Page() {
   return (
     <div className="bg-graph min-h-dvh">
       <div className="mx-auto max-w-xl px-5 py-10">
-        <Brand href="/bienvenida" />
+        <div className="flex items-center justify-between gap-4"><Brand href="/bienvenida" /><LogoutButton /></div>
         <div className="sheet mt-10 p-6 shadow-[6px_6px_0_var(--color-ink)] sm:p-8">
           <h1 className="text-2xl font-bold">Bienvenido a Lámina</h1>
           <p className="mt-2 text-ink-2">Un último paso: cuéntanos cómo quieres aparecer en tus presentaciones. Podrás cambiarlo cuando quieras en «Mi cuenta».</p>
           <ProfileForm mode="onboarding" institutions={institutions} initial={{ fullName: p?.fullName ?? u.name, institutionId: p?.institutionId ?? null, logoUrl: personalLogoUrl(u.id, p?.personalLogoPath ?? null) ?? null }} />
         </div>
+        <details className="mt-6 text-sm">
+          <summary className="cursor-pointer font-bold underline underline-offset-4">¿No quieres continuar? Eliminar mi cuenta</summary>
+          <p className="mt-2 max-w-[60ch]">Se borrarán tu cuenta y todos tus datos. No se puede deshacer.</p>
+          <DeleteAccount email={u.email} />
+        </details>
       </div>
     </div>
   );

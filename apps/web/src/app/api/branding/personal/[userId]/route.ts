@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { schema } from "@lamina/db";
 import { getDb } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
-import { isUserId, logoHeaders, readLogo, verifyPersonalSig } from "@/lib/branding";
+import { isUserId, logoHeaders, readLogoVersion, verifyPersonalSig } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,7 +24,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ userId: 
     if (!me || me.id !== userId) return notFound();
   }
   const [p] = await getDb().select({ path: schema.userProfiles.personalLogoPath }).from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId));
-  const buf = await readLogo("personal", p?.path);
+  const buf = await readLogoVersion("personal", userId, p?.path, q.get("v"));
   if (!buf) return notFound();
   return new NextResponse(new Uint8Array(buf), { headers: logoHeaders("private, max-age=300") });
 }

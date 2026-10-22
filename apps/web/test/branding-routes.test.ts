@@ -99,19 +99,31 @@ describe("logo personal: autorización entre cuentas", () => {
   it("URL firmada: válida para anónimos; falla si está alterada, caducada o es de otro usuario", async () => {
     const { withSignedBranding } = await lib();
     const deck = DeckDocument.parse({ schemaVersion: 1, engineVersion: "1", themeId: "lamina-claro", meta: { title: "t", topic: "t", level: "u", language: "es", branding: { personalLogoUrl: urlA, teacher: "A" } }, slides: [{ id: "s", layout: "title", slots: { main: { componentId: "Title", version: "1.0.0", props: { title: "x" } } }, notes: "", build: { steps: [] }, transition: "fade" }] });
-    const signed = withSignedBranding(deck, 600).meta.branding!.personalLogoUrl!;
+    const signed = withSignedBranding(deck, 600, A.id).meta.branding!.personalLogoUrl!;
     expect(signed).toMatch(/^\/api\/branding\/personal\/userA1\?v=[0-9a-f]{8}&exp=\d+&sig=[0-9a-f]{64}$/);
-    expect(withSignedBranding(deck, 600).meta.branding!.teacher).toBe("A");
+    expect(withSignedBranding(deck, 600, A.id).meta.branding!.teacher).toBe("A");
     expect(deck.meta.branding!.personalLogoUrl).toBe(urlA);
     state.current = null;
     const g = (await personalGet()).GET;
     expect((await g(get(signed), ctx({ userId: A.id }))).status).toBe(200);
     expect((await g(get(signed.replace(/sig=./, "sig=0")), ctx({ userId: A.id }))).status).toBe(404);
     expect((await g(get(signed), ctx({ userId: B.id }))).status).toBe(404);
-    const expired = withSignedBranding(deck, -5).meta.branding!.personalLogoUrl!;
+    const expired = withSignedBranding(deck, -5, A.id).meta.branding!.personalLogoUrl!;
     expect((await g(get(expired), ctx({ userId: A.id }))).status).toBe(404);
     const exp2 = signed.replace(/exp=\d+/, `exp=${Math.floor(Date.now() / 1000) + 99999}`);
     expect((await g(get(exp2), ctx({ userId: A.id }))).status).toBe(404);
+  });
+
+  it("logo personal de otro usuario: no se firma y se descarta; formas no canónicas no pasan el esquema", async () => {
+    const { withSignedBranding } = await lib();
+    const mk = (personalLogoUrl: string) => ({ schemaVersion: 1, engineVersion: "1", themeId: "lamina-claro", meta: { title: "t", topic: "t", level: "u", language: "es", branding: { personalLogoUrl, teacher: "A" } }, slides: [{ id: "s", layout: "title", slots: { main: { componentId: "Title", version: "1.0.0", props: { title: "x" } } }, notes: "", build: { steps: [] }, transition: "fade" }] });
+    const deck = DeckDocument.parse(mk(urlA));
+    const out = withSignedBranding(deck, 600, B.id).meta.branding!;
+    expect(out.personalLogoUrl).toBeUndefined();
+    expect(out.teacher).toBe("A");
+    for (const bad of ["/api/branding/personal/../x", "/api/branding/personal/userA1/../../institution/x", "/api/branding/personal/userA1?v=zzzzzzzz&exp=1&sig=a", "/api/branding/institution/not-a-uuid"]) {
+      expect(DeckDocument.safeParse(mk(bad)).success, bad).toBe(false);
+    }
   });
 
   it("B sube el suyo y no toca el de A", async () => {
@@ -148,8 +160,13 @@ describe("logo personal: autorización entre cuentas", () => {
     expect(after!.personalLogoPath).not.toBe(before);
     const saved = fs.readFileSync(path.join(DATA, "branding", "personal", after!.personalLogoPath!));
     expect(saved.toString("latin1")).not.toContain("<script");
-    // el archivo anterior se eliminó (sin huérfanos)
-    expect(fs.existsSync(path.join(DATA, "branding", "personal", before!))).toBe(false);
+    // política ADR-011: el archivo anterior se conserva (los decks guardados lo referencian por ?v=) y se sirve por su versión
+    expect(fs.existsSync(path.join(DATA, "branding", "personal", before!))).toBe(true);
+    const { readLogoVersion } = await lib();
+    const { logoVersion } = await import("@lamina/db");
+    expect(await readLogoVersion("personal", A.id, after!.personalLogoPath, logoVersion(before!))).not.toBeNull();
+    expect(await readLogoVersion("personal", A.id, after!.personalLogoPath, "deadbeef")).toBeNull();
+    expect(await readLogoVersion("personal", B.id, after!.personalLogoPath, logoVersion(before!))).toBeNull(); // no cruza dueños
   });
 
   it("cuerpo enorme sin Content-Length confiable se corta antes de parsear", async () => {

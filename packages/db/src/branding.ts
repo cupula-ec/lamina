@@ -1,15 +1,15 @@
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Branding } from "@lamina/contracts";
-import type { Db } from "./client";
+import type { DbOrTx } from "./client";
 import { institutions, user, userProfiles } from "./schema";
 
-const ver = (path: string) => createHash("sha1").update(path).digest("hex").slice(0, 8);
+export const logoVersion = (path: string) => createHash("sha1").update(path).digest("hex").slice(0, 8);
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
 /** URL interna (nunca de disco) del logo de una institución; la versión cambia al reemplazar el archivo. */
-export const institutionLogoUrl = (i: { id: string; logoPath: string | null }) => (i.logoPath ? `/api/branding/institution/${i.id}?v=${ver(i.logoPath)}` : undefined);
-export const personalLogoUrl = (userId: string, logoPath: string | null) => (logoPath ? `/api/branding/personal/${userId}?v=${ver(logoPath)}` : undefined);
+export const institutionLogoUrl = (i: { id: string; logoPath: string | null }) => (i.logoPath ? `/api/branding/institution/${i.id}?v=${logoVersion(i.logoPath)}` : undefined);
+export const personalLogoUrl = (userId: string, logoPath: string | null) => (logoPath ? `/api/branding/personal/${userId}?v=${logoVersion(logoPath)}` : undefined);
 
 const clean = (s: string | null | undefined) => (s?.trim() ? s.trim() : undefined);
 
@@ -20,7 +20,7 @@ export const optionalText = (s: string | null | undefined) => clean(s) ?? null;
  * Marca institucional + datos del docente para `deck.meta.branding`. Todo opcional: lo vacío se omite.
  * Una institución desactivada deja de ofrecerse en los listados, pero se respeta para quien ya la tiene.
  */
-export async function buildBranding(db: Db, pres: { ownerId: string; subject?: string | null; period?: string | null; groupName?: string | null }): Promise<Branding> {
+export async function buildBranding(db: DbOrTx, pres: { ownerId: string; subject?: string | null; period?: string | null; groupName?: string | null }): Promise<Branding> {
   const [row] = await db.select({ u: user, p: userProfiles, i: institutions }).from(user)
     .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
     .leftJoin(institutions, eq(institutions.id, userProfiles.institutionId))
@@ -36,7 +36,7 @@ export async function buildBranding(db: Db, pres: { ownerId: string; subject?: s
       },
     } : {}),
     ...(row?.p?.personalLogoPath ? { personalLogoUrl: personalLogoUrl(pres.ownerId, row.p.personalLogoPath) } : {}),
-    ...(clean(row?.p?.fullName ?? row?.u.name) ? { teacher: clean(row?.p?.fullName ?? row?.u.name)!.slice(0, 160) } : {}),
+    ...(clean(row?.p?.fullName ?? row?.u.name) ? { teacher: clean(row?.p?.fullName ?? row?.u.name)!.slice(0, 120) } : {}),
     ...(clean(pres.subject) ? { subject: clean(pres.subject)!.slice(0, 160) } : {}),
     ...(clean(pres.period) ? { period: clean(pres.period)!.slice(0, 80) } : {}),
     ...(clean(pres.groupName) ? { group: clean(pres.groupName)!.slice(0, 80) } : {}),

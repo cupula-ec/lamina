@@ -8,7 +8,7 @@ import { getDb } from "@/lib/db";
 import { requireAdminApi } from "@/lib/session";
 import type { Result } from "@/lib/guard";
 import { InstitutionInput, slugify } from "@/lib/branding-schemas";
-import { removeLogo } from "@/lib/branding";
+import { purgeLogos } from "@/lib/branding";
 
 async function adm<T>(fn: () => Promise<T>): Promise<Result<T>> {
   try { await requireAdminApi(); const data = await fn(); revalidatePath("/admin/instituciones"); return { ok: true, data }; }
@@ -65,6 +65,6 @@ export async function deleteInstitutionAction(input: { id: string }) {
     if (n > 0) throw new LaminaError("invalid_transition", `Hay ${n} docente(s) con esta institución. Desactívala en lugar de borrarla.`, 409);
     const [row] = await db.delete(schema.institutions).where(eq(schema.institutions.id, id)).returning({ logoPath: schema.institutions.logoPath });
     if (!row) throw new LaminaError("not_found", "Institución no encontrada", 404);
-    await removeLogo("institution", row.logoPath);
+    await purgeLogos("institution", id);
   });
 }

@@ -3,11 +3,12 @@
  * una función por transición, validada en servidor, dentro de una transacción con SELECT … FOR UPDATE.
  */
 import { and, eq, sql } from "drizzle-orm";
-import { LaminaError, type Stage, type Visibility } from "@lamina/contracts";
+import { DeckDocument, LaminaError, formatStylePref, type AccentId, type Stage, type ThemeId, type Visibility } from "@lamina/contracts";
 import type { Db, Tx } from "./client";
 import { approvals, contentVersions, deckVersions, events, presentations } from "./schema";
 import { randomBytes } from "node:crypto";
-import { sha256Hex } from "./hash";
+import { hashJson, sha256Hex } from "./hash";
+import { buildBranding } from "./branding";
 import { DEFAULT_CONCURRENT_JOBS } from "./quota";
 
 type Pres = typeof presentations.$inferSelect;
@@ -47,15 +48,27 @@ async function evt(tx: Tx, name: string, p: Pres, data: Record<string, unknown> 
   await tx.insert(events).values({ name, userId: p.ownerId, presentationId: p.id, data });
 }
 
+/**
+ * Entrada externa de decks (edición manual, MCP): el cliente NO controla la marca. `meta.branding` se sustituye por el que
+ * construye buildBranding para el dueño (datos de la presentación vigentes) y el hash se recalcula. Decks sin `meta` quedan intactos.
+ */
+async function withOwnerBranding(tx: Tx, p: Pick<Pres, "ownerId" | "subject" | "period" | "groupName">, deck: unknown, sha256: string) {
+  const d = deck as { meta?: unknown } | null;
+  if (!d || typeof d !== "object" || !d.meta || typeof d.meta !== "object") return { deck, sha256 };
+  const branding = await buildBranding(tx, { ownerId: p.ownerId, subject: p.subject, period: p.period, groupName: p.groupName });
+  const next = { ...d, meta: { ...(d.meta as object), branding } };
+  return { deck: next, sha256: hashJson(next) };
+}
+
 /* ───── Creación ───── */
 export async function createPresentation(
   db: Db,
   ownerId: string,
-  input: { title: string; topic: string; level: string; objective: string; language?: string; extraNotes?: string; subject?: string | null; period?: string | null; groupName?: string | null },
+  input: { title: string; topic: string; level: string; objective: string; language?: string; extraNotes?: string; subject?: string | null; period?: string | null; groupName?: string | null; themeId?: string | null; origin?: "web" | "mcp" },
 ) {
   return db.transaction(async (tx) => {
     const [p] = await tx.insert(presentations).values({ ownerId, ...input, language: input.language ?? "es", stage: "draft" }).returning();
-    await evt(tx, "presentation_created", p!);
+    await evt(tx, input.origin === "mcp" ? "mcp.presentation_created" : "presentation_created", p!);
     return p!;
   });
 }
@@ -74,7 +87,7 @@ export function beginContentGeneration(db: Db, id: string, ownerId: string, pend
 export async function addContentVersion(
   tx: Tx,
   presentationId: string,
-  v: { content: unknown; sha256: string; authorKind: "ia" | "docente"; parentId: string | null; note?: string },
+  v: { content: unknown; sha256: string; authorKind: "ia" | "docente" | "mcp"; parentId: string | null; note?: string },
 ) {
   const [{ n } = { n: 0 }] = await tx
     .select({ n: sql<number>`coalesce(max(${contentVersions.n}),0)::int` })
@@ -132,6 +145,22 @@ export function reopenContent(db: Db, id: string, ownerId: string) {
   });
 }
 
+/**
+ * IA externa (MCP): draft | content_review → content_review con una versión `mcp`. Si ya hay versión vigente hay que partir de ella
+ * (baseVersionId); un envío obsoleto devuelve stale_version. Nunca aprueba: el docente revisa y aprueba en la UI.
+ */
+export function mcpContentSubmitted(db: Db, id: string, ownerId: string, v: { content: unknown; sha256: string; baseVersionId: string | null; note?: string }) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id, ownerId);
+    expectStage(p, ["draft", "content_review"], "enviar contenido desde una IA externa");
+    if ((p.currentContentVersionId ?? null) !== (v.baseVersionId ?? null)) throw new LaminaError("stale_version", "El contenido cambió desde la versión que usaste como base; vuelve a leer la presentación.", 409, { currentVersionId: p.currentContentVersionId });
+    const row = await addContentVersion(tx, id, { content: v.content, sha256: v.sha256, authorKind: "mcp", parentId: v.baseVersionId, note: v.note });
+    await set(tx, id, { stage: "content_review", currentContentVersionId: row.id, approvedContentVersionId: null, lastError: null, prevStage: null });
+    await evt(tx, "mcp.content_submitted", p, { versionId: row.id });
+    return row;
+  });
+}
+
 /* ───── Diseño ───── */
 /** content_approved | design_review → designing. Exige contenido aprobado. */
 export function beginDesign(db: Db, id: string, ownerId: string, pending?: PendingJob, expectCurrentDeckVersionId?: string) {
@@ -149,8 +178,8 @@ export async function addDeckVersion(
   tx: Tx,
   presentationId: string,
   v: {
-    deck: unknown; sha256: string; contentVersionId: string; authorKind: "ia" | "docente"; parentId: string | null;
-    kind?: "design" | "polish" | "repair" | "edit"; note?: string; componentPins?: Record<string, { version: string; bundleHash?: string }>; issues?: unknown[];
+    deck: unknown; sha256: string; contentVersionId: string; authorKind: "ia" | "docente" | "mcp"; parentId: string | null;
+    kind?: "design" | "polish" | "repair" | "edit" | "style"; note?: string; componentPins?: Record<string, { version: string; bundleHash?: string }>; issues?: unknown[];
   },
 ) {
   const [{ n } = { n: 0 }] = await tx
@@ -159,6 +188,29 @@ export async function addDeckVersion(
     .where(eq(deckVersions.presentationId, presentationId));
   const [row] = await tx.insert(deckVersions).values({ presentationId, n: n + 1, ...v }).returning();
   return row!;
+}
+
+/**
+ * IA externa (MCP): content_approved | design_review → design_review con una versión `mcp` del deck (contenido ya aprobado por el docente).
+ * Con versión vigente hay que partir de ella (baseVersionId). `maxVersions` acota las iteraciones de la IA por presentación.
+ */
+export function mcpDeckSubmitted(db: Db, id: string, ownerId: string, v: { deck: unknown; sha256: string; baseVersionId: string | null; componentPins?: Record<string, { version: string; bundleHash?: string }>; note?: string; maxVersions: number }) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id, ownerId);
+    expectStage(p, ["content_approved", "design_review"], "enviar el diseño desde una IA externa");
+    if (!p.approvedContentVersionId) throw new LaminaError("invalid_transition", "El contenido no está aprobado", 409);
+    if ((p.currentDeckVersionId ?? null) !== (v.baseVersionId ?? null)) throw new LaminaError("stale_version", "El diseño cambió desde la versión que usaste como base; vuelve a leer la presentación.", 409, { currentVersionId: p.currentDeckVersionId });
+    const [{ n } = { n: 0 }] = await tx.select({ n: sql<number>`count(*)::int` }).from(deckVersions).where(and(eq(deckVersions.presentationId, id), eq(deckVersions.authorKind, "mcp")));
+    if (n >= v.maxVersions) throw new LaminaError("quota_exceeded", `Esta presentación ya recibió ${n} versiones de diseño desde IA externa (máximo ${v.maxVersions}). Revisa y edita en Lámina.`, 429);
+    const safe = await withOwnerBranding(tx, p, v.deck, v.sha256);
+    const row = await addDeckVersion(tx, id, {
+      deck: safe.deck, sha256: safe.sha256, contentVersionId: p.approvedContentVersionId, authorKind: "mcp", parentId: v.baseVersionId,
+      kind: "design", note: v.note, componentPins: v.componentPins,
+    });
+    await set(tx, id, { stage: "design_review", currentDeckVersionId: row.id, approvedDeckVersionId: null, prevStage: null, lastError: null });
+    await evt(tx, "mcp.deck_submitted", p, { versionId: row.id });
+    return row;
+  });
 }
 
 /** designing → design_review. */
@@ -270,18 +322,48 @@ export const headDeckVersionId = (p: Pick<Pres, "stage" | "currentDeckVersionId"
  * Edición manual de una diapositiva: crea una versión `edit` (autor docente) descendiente de la cabecera.
  * En diseño pasa a ser la vigente; en final/privada/publicada pasa a ser la final. Lo publicado no cambia hasta `publishChanges`.
  */
-export function saveEditedDeck(db: Db, id: string, ownerId: string, v: { baseVersionId: string; deck: unknown; sha256: string; note: string }) {
+export function saveEditedDeck(
+  db: Db, id: string, ownerId: string,
+  v: { baseVersionId: string; deck: unknown; sha256: string; note: string; meta?: { subject: string | null; period: string | null; groupName: string | null } },
+) {
   return db.transaction(async (tx) => {
-    const p = await lock(tx, id, ownerId);
+    let p = await lock(tx, id, ownerId);
     expectStage(p, EDITABLE_STAGES, "editar la diapositiva");
     if (headDeckVersionId(p) !== v.baseVersionId) throw new LaminaError("stale_version", "La presentación cambió mientras editabas. Recarga para ver la última versión.", 409);
+    // Materia/período/grupo viajan en la misma transacción que la versión: si falla (versión obsoleta) no se aplican a medias.
+    if (v.meta) p = await set(tx, id, { subject: v.meta.subject, period: v.meta.period, groupName: v.meta.groupName });
+    const safe = await withOwnerBranding(tx, p, v.deck, v.sha256);
     const [base] = await tx.select().from(deckVersions).where(eq(deckVersions.id, v.baseVersionId));
     const row = await addDeckVersion(tx, id, {
-      deck: v.deck, sha256: v.sha256, contentVersionId: base!.contentVersionId, authorKind: "docente", parentId: base!.id,
+      deck: safe.deck, sha256: safe.sha256, contentVersionId: base!.contentVersionId, authorKind: "docente", parentId: base!.id,
       kind: "edit", note: v.note, componentPins: base!.componentPins,
     });
     await set(tx, id, p.stage === "design_review" ? { currentDeckVersionId: row.id } : { finalDeckVersionId: row.id });
     await evt(tx, "slide_edited", p, { versionId: row.id });
+    return row;
+  });
+}
+
+/**
+ * Cambio de estilo sobre un diseño ya generado (ADR-012): versión `style` (autor docente) descendiente de la cabecera, sin regenerar nada.
+ * El estilo queda guardado como ELECCIÓN del docente en la presentación.
+ */
+export function styleChanged(db: Db, id: string, ownerId: string, v: { baseVersionId: string; themeId: ThemeId; accent: AccentId }) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id, ownerId);
+    expectStage(p, EDITABLE_STAGES, "cambiar el estilo");
+    if (headDeckVersionId(p) !== v.baseVersionId) throw new LaminaError("stale_version", "La presentación cambió mientras elegías. Recarga para ver la última versión.", 409);
+    const [base] = await tx.select().from(deckVersions).where(eq(deckVersions.id, v.baseVersionId));
+    if (!base) throw new LaminaError("not_found", "Versión no encontrada", 404);
+    const prev = DeckDocument.parse(base.deck);
+    if (prev.themeId === v.themeId && (prev.accent ?? "a") === v.accent) throw new LaminaError("invalid_input", "Ese estilo ya está aplicado", 400);
+    const deck = DeckDocument.parse({ ...prev, themeId: v.themeId, accent: v.accent });
+    const row = await addDeckVersion(tx, id, {
+      deck, sha256: hashJson(deck), contentVersionId: base.contentVersionId, authorKind: "docente", parentId: base.id,
+      kind: "style", note: `Estilo cambiado a ${v.themeId} (acento ${v.accent})`, componentPins: base.componentPins,
+    });
+    await set(tx, id, { ...(p.stage === "design_review" ? { currentDeckVersionId: row.id } : { finalDeckVersionId: row.id }), themeId: formatStylePref(v) });
+    await evt(tx, "style_changed", p, { versionId: row.id, themeId: v.themeId, accent: v.accent });
     return row;
   });
 }

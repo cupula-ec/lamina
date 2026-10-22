@@ -1,0 +1,89 @@
+
+## create_presentation
+{
+  "id": "ccf77153-88e7-4c9f-921c-afb9acc24cc6",
+  "url": "http://localhost:3100/presentations/ccf77153-88e7-4c9f-921c-afb9acc24cc6"
+}
+
+## submit_content_draft
+{
+  "versionId": "fa42500a-c837-4229-bd6e-1a41349d7deb",
+  "n": 1,
+  "sha256": "e21acdaecaf46911d528c7ea63f0afe4b297a5a57b5f975fc8af52a47fcc02a6",
+  "stage": "content_review",
+  "idempotent": false,
+  "url": "http://localhost:3100/presentations/ccf77153-88e7-4c9f-921c-afb9acc24cc6",
+  "verification": {
+    "verified": 2,
+    "approved": 0,
+    "review": 1
+  },
+  "warnings": [
+    {
+      "blockId": "b1",
+      "kind": "unverifiable",
+      "message": "No se pudo verificar automáticamente: «\\frac{d}{dx}f(g(x))=f'(g(x))\\,g'(x)». Usa notación que el verificador aún no entiende (límites, integrales, sumatorias…)."
+    }
+  ],
+  "nextStep": "El docente debe revisar y aprobar el contenido en Lámina; la versión aparece como «Creado por IA externa (MCP)»."
+}
+
+(el docente aprueba el contenido en la UI; aquí se simula en la BD)
+
+## validate_deck
+{
+  "valid": true,
+  "errors": [],
+  "slides": 6,
+  "fidelityChecked": true
+}
+
+## submit_deck
+{
+  "versionId": "e4df5fd0-1848-4873-87cf-c6bf964a96b1",
+  "n": 1,
+  "sha256": "4fcb60b1eaffbf832d7339029fc20b077d898091861e453a24257855f2a7366d",
+  "stage": "design_review",
+  "idempotent": false,
+  "url": "http://localhost:3100/presentations/ccf77153-88e7-4c9f-921c-afb9acc24cc6",
+  "nextStep": "Lámina está dibujando las diapositivas. Consulta get_render_issues en unos segundos; el docente aprueba el diseño en Lámina."
+}
+
+## get_render_issues
+{
+  "deckVersionId": "e4df5fd0-1848-4873-87cf-c6bf964a96b1",
+  "isCurrent": true,
+  "status": "ready",
+  "pendingSlides": 0,
+  "errors": 0,
+  "slides": [],
+  "nextStep": "Sin errores. El docente puede revisar y aprobar el diseño en Lámina."
+}
+
+## get_presentation
+{
+  "id": "ccf77153-88e7-4c9f-921c-afb9acc24cc6",
+  "stage": "design_review",
+  "origin": "mcp",
+  "currentContentVersion": {
+    "id": "fa42500a-c837-4229-bd6e-1a41349d7deb",
+    "n": 1,
+    "sha256": "e21acdaecaf46911d528c7ea63f0afe4b297a5a57b5f975fc8af52a47fcc02a6",
+    "authorKind": "mcp"
+  },
+  "currentDeckVersion": {
+    "id": "e4df5fd0-1848-4873-87cf-c6bf964a96b1",
+    "n": 1,
+    "sha256": "4fcb60b1eaffbf832d7339029fc20b077d898091861e453a24257855f2a7366d",
+    "authorKind": "mcp",
+    "kind": "design"
+  },
+  "renderIssues": {
+    "rendered": 6,
+    "slides": 6,
+    "errors": 0,
+    "warnings": 0
+  },
+  "nextStep": "El docente está revisando el diseño. Consulta get_render_issues y, si hay errores, reenvía un deck corregido con submit_deck.",
+  "url": "http://localhost:3100/presentations/ccf77153-88e7-4c9f-921c-afb9acc24cc6"
+}

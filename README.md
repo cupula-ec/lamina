@@ -58,6 +58,16 @@ Tema + materiales ─▶ Investigación ─▶ Borrador de contenido ─▶ ✅ 
 3. **Revisa el diseño** — miniaturas, problemas detectados, cambios por diapositiva.
 4. **Presenta o comparte.**
 
+## Conectar con tu IA
+
+¿Ya usas una IA potente (Claude, por ejemplo)? Conéctala a tu cuenta de Lámina con **MCP**: ella redacta el contenido y propone el diseño usando el catálogo, los estilos y la verificación matemática de Lámina; **tú revisas y apruebas en la interfaz** (la IA no puede aprobar, publicar, compartir ni borrar). Cuesta 0 de IA gratuita de Lámina: el gasto lo asume tu proveedor.
+
+```bash
+claude mcp add --transport http lamina https://<tu-lámina>/api/mcp   # luego /mcp → lamina → Authenticate
+```
+
+Autorizas con tu cuenta (OAuth 2.1 + PKCE), puedes revocar el acceso cuando quieras desde **Mi cuenta → Conectar con IA** y un administrador puede desactivarlo. Guía completa en [`docs/mcp.md`](docs/mcp.md) y decisión técnica en [ADR-013](docs/adr/013-mcp.md).
+
 ## Confianza y seguridad, de serie
 
 - **Gasto en IA: 0 USD.** Solo modelos gratuitos; un *guard* inspecciona cada petición y rechaza cualquier modelo de pago.
