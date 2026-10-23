@@ -16,7 +16,7 @@ export function RenderClient({ deck, index, step, prov, deckHash, storedHash }: 
     window.__laminaDetect = () => detectSlideIssues(document.querySelector<HTMLElement>(".lm-slide")!);
     // listo cuando las fuentes cargaron y los iframes sandbox avisaron
     let ready = 0;
-    const onMsg = (e: MessageEvent) => { if (e.data?.type === "lamina:ready") ready++; };
+    const onMsg = (e: MessageEvent) => { if (e.data?.type === "lamina:mounted" || e.data?.type === "lamina:error") ready++; };
     window.addEventListener("message", onMsg);
     const t = setInterval(async () => {
       await waitForThemeFonts(deck.themeId);
