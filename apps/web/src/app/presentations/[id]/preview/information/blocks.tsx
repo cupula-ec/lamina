@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import katex from "katex";
 import { Latex, Md } from "@lamina/engine";
 import type { Block, ContentDraft } from "@lamina/contracts";
+import { applyInstruction, hasMatrix, parseMatrices, resize, serializeMatrices, type Piece } from "@/lib/matrix-latex";
 
 export type Warn = ContentDraft["warnings"][number];
 
@@ -145,15 +146,72 @@ export function BlockEditor({ b, onChange, ro }: { b: Block; onChange: (b: Block
   }
 }
 
+const SNIPPETS: [string, string][] = [["Fracción", "\\frac{a}{b}"], ["Potencia", "x^{2}"], ["Raíz", "\\sqrt{x}"], ["Sumatoria", "\\sum_{i=1}^{n} a_i"], ["Matriz 2×2", "\\begin{pmatrix}0 & 0 \\\\ 0 & 0\\end{pmatrix}"]];
+
+/** Corrección de una fórmula: editor visual de celdas para matrices y plantillas; el LaTeX queda como modo avanzado. */
 export function FixForm({ initial, disabled, onApply, onCancel }: { initial: string; disabled: boolean; onApply: (latex: string) => void; onCancel: () => void }) {
   const [v, setV] = useState(initial);
+  const [advanced, setAdvanced] = useState(!hasMatrix(initial));
   const err = useMemo(() => latexError(v), [v]);
+  const pieces = useMemo(() => parseMatrices(v), [v]);
+  const update = (next: Piece[]) => setV(serializeMatrices(next));
+  const [cmd, setCmd] = useState("");
+  const [cmdMsg, setCmdMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const runCmd = () => {
+    const r = applyInstruction(v, cmd);
+    if (r.ok) { setV(r.latex); setCmd(""); setCmdMsg({ ok: true, text: `Listo: ${r.summary}. Revisa el resultado y aplica la corrección.` }); }
+    else setCmdMsg({ ok: false, text: r.error });
+  };
+  const setPiece = (i: number, p: Piece) => update(pieces.map((x, j) => (j === i ? p : x)));
   return (
-    <div className="mt-3 space-y-2">
-      <LatexInput label="Escribe la fórmula correcta" value={v} onChange={setV} ro={false} />
-      <div className="flex gap-2">
+    <div className="mt-3 space-y-3">
+      <p className="text-sm font-bold">Corrige la fórmula</p>
+      <form className="space-y-1" onSubmit={(e) => { e.preventDefault(); if (cmd.trim()) runCmd(); }}>
+        <label className="label text-sm" htmlFor="nl-fix">O descríbelo con tus palabras</label>
+        <div className="flex flex-wrap gap-2">
+          <input id="nl-fix" className="field !min-h-10 min-w-0 flex-1" value={cmd} onChange={(e) => setCmd(e.target.value)} placeholder="Ej.: cambia a12 por a13 · cambia fila 2 columna 1 por 5 · agrega una fila" />
+          <button type="submit" className="btn btn-sm" disabled={!cmd.trim()}>Aplicar cambio</button>
+        </div>
+        {cmdMsg && <p role="status" className={`text-sm ${cmdMsg.ok ? "text-ok" : "text-pen"}`}>{cmdMsg.text}</p>}
+      </form>
+      {!advanced && (
+        <div className="space-y-3">
+          <p className="hint">Edita las celdas directamente. Puedes escribir números o expresiones como a_{"{12}"}.</p>
+          <div className="flex flex-wrap items-center gap-3">
+            {pieces.map((p, i) => p.t === "text" ? (
+              p.v.trim() || i === 0 ? <input key={i} aria-label="Texto entre matrices" className="field !min-h-10 w-28 font-mono text-sm" value={p.v} onChange={(e) => setPiece(i, { t: "text", v: e.target.value })} spellCheck={false} /> : null
+            ) : (
+              <div key={i} className="rounded border-2 border-ink/30 p-2">
+                <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${p.rows[0]!.length}, minmax(3.5rem, 1fr))` }}>
+                  {p.rows.flatMap((row, r) => row.map((cell, c) => (
+                    <input key={`${r}-${c}`} aria-label={`Fila ${r + 1}, columna ${c + 1}`} className="field !min-h-9 px-1 text-center font-mono text-sm" value={cell} spellCheck={false}
+                      onChange={(e) => setPiece(i, { ...p, rows: p.rows.map((rr, ri) => rr.map((cc, ci) => (ri === r && ci === c ? e.target.value : cc))) })} />
+                  )))}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1 text-xs">
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPiece(i, { ...p, rows: resize(p.rows, p.rows.length + 1, p.rows[0]!.length) })}>+ fila</button>
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={p.rows.length < 2} onClick={() => setPiece(i, { ...p, rows: resize(p.rows, p.rows.length - 1, p.rows[0]!.length) })}>− fila</button>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPiece(i, { ...p, rows: resize(p.rows, p.rows.length, p.rows[0]!.length + 1) })}>+ columna</button>
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={p.rows[0]!.length < 2} onClick={() => setPiece(i, { ...p, rows: resize(p.rows, p.rows.length, p.rows[0]!.length - 1) })}>− columna</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="min-h-10 overflow-x-auto rounded border border-ink/20 bg-paper px-3 py-1 text-lg" aria-live="polite">{err ? <span className="err text-sm">No se puede dibujar: {err}</span> : <Latex tex={v} />}</div>
+        </div>
+      )}
+      {advanced && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1" aria-label="Plantillas">
+            {SNIPPETS.map(([label, tex]) => <button key={label} type="button" className="btn btn-sm btn-ghost" onClick={() => setV((cur) => `${cur}${cur && !/[\s=(+\-]$/.test(cur) ? " " : ""}${tex}`)}>+ {label}</button>)}
+          </div>
+          <LatexInput label="Fórmula (modo avanzado, LaTeX)" value={v} onChange={setV} ro={false} />
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
         <button type="button" className="btn btn-sm btn-primary" disabled={disabled || !!err || !v.trim() || v === initial} onClick={() => onApply(v)}>Aplicar corrección</button>
         <button type="button" className="btn btn-sm" onClick={onCancel}>Cancelar</button>
+        {(advanced ? hasMatrix(v) : true) && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAdvanced((x) => !x)}>{advanced ? "Usar editor visual" : "Modo avanzado (LaTeX)"}</button>}
       </div>
     </div>
   );

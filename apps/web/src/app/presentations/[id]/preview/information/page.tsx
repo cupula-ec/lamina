@@ -4,7 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { JobWatcher } from "@/components/JobWatcher";
 import { ProgressHeader } from "@/components/ProgressHeader";
 import { Callout } from "@/components/ui/Callout";
-import { buildBranding } from "@lamina/db";
+import { buildBranding, usageFor } from "@lamina/db";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { requireOwner } from "@/lib/guard";
@@ -65,6 +65,7 @@ export default async function InformationPage({ params }: { params: Promise<{ id
             sources={sources.map((s) => ({ id: s.id, kind: s.kind, origin: s.origin, title: s.title, url: s.url, status: s.status, error: s.error }))}
             chunks={chunks.map((c) => ({ id: c.id, sourceId: c.sourceId, text: c.text.slice(0, 600), page: c.page }))}
             readOnly={stage !== "content_review"}
+            quota={(await usageFor(getDb(), user.id)).content_regen}
           />
         )}
         {stage === "content_approved" && <StartDesign id={p.id} />}

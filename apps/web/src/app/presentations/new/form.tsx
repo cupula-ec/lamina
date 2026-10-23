@@ -3,14 +3,26 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Callout } from "@/components/ui/Callout";
+import { QuotaNote, type QuotaUse } from "@/components/QuotaNote";
 
 const LEVELS = ["Bachillerato", "Primer ciclo universitario", "Universidad (ciclos intermedios)", "Posgrado"];
 
-export function NewForm({ consentText }: { consentText: string }) {
+export function NewForm({ consentText, quota }: { consentText: string; quota?: QuotaUse }) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
   const [f, setF] = useState({ topic: "", level: LEVELS[1]!, objective: "", subject: "", period: "", group: "", notes: "", urls: "" });
   const [files, setFiles] = useState<File[]>([]);
+  const [fileNote, setFileNote] = useState<string | null>(null);
+  const addFiles = (picked: File[]) => {
+    const MAX_MB = 20;
+    const ok = picked.filter((x) => x.size <= MAX_MB * 1048576);
+    const notes: string[] = [];
+    if (ok.length < picked.length) notes.push(`Se omitieron archivos de más de ${MAX_MB} MB.`);
+    const room = 3 - files.length;
+    if (ok.length > room) notes.push(`Máximo 3 archivos: solo se añadieron ${Math.max(room, 0)}.`);
+    setFileNote(notes.join(" ") || null);
+    setFiles([...files, ...ok.slice(0, Math.max(room, 0))]);
+  };
   const [consent, setConsent] = useState(false);
   const [consentOcr, setConsentOcr] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -85,7 +97,20 @@ export function NewForm({ consentText }: { consentText: string }) {
           </div>
           <div>
             <label className="label" htmlFor="files">Archivos: PDF, DOCX, TXT o MD</label>
-            <input id="files" className="field" type="file" multiple accept=".pdf,.docx,.txt,.md,.markdown" onChange={(e) => setFiles(Array.from(e.target.files ?? []).slice(0, 3))} />
+            {files.length > 0 && (
+              <ul className="mb-2 space-y-2" aria-label="Archivos adjuntos">
+                {files.map((file, i) => (
+                  <li key={`${file.name}-${i}`} className="flex items-center justify-between gap-3 rounded border-2 border-ink/30 px-3 py-2 text-sm">
+                    <span className="min-w-0 truncate"><strong>{file.name}</strong> <span className="text-ink-2">· {(file.size / 1048576).toFixed(1)} MB</span></span>
+                    <button type="button" className="btn btn-sm btn-ghost" aria-label={`Quitar ${file.name}`} onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))}>Quitar</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {fileNote && <p role="alert" className="mb-2 text-sm font-bold text-pen">{fileNote}</p>}
+            {files.length < 3 && (
+              <input id="files" key={files.length} className="field" type="file" multiple accept=".pdf,.docx,.txt,.md,.markdown" aria-label={files.length ? "Añadir otro archivo" : "Elegir archivos"} onChange={(e) => addFiles(Array.from(e.target.files ?? []))} />
+            )}
             <p className="hint mt-1">Hasta 3 archivos de 20 MB. Si un PDF es un escaneo, Lámina reconoce su texto con OCR (hasta 40 páginas por documento); puede contener errores, revísalo.</p>
           </div>
           {hasMaterials && (
@@ -108,6 +133,7 @@ export function NewForm({ consentText }: { consentText: string }) {
             <button type="button" className="btn" onClick={() => setStep(1)} disabled={busy}>Atrás</button>
             <button className="btn btn-primary" disabled={busy || (hasMaterials && !consent)}>{busy ? "Creando…" : "Crear y empezar a investigar"}</button>
           </div>
+          <QuotaNote q={quota} what="presentaciones nuevas" />
         </form>
       )}
     </div>

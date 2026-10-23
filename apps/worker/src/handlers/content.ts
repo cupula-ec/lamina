@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { ContentDraft, ContentDraftModelOutput, type Section } from "@lamina/contracts";
+import { ContentDraft, ContentDraftModelOutput, normalizeDraftMath, type Section } from "@lamina/contracts";
 import { contentSystem } from "@lamina/ai";
 import { hashJson, schema, workflow as wf } from "@lamina/db";
 import { wrapUntrusted } from "@lamina/research";
@@ -69,7 +69,7 @@ Devuelve el JSON del borrador de contenido (schemaVersion 1, meta, sections).`;
   let draft = ContentDraft.parse({ ...out, meta: { ...out.meta, ...meta }, warnings: [] });
   draft = { ...draft, sections: mergeSections(baseDraft?.sections ?? null, draft.sections, data.onlySectionIds) };
   for (const s of draft.sections) for (const h of s.slidesHint) for (const b of h.blocks) b.sourceRefs = b.sourceRefs.map((r) => idToUuid.get(r) ?? r);
-  draft = sanitizeSourceRefs(draft, new Set(chunks.map((c) => c.id)));
+  draft = normalizeDraftMath(sanitizeSourceRefs(draft, new Set(chunks.map((c) => c.id))));
 
   const v = validateContent(draft);
   const warnings = [...v.warnings];

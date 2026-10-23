@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { chromium, type Browser } from "playwright";
 import { z } from "zod";
 import { DeckDocument, JOB_PAYLOADS } from "@lamina/contracts";
-import { createDb, schema, workflow as wf } from "@lamina/db";
+import { createDb, hashJson, runContext, schema, workflow as wf } from "@lamina/db";
 import { createBoss, enqueue } from "@lamina/jobs";
 
 const env = z.object({
@@ -82,6 +82,46 @@ export async function renderComponent(componentVersionId: string, presentationId
 }
 
 const MAX_REPAIR_ATTEMPTS = 2;
+type Iss = { severity: string; ignored?: boolean };
+const errorsOf = (issues: unknown) => (issues as Iss[]).filter((i) => i.severity === "error" && !i.ignored).length;
+
+/**
+ * Una corrección nunca debe dejar peor una diapositiva: si tras re-renderizar una diapositiva reparada tiene MÁS errores que en la
+ * versión de la que partió, se restaura la anterior (con su captura) en una versión nueva. Devuelve su id, o null si nada empeoró.
+ */
+async function revertWorse(presentationId: string, versionId: string): Promise<string | "requeued" | null> {
+  const [cur] = await db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, versionId));
+  if (!cur || cur.kind !== "repair" || !cur.parentId) return null;
+  const [parent] = await db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, cur.parentId));
+  if (!parent) return null;
+  const curArts = new Map((await db.select().from(schema.renderArtifacts).where(eq(schema.renderArtifacts.deckVersionId, cur.id))).map((a) => [a.slideId, a]));
+  const parentArts = new Map((await db.select().from(schema.renderArtifacts).where(eq(schema.renderArtifacts.deckVersionId, parent.id))).map((a) => [a.slideId, a]));
+  const curDeck = DeckDocument.parse(cur.deck), parentDeck = DeckDocument.parse(parent.deck);
+  const parentSlides = new Map(parentDeck.slides.map((x) => [x.id, x]));
+  const worse = new Set<string>();
+  for (const sl of curDeck.slides) {
+    const before = parentArts.get(sl.id), after = curArts.get(sl.id);
+    if (!before?.path || !parentSlides.has(sl.id)) continue;
+    // Una diapositiva que dejó de poder dibujarse es el peor caso posible.
+    if (!after?.path || errorsOf(after.issues) > errorsOf(before.issues)) worse.add(sl.id);
+  }
+  if (!worse.size) return null;
+  const deck = { ...curDeck, slides: curDeck.slides.map((sl) => (worse.has(sl.id) ? parentSlides.get(sl.id)! : sl)) };
+  const saved = await wf.designRepaired(db, presentationId, {
+    baseVersionId: cur.id, deck, sha256: hashJson(deck),
+    note: `Se restauró la versión anterior de ${worse.size} diapositiva${worse.size > 1 ? "s" : ""} porque la corrección automática las empeoraba`,
+  });
+  const rows = deck.slides.flatMap((sl) => { const a = worse.has(sl.id) ? parentArts.get(sl.id) : curArts.get(sl.id); return a ? [{ presentationId, deckVersionId: saved.id, slideId: sl.id, path: a.path, issues: a.issues }] : []; });
+  try {
+    if (rows.length) await db.insert(schema.renderArtifacts).values(rows).onConflictDoNothing();
+  } catch (e) {
+    // La versión ya se guardó pero no se pudieron copiar las capturas: se vuelve a renderizar (cierra el diseño al terminar).
+    console.error("[renderer] revertWorse: no se copiaron las capturas, se re-renderiza:", (e as Error).message);
+    await enqueue(boss, "render", { presentationId, deckVersionId: saved.id, then: "repair", attempt: MAX_REPAIR_ATTEMPTS }, { base: `${saved.id}:rv` });
+    return "requeued";
+  }
+  return saved.id;
+}
 
 /** Tras renderizar un borrador de diseño: si quedan errores y hay intentos, se encola la reparación puntual; si no, se entrega al docente. */
 async function afterRender(d: z.infer<typeof JOB_PAYLOADS.render>) {
@@ -89,6 +129,9 @@ async function afterRender(d: z.infer<typeof JOB_PAYLOADS.render>) {
   const [p] = await db.select().from(schema.presentations).where(eq(schema.presentations.id, d.presentationId));
   if (!p || p.stage !== "designing" || p.currentDeckVersionId !== d.deckVersionId) return;
   const arts = await db.select().from(schema.renderArtifacts).where(eq(schema.renderArtifacts.deckVersionId, d.deckVersionId));
+  const reverted = await revertWorse(p.id, d.deckVersionId).catch((e) => { console.error("[renderer] revertWorse:", (e as Error).message); return null; });
+  if (reverted === "requeued") return;
+  if (reverted) return void (await wf.designFinish(db, p.id, reverted));
   const failing = arts.some((a) => a.path && (!d.slideIds || d.slideIds.includes(a.slideId)) && (a.issues as { severity: string; ignored?: boolean }[]).some((i) => i.severity === "error" && !i.ignored));
   if (failing && d.attempt < MAX_REPAIR_ATTEMPTS) {
     try { await enqueue(boss, "design.repair", { presentationId: p.id, userId: p.ownerId, deckVersionId: d.deckVersionId, attempt: d.attempt, slideIds: d.slideIds }, { base: `${d.deckVersionId}:${d.attempt}` }); return; }
@@ -104,16 +147,26 @@ await boss.work("render", { localConcurrency: env.RENDER_CONCURRENCY }, async (j
   for (const job of jobs) {
     const d = JOB_PAYLOADS.render.parse(job.data);
     const key = d.deckVersionId ?? d.componentVersionId!;
+    // Misma época de cancelación que los handlers del worker: un render de un trabajo cancelado no puede escribir en el nuevo.
+    const [cur] = await db.select({ epoch: schema.presentations.cancelEpoch }).from(schema.presentations).where(eq(schema.presentations.id, d.presentationId));
+    if (!cur) continue;
     try {
-      if (d.deckVersionId) await renderDeck(d.deckVersionId); else await renderComponent(d.componentVersionId!, d.presentationId);
-      console.log(`[renderer] ok ${key}`);
+      await runContext.run({ presentationId: d.presentationId, epoch: cur.epoch }, async () => {
+        try {
+          if (d.deckVersionId) await renderDeck(d.deckVersionId); else await renderComponent(d.componentVersionId!, d.presentationId);
+          console.log(`[renderer] ok ${key}`);
+        } catch (e) {
+          console.error(`[renderer] fallo ${key}:`, (e as Error).message);
+          // Último reintento: el docente no se queda esperando; recibe el diseño sin revisión automática.
+          if (d.then === "repair" && d.deckVersionId && ((job as { retryCount?: number }).retryCount ?? 0) >= 2) await wf.designFinish(db, d.presentationId, d.deckVersionId).catch(() => {});
+          throw e;
+        }
+        await afterRender(d).catch((e) => { if ((e as { code?: string }).code !== "run_cancelled") console.error(`[renderer] afterRender ${key}:`, (e as Error).message); });
+      });
     } catch (e) {
-      console.error(`[renderer] fallo ${key}:`, (e as Error).message);
-      // Último reintento: el docente no se queda esperando; recibe el diseño sin revisión automática.
-      if (d.then === "repair" && d.deckVersionId && ((job as { retryCount?: number }).retryCount ?? 0) >= 2) await wf.designFinish(db, d.presentationId, d.deckVersionId).catch(() => {});
+      if ((e as { code?: string }).code === "run_cancelled") continue;
       throw e;
     }
-    await afterRender(d).catch((e) => console.error(`[renderer] afterRender ${key}:`, (e as Error).message));
   }
 });
 console.log("[renderer] listo");

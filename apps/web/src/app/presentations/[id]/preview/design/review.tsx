@@ -7,22 +7,24 @@ import Link from "next/link";
 import { SlideThumb, CANVAS, describeIssue, type SlideIssue } from "@lamina/engine";
 import type { DeckDocument } from "@lamina/contracts";
 import {
-  approveDesignAction, ignoreIssueAction, regenerateDesignAction, reopenDesignAction, repairDesignAction, requestComponentAction, startPolishAction,
+  approveDesignAction, ignoreIssueAction, regenerateDesignAction, reopenDesignAction, repairDesignAction, requestComponentAction, skipPolishAction, startPolishAction,
 } from "@/actions/presentations";
 import { makeResolver, type ProvisionalClient } from "@/lib/resolver";
 import { PublishPanel } from "./publish";
+import { QuotaNote, type QuotaUse } from "@/components/QuotaNote";
+import type { PolishReport, RepairReport } from "@/lib/presentation-view";
 
 type Issue = SlideIssue & { index: number };
 type Version = { id: string; n: number; authorKind: string; kind: string; note: string | null; createdAt: string };
 type Req = { id: string; name: string; purpose: string; status: string; error: string | null; slideId: string | null };
 
-const KIND: Record<string, string> = { overflow: "Se sale", small_text: "Texto pequeño", katex_error: "Fórmula con error", empty_slot: "Área vacía", component_error: "Componente caído" };
+const KIND: Record<string, string> = { overflow: "Se sale", small_text: "Texto pequeño", katex_error: "Fórmula con error", empty_slot: "Área vacía", component_error: "Componente caído", latex_raw: "Fórmula sin dibujar", overlap: "Se superpone" };
 const VERSION_KIND: Record<string, string> = { polish: "pulido", repair: "corrección automática", edit: "edición manual", design: "diseño", style: "cambio de estilo" };
 const active = (iss: Issue[]) => iss.filter((i) => !i.ignored);
 
 export function DesignReview(props: {
   presentationId: string; stage: string; visibility: string; hasUnpublishedChanges: boolean; deckVersionId: string; deckSha: string; deck: DeckDocument; isCurrent: boolean;
-  issues: Record<string, Issue[]>; rendered: string[]; waitingRender: boolean; prov: ProvisionalClient[]; requests: Req[]; versions: Version[]; appUrl: string; busy: boolean;
+  issues: Record<string, Issue[]>; rendered: string[]; waitingRender: boolean; quota?: { design_regen: QuotaUse; component_request: QuotaUse }; repairReport: RepairReport | null; polishReport?: PolishReport | null; prov: ProvisionalClient[]; requests: Req[]; versions: Version[]; appUrl: string; busy: boolean;
 }) {
   const { presentationId: id, stage, deck } = props;
   const router = useRouter();
@@ -73,6 +75,19 @@ export function DesignReview(props: {
       <div className="space-y-5">
         {!props.isCurrent && <Callout tone="warn" title="Estás viendo una versión anterior (solo lectura)"><Link className="font-bold underline" href={`/presentations/${id}/preview/design`}>Volver a la vigente</Link></Callout>}
         {repairing && <Callout tone="info">Corrigiendo automáticamente los problemas detectados… esta pantalla se actualiza sola.</Callout>}
+        {!repairing && props.repairReport && props.repairReport.tried > 0 && (
+          <Callout tone={props.repairReport.unresolved.length ? "warn" : "ok"} title="Resultado de la corrección automática">
+            {props.repairReport.resolved.length} de {props.repairReport.tried} diapositiva{props.repairReport.tried > 1 ? "s" : ""} quedaron sin errores.
+            {props.repairReport.unresolved.length > 0 && <> No fue posible corregir automáticamente {props.repairReport.unresolved.length > 1 ? "las diapositivas" : "la diapositiva"} {props.repairReport.unresolved.map((sid) => deck.slides.findIndex((x) => x.id === sid) + 1).join(", ")}: se requiere edición manual.</>}
+          </Callout>
+        )}
+        {props.polishReport && (
+          <Callout tone={props.polishReport.errorsAfter > 0 ? "warn" : "ok"} title="Resultado del pulido">
+            El pulido ajustó transiciones y pasos de aparición en {props.polishReport.slidesChanged} diapositiva{props.polishReport.slidesChanged === 1 ? "" : "s"}.
+            {" "}Problemas de diseño: {props.polishReport.errorsBefore} antes, {props.polishReport.errorsAfter} después.
+            {props.polishReport.errorsAfter > 0 && " El pulido no corrige errores de diseño; edita las diapositivas marcadas o publica bajo tu responsabilidad."}
+          </Callout>
+        )}
         {error && <Callout tone="bad">{error}</Callout>}
         {notice && <Callout tone="ok">{notice}</Callout>}
 
@@ -117,6 +132,7 @@ export function DesignReview(props: {
                     return (
                       <li key={i.index} className={`rounded border-2 p-3 text-sm ${i.ignored ? "border-ink/20 opacity-60" : i.severity === "error" ? "border-pen" : "border-warn"}`}>
                         <p><span className={`tag ${i.severity === "error" ? "tag-bad" : "tag-warn"}`}>{KIND[i.kind] ?? i.kind}</span> {d.text}{i.ignored && <span className="tag tag-mute ml-2">ignorado</span>}</p>
+                        {props.repairReport?.unresolved.includes(slide.id) && i.severity === "error" && !i.ignored && <p className="mt-1 font-bold text-pen">No fue posible corregir automáticamente esta diapositiva. Se requiere edición manual.</p>}
                         {d.detail && <details className="mt-1"><summary className="cursor-pointer text-ink-2">Detalles técnicos</summary><p className="mt-1 text-ink-2">{d.detail}</p></details>}
                         <div className="mt-2 flex flex-wrap gap-2">
                           {i.bbox && <button type="button" className="btn btn-sm" aria-pressed={focusIssue === i.index} onClick={() => setFocusIssue(focusIssue === i.index ? null : i.index)}>{focusIssue === i.index ? "Ocultar marca" : "Ver dónde está"}</button>}
@@ -178,6 +194,7 @@ export function DesignReview(props: {
                 <>
                   <p className="hint mt-1">Quedan {errCount} problema(s) marcados como error en {errSlides.length} diapositiva(s). Lo recomendable es corregirlos antes de aprobar.</p>
                   <button className="btn btn-primary mt-3 w-full" disabled={pending || props.busy || props.waitingRender} onClick={() => repair(undefined)}>Corregir errores</button>
+                  <QuotaNote q={props.quota?.design_regen} what="regeneraciones y correcciones de diseño" />
                   {!confirmApprove ? (
                     <button className="btn btn-ghost btn-sm mt-2 w-full" disabled={pending || props.busy || props.waitingRender} onClick={() => setConfirmApprove(true)}>Aprobar de todos modos</button>
                   ) : (
@@ -208,6 +225,7 @@ export function DesignReview(props: {
                 <button className="btn btn-sm btn-mark" disabled={pending || !fb.trim()} onClick={() => regen(true)}>Regenerar con comentarios</button>
                 <button className="btn btn-sm" disabled={pending} onClick={() => regen(false)}>Regenerar sin comentarios</button>
               </div>
+              <QuotaNote q={props.quota?.design_regen} what="regeneraciones y correcciones de diseño" />
             </section>
             <section className="sheet p-4" aria-labelledby="comp">
               <h2 id="comp" className="font-bold">¿Falta un componente visual?</h2>
@@ -217,6 +235,7 @@ export function DesignReview(props: {
               <label className="label mt-3 text-sm" htmlFor="cp">¿Qué debe mostrar?</label>
               <textarea id="cp" className="field" value={cpurpose} onChange={(e) => setCpurpose(e.target.value)} maxLength={800} placeholder="Una recta numérica con intervalos abiertos/cerrados marcados, para explicar dominios" />
               <button className="btn btn-sm mt-3" disabled={pending || cname.length < 3 || cpurpose.trim().length < 15} onClick={() => run(async () => { const r = await requestComponentAction({ id, name: cname, purpose: cpurpose, slideId: slide.id }); if (r.ok) { setCname(""); setCpurpose(""); } return r; }, "Solicitud enviada. El especialista la está construyendo en un entorno aislado.")}>Pedir componente</button>
+              <QuotaNote q={props.quota?.component_request} what="componentes nuevos" />
             </section>
           </>
         )}
@@ -236,9 +255,11 @@ export function DesignReview(props: {
         )}
         {stage === "design_approved" && (
           <section className="sheet p-4"><h2 className="font-bold">Diseño aprobado</h2>
-            <p className="hint mt-1">Siguiente: un pulido final de transiciones y aparición de elementos (no cambia el contenido).</p>
+            <p className="hint mt-1">El pulido con IA es opcional: ajusta transiciones y aparición de elementos (no cambia el contenido ni corrige errores de diseño) y consume cuota de IA. Puedes publicar tal como está.</p>
+            {errCount > 0 && <p className="mt-2 text-sm font-bold text-pen">Esta presentación todavía tiene {errCount} problema(s) de diseño. Puedes corregirlos (reabre el diseño) o continuar bajo tu responsabilidad.</p>}
             <div className="mt-3 flex flex-wrap gap-2">
-              <button className="btn btn-primary" disabled={pending} onClick={() => run(() => startPolishAction({ id }))}>Pulir y continuar</button>
+              <button className="btn btn-primary" disabled={pending} onClick={() => run(() => skipPolishAction({ id }))}>Continuar sin pulir</button>
+              <button className="btn" disabled={pending} onClick={() => run(() => startPolishAction({ id }))}>Pulir con IA</button>
               <button className="btn" disabled={pending} onClick={() => run(() => reopenDesignAction({ id }))}>Reabrir diseño</button>
             </div>
           </section>

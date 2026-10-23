@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { workflow as wf, hashJson, consumeQuota, DEFAULT_QUOTAS, schema } from "../src";
+import { workflow as wf, hashJson, consumeQuota, DEFAULT_QUOTAS, schema, runContext } from "../src";
 import { eq } from "drizzle-orm";
 import { testDb, mkUser } from "./helpers";
 import { LaminaError } from "@lamina/contracts";
@@ -35,6 +35,93 @@ describe("workflow", () => {
     expect(r.presentation.publishedDeckVersionId).toBe(fv.id);
     expect(r.token).toBeTruthy();
     expect(r.presentation.shareTokenHash).not.toBe(r.token);
+  });
+
+  it("se puede publicar sin pulir (el pulido es opcional)", async () => {
+    const o = await mkUser(h.db);
+    const { p, v } = await toContentReview(o);
+    await wf.approveContent(h.db, p.id, o, v.id, v.sha256);
+    await wf.beginDesign(h.db, p.id, o);
+    const d = { slides: 1 };
+    const dv = await wf.designGenerated(h.db, p.id, { deck: d, sha256: hashJson(d), contentVersionId: v.id, parentId: null });
+    await wf.approveDesign(h.db, p.id, o, dv.id, dv.sha256);
+    const fr = await wf.skipPolish(h.db, p.id, o);
+    expect(fr.stage).toBe("final_review");
+    expect(fr.finalDeckVersionId).toBe(dv.id);
+    const r = await wf.publish(h.db, p.id, o, "link");
+    expect(r.presentation.publishedDeckVersionId).toBe(dv.id);
+    expect(await code(wf.skipPolish(h.db, p.id, o))).toBe("invalid_transition");
+  });
+
+  it("cancelar un trabajo en curso vuelve a la versión anterior y descarta el resultado tardío", async () => {
+    const o = await mkUser(h.db);
+    const { p, v } = await toContentReview(o);
+    await wf.approveContent(h.db, p.id, o, v.id, v.sha256);
+    await wf.beginDesign(h.db, p.id, o);
+    const back = await wf.cancelRunning(h.db, p.id, o);
+    expect(back.stage).toBe("content_approved");
+    expect(await code(wf.designGenerated(h.db, p.id, { deck: {}, sha256: hashJson({}), contentVersionId: v.id, parentId: null }))).toBe("invalid_transition");
+    expect(await code(wf.cancelRunning(h.db, p.id, o))).toBe("invalid_transition");
+  });
+
+  it("duplicar crea una copia revisable con contenido y fuentes remapeados", async () => {
+    const o = await mkUser(h.db);
+    const p = await wf.createPresentation(h.db, o, input);
+    await wf.beginContentGeneration(h.db, p.id, o);
+    const [src] = await h.db.insert(schema.sources).values({ presentationId: p.id, kind: "notes", origin: "teacher", title: "Apuntes" }).returning();
+    const [ch] = await h.db.insert(schema.sourceChunks).values({ sourceId: src!.id, presentationId: p.id, ord: 0, text: "texto" }).returning();
+    const c = { refs: [ch!.id] };
+    await wf.contentGenerated(h.db, p.id, { content: c, sha256: hashJson(c), parentId: null });
+    const copy = await wf.duplicatePresentation(h.db, p.id, o);
+    expect(copy.id).not.toBe(p.id);
+    expect(copy.stage).toBe("content_review");
+    const [cv] = await h.db.select().from(schema.contentVersions).where(eq(schema.contentVersions.id, copy.currentContentVersionId!));
+    const [nch] = await h.db.select().from(schema.sourceChunks).where(eq(schema.sourceChunks.presentationId, copy.id));
+    expect((cv!.content as { refs: string[] }).refs).toEqual([nch!.id]);
+    expect(nch!.id).not.toBe(ch!.id);
+    const other = await mkUser(h.db);
+    expect(await code(wf.duplicatePresentation(h.db, p.id, other))).toBe("not_found");
+  });
+
+  it("un trabajo cancelado no puede pisar al relanzado (época de cancelación)", async () => {
+    const o = await mkUser(h.db);
+    const { p, v } = await toContentReview(o);
+    await wf.approveContent(h.db, p.id, o, v.id, v.sha256);
+    await wf.beginDesign(h.db, p.id, o);
+    const [{ cancelEpoch: oldEpoch }] = await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id));
+    await wf.cancelRunning(h.db, p.id, o);
+    await wf.beginDesign(h.db, p.id, o); // el docente relanza
+    // el handler viejo (época anterior) intenta escribir y fracasar
+    const old = runContext.run({ presentationId: p.id, epoch: oldEpoch }, () => wf.failJob(h.db, p.id, "x"));
+    expect(await code(old)).toBe("run_cancelled");
+    const [still] = await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id));
+    expect(still!.stage).toBe("designing");
+    // un handler de la época vigente sí puede
+    await runContext.run({ presentationId: p.id, epoch: still!.cancelEpoch }, () => wf.failJob(h.db, p.id, "y"));
+    expect((await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!.stage).toBe("failed_recoverable");
+  });
+
+  it("cancelar un rediseño restaura la versión de diseño anterior", async () => {
+    const o = await mkUser(h.db);
+    const { p, v } = await toContentReview(o);
+    await wf.approveContent(h.db, p.id, o, v.id, v.sha256);
+    await wf.beginDesign(h.db, p.id, o);
+    const d1 = await wf.designGenerated(h.db, p.id, { deck: { a: 1 }, sha256: hashJson({ a: 1 }), contentVersionId: v.id, parentId: null });
+    await wf.beginDesign(h.db, p.id, o); // regenerar desde design_review
+    await wf.designDrafted(h.db, p.id, { deck: { a: 2 }, sha256: hashJson({ a: 2 }), contentVersionId: v.id, parentId: d1.id });
+    const back = await wf.cancelRunning(h.db, p.id, o);
+    expect(back.stage).toBe("design_review");
+    expect(back.currentDeckVersionId).toBe(d1.id);
+  });
+
+  it("no se puede borrar mientras se procesa", async () => {
+    const o = await mkUser(h.db);
+    const { p, v } = await toContentReview(o);
+    await wf.approveContent(h.db, p.id, o, v.id, v.sha256);
+    await wf.beginDesign(h.db, p.id, o);
+    expect(await code(wf.deleteIfIdle(h.db, p.id, o))).toBe("invalid_transition");
+    await wf.cancelRunning(h.db, p.id, o);
+    expect(await code(wf.deleteIfIdle(h.db, p.id, o))).toBe("ok");
   });
 
   it("no se puede pasar a diseño sin aprobar contenido", async () => {

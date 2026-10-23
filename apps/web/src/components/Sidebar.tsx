@@ -2,13 +2,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Plug, UserRound, Shield, Menu, X } from "lucide-react";
+import { Gauge, LayoutGrid, Plug, UserRound, Shield, Menu, X } from "lucide-react";
 import { Brand } from "./Brand";
 import { LogoutButton } from "./LogoutButton";
 
-type Item = { href: string; label: string; icon: typeof LayoutGrid; match: (p: string) => boolean; dot?: "on" | "off" };
+type Item = { href: string; label: string; icon: typeof LayoutGrid; match: (p: string) => boolean; dot?: "on" | "off"; badge?: { n: number; label: string; busy: boolean } };
 
-export function Sidebar({ email, name, admin, mcpConnected }: { email: string; name: string; admin: boolean; mcpConnected: boolean }) {
+export function Sidebar({ email, name, admin, mcpConnected, badge }: { email: string; name: string; admin: boolean; mcpConnected: boolean; badge?: { n: number; label: string; busy: boolean } }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
@@ -20,9 +20,10 @@ export function Sidebar({ email, name, admin, mcpConnected }: { email: string; n
   }, [open]);
 
   const items: Item[] = [
-    { href: "/dashboard", label: "Presentaciones", icon: LayoutGrid, match: (p) => p.startsWith("/dashboard") || p.startsWith("/presentations") },
+    { href: "/dashboard", label: "Presentaciones", icon: LayoutGrid, match: (p) => p.startsWith("/dashboard") || p.startsWith("/presentations"), badge },
     { href: "/conectar", label: "Conectar con IA", icon: Plug, match: (p) => p.startsWith("/conectar") || p.startsWith("/cuenta/conectar"), dot: mcpConnected ? "on" : "off" },
-    { href: "/cuenta", label: "Mi cuenta", icon: UserRound, match: (p) => p.startsWith("/cuenta") && !p.startsWith("/cuenta/conectar") },
+    { href: "/cuenta", label: "Mi cuenta", icon: UserRound, match: (p) => p.startsWith("/cuenta") && !p.startsWith("/cuenta/conectar") && !p.startsWith("/cuenta/uso") },
+    { href: "/cuenta/uso", label: "Uso y límites", icon: Gauge, match: (p) => p.startsWith("/cuenta/uso") },
     ...(admin ? [{ href: "/admin", label: "Administración", icon: Shield, match: (p: string) => p.startsWith("/admin") }] : []),
   ];
 
@@ -35,6 +36,11 @@ export function Sidebar({ email, name, admin, mcpConnected }: { email: string; n
             className={`flex min-h-11 items-center gap-3 rounded-md border-2 px-3 font-bold no-underline ${active ? "border-ink bg-mark" : "border-transparent hover:bg-paper-2"}`}>
             <it.icon size={18} aria-hidden />
             <span className="flex-1">{it.label}</span>
+            {it.badge && it.badge.n > 0 && (
+              <span className={`flex-none rounded-full border-2 border-ink px-1.5 text-xs font-bold ${it.badge.busy ? "bg-paper-2" : "bg-mark"}`} title={it.badge.label}>
+                {it.badge.busy && <span aria-hidden className="mr-1 inline-block h-2 w-2 animate-spin rounded-full border border-ink border-t-transparent" />}{it.badge.n}<span className="sr-only"> {it.badge.label}</span>
+              </span>
+            )}
             {it.dot && <span className={`h-2.5 w-2.5 flex-none rounded-full border-2 border-ink ${it.dot === "on" ? "bg-ok" : "bg-paper"}`} title={it.dot === "on" ? "Conectada" : "Sin conectar"}><span className="sr-only">{it.dot === "on" ? "Conectada" : "Sin conectar"}</span></span>}
           </Link>
         );

@@ -1,4 +1,4 @@
-import { ContentDraft } from "@lamina/contracts";
+import { ContentDraft, normalizeDraftMath } from "@lamina/contracts";
 import { validateContent, withWarnings } from "@lamina/validation";
 import { assertNoHostileLatex, assertSize, scanJson } from "./safety";
 import { LIMITS } from "./limits";
@@ -13,7 +13,8 @@ export function checkContentDraft(raw: unknown, prior: ContentDraft["warnings"] 
   assertNoHostileLatex(raw, "El borrador");
   const parsed = ContentDraft.safeParse(raw);
   if (!parsed.success) throw new McpToolError("validation_failed", "El borrador no cumple el esquema (lamina://schemas/content-draft).", { errors: fmt(parsed.error.issues) });
-  const v = validateContent(parsed.data, prior);
+  const draft = normalizeDraftMath(parsed.data);
+  const v = validateContent(draft, prior);
   if (v.errors.length) throw new McpToolError("validation_failed", `El borrador tiene ${v.errors.length} error(es) que debes corregir antes de enviarlo.`, { errors: v.errors.slice(0, 25) });
-  return { draft: withWarnings(parsed.data, v), validation: v };
+  return { draft: withWarnings(draft, v), validation: v };
 }

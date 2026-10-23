@@ -22,7 +22,7 @@ REGLAS DE BLOQUES
 - En campos "latex" escribe LaTeX compatible con KaTeX SIN delimitadores $ (ej. \\frac{d}{dx}x^2=2x). En campos de Markdown ("md", "text") usa $…$ para fórmulas en línea.
 - "graphSpec": "expr" en sintaxis mathjs con la variable x (ej. x^2, sin(x), exp(-x^2), ln(x), sqrt(x), x^3-3x); dominio razonable; máximo 4 funciones; "tangents" con at dentro del dominio.
 - "derivation": pasos con igualdades CORRECTAS y coherentes entre sí (un paso puede empezar con "=" para continuar el anterior). Cada explicación ≤ 110 caracteres.
-- "table": todas las filas con tantas celdas como encabezados. "diagramSpec": usa kind "vector" o "geometry" con "data" válido solo si estás seguro; si no, kind "generic" con descripción.
+- "table": todas las filas con tantas celdas como encabezados; si una celda lleva matemática (incluidas matrices \\begin{pmatrix}…) envuélvela en $…$. "diagramSpec": usa kind "vector" o "geometry" con "data" válido solo si estás seguro; si no, kind "generic" con descripción.
 - No uses más de 6 viñetas por bloque de texto; frases cortas.
 
 RIGOR Y ORIGEN

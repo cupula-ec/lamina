@@ -30,6 +30,26 @@ export function repairTargets(arts: { slideId: string; path: string; issues: unk
   return out;
 }
 
+/** Menor escala que la corrección determinista aplica antes de recurrir a la IA (más abajo el texto ya sería ilegible al proyectar). */
+export const MIN_AUTO_SCALE = 0.7;
+
+/**
+ * Corrección determinista de desbordes: reduce la escala del contenido de cada slot que se sale. Solo si TODOS los errores de la
+ * diapositiva son desbordes (el resto necesita criterio de la IA). Devuelve null si no hay nada que reducir.
+ */
+export function shrinkOverflow(slide: SlideT, issues: StoredIssue[]): SlideT | null {
+  const errs = issues.filter((i) => i.severity === "error" && !i.ignored);
+  if (!errs.length || !errs.every((i) => i.kind === "overflow" && i.slot && i.slot in slide.slots)) return null;
+  const adjust = { ...(slide.adjust ?? {}) };
+  let changed = false;
+  for (const slot of new Set(errs.map((i) => i.slot!))) {
+    const cur = adjust[slot]?.fontScale ?? 1;
+    const next = Math.max(MIN_AUTO_SCALE, Math.round(cur * 0.85 * 100) / 100);
+    if (next < cur) { adjust[slot] = { ...adjust[slot], fontScale: next }; changed = true; }
+  }
+  return changed ? { ...slide, adjust } : null;
+}
+
 const sizesDoc = () =>
   Object.entries(SLOT_GEOMETRY).map(([layout, slots]) => `- ${layout}: ${Object.entries(slots).map(([k, b]) => `${k} ${b.w}×${b.h}`).join("; ")}`).join("\n");
 
@@ -58,6 +78,11 @@ export async function designRepair(ctx: Ctx, data: { presentationId: string; use
     for (const slide of deck.slides) {
       const iss = targets.get(slide.id);
       if (!iss || fixed.size >= MAX_SLIDES_PER_PASS) continue;
+      // Primera pasada: los desbordes puros se arreglan reduciendo la escala, sin gastar IA.
+      if (data.attempt === 0) {
+        const quick = shrinkOverflow(slide, iss);
+        if (quick) { fixed.set(slide.id, quick); continue; }
+      }
       const hint = hints.find((h) => ownsHint(h.id, slide.id));
       const geo = SLOT_GEOMETRY[slide.layout] ?? {};
       const problems = iss.map((i) => `- [${i.severity === "error" ? "ERROR" : "aviso"}] área "${i.slot ?? "—"}" (${geo[i.slot ?? ""] ? `${geo[i.slot!]!.w}×${geo[i.slot!]!.h} px` : "?"}): ${i.message}${i.detail ? ` (${i.detail})` : ""}`).join("\n");

@@ -1,12 +1,12 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { ContentDraft, DeckDocument, LaminaError, Slide, type Block } from "@lamina/contracts";
+import { ContentDraft, DeckDocument, LaminaError, Slide, normalizeDraftMath, type Block } from "@lamina/contracts";
 import { validateDeckAgainstCatalog } from "@lamina/components";
 import { consumeQuota, hashJson, refundQuota, schema, workflow as wf, type QuotaKind } from "@lamina/db";
 import { enqueue } from "@lamina/jobs";
 import { validateContent } from "@lamina/validation";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getBoss } from "@/lib/boss";
 import { getDb } from "@/lib/db";
 import { act, requireOwner } from "@/lib/guard";
@@ -46,8 +46,8 @@ export async function saveContentAction(input: { id: string; baseVersionId: stri
     if (!base) throw new LaminaError("not_found", "Versión base no encontrada", 404);
     // Marca como "edited" lo que el docente cambió respecto a la versión base.
     const before = new Map<string, string>();
-    for (const s of base.draft.sections) for (const h of s.slidesHint) for (const b of h.blocks) before.set(b.id, stableJson({ ...b, origin: undefined, sourceRefs: undefined }));
-    const draft = structuredClone(parsed.data);
+    for (const s of normalizeDraftMath(base.draft).sections) for (const h of s.slidesHint) for (const b of h.blocks) before.set(b.id, stableJson({ ...b, origin: undefined, sourceRefs: undefined }));
+    const draft = normalizeDraftMath(structuredClone(parsed.data));
     for (const s of draft.sections) for (const h of s.slidesHint) for (const b of h.blocks as Block[]) {
       const prev = before.get(b.id);
       if (prev === undefined) b.origin = "teacher";
@@ -188,6 +188,10 @@ export async function startPolishAction(input: { id: string }) {
   });
 }
 
+export async function skipPolishAction(input: { id: string }) {
+  return act(async (u) => { await wf.skipPolish(getDb(), Id.parse(input.id), u.id); touch(input.id); });
+}
+
 /* ───────── Edición manual de diapositivas ───────── */
 /** Guarda la edición de UNA diapositiva como versión nueva (autor docente) y re-renderiza solo esa diapositiva. */
 export async function saveSlideEditAction(input: { id: string; baseVersionId: string; slide: unknown }) {
@@ -284,11 +288,41 @@ export async function cancelPendingAction(input: { id: string }) {
   return act(async (u) => { await wf.cancelPending(getDb(), Id.parse(input.id), u.id); touch(input.id); });
 }
 
+/** Cancela en pg-boss los jobs pendientes o activos de la presentación (evita reintentos y trabajo encolado inútil). Mejor esfuerzo. */
+async function cancelQueuedJobs(presentationId: string) {
+  const rows = await getDb().execute(sql`select id, name from pgboss.job where data->>'presentationId' = ${presentationId} and state in ('created','retry','active')`);
+  const byName = new Map<string, string[]>();
+  for (const r of rows.rows as { id: string; name: string }[]) byName.set(r.name, [...(byName.get(r.name) ?? []), r.id]);
+  if (!byName.size) return;
+  const boss = await getBoss();
+  for (const [name, ids] of byName) await boss.cancel(name, ids).catch((e) => console.error("[cancel]", name, (e as Error).message));
+}
+
+export async function cancelRunningAction(input: { id: string }) {
+  return act(async (u) => {
+    const id = Id.parse(input.id);
+    await wf.cancelRunning(getDb(), id, u.id);
+    await cancelQueuedJobs(id).catch((e) => console.error("[cancel]", (e as Error).message));
+    touch(id);
+  });
+}
+
+export async function duplicatePresentationAction(input: { id: string }) {
+  return act(async (u) => {
+    const id = Id.parse(input.id);
+    await requireOwner(id, u.id);
+    const copy = await withQuota(u.id, "presentation_new", () => wf.duplicatePresentation(getDb(), id, u.id));
+    revalidatePath("/dashboard");
+    return { id: copy.id };
+  });
+}
+
 export async function deletePresentationAction(input: { id: string }) {
   return act(async (u) => {
     const id = Id.parse(input.id);
     await requireOwner(id, u.id);
-    await deletePresentationData(id);
+    await deletePresentationData(id, u.id);
+    await cancelQueuedJobs(id).catch(() => {}); // renders o reanudaciones que hubieran quedado en cola
     revalidatePath("/dashboard");
   });
 }

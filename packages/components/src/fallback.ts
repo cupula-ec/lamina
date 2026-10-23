@@ -88,9 +88,9 @@ export function slidesFromHint(hint: SlideHint, prevLayouts: string[] = [], opts
   return groups.map((g, gi) => {
     const m = mapGroup(g, used, !!opts.closing);
     used.push(m.layout);
-    const title = clip(hint.intent.replace(/\.$/, ""), 100);
+    const title = hint.intent.replace(/\.$/, "");
     const slots: Record<string, ComponentRef> = { ...m.slots };
-    if (m.layout !== "title" && m.layout !== "section" && m.layout !== "cover-branded") slots.title = ref("SectionHeader", { title: gi === 0 ? title : clip(`${title} (cont.)`, 105) });
+    if (m.layout !== "title" && m.layout !== "section" && m.layout !== "cover-branded") slots.title = ref("SectionHeader", { title: gi === 0 ? clip(title, 100) : `${clip(title, 46)} (cont.)` });
     return {
       id: gi === 0 ? hint.id : `${hint.id}-${String.fromCharCode(98 + gi - 1)}`,
       layout: m.layout, slots, notes: "", build: { steps: [] }, transition: "fade" as const,

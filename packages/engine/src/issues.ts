@@ -7,7 +7,7 @@
  */
 export type SlideIssue = {
   slot: string | null;
-  kind: "overflow" | "small_text" | "katex_error" | "empty_slot" | "component_error";
+  kind: "overflow" | "small_text" | "katex_error" | "empty_slot" | "component_error" | "latex_raw" | "overlap";
   severity: "error" | "warning";
   message: string;
   detail?: string;
@@ -33,6 +33,8 @@ export function describeIssue(i: SlideIssue): { text: string; detail?: string } 
     : i.kind === "small_text" ? `Hay texto demasiado pequeño para leerse al proyectar (en ${where}).`
     : i.kind === "katex_error" ? `Una fórmula de ${where} no se pudo dibujar.`
     : i.kind === "empty_slot" ? `${cap(where)} está vacío.`
+    : i.kind === "latex_raw" ? `Hay una fórmula sin dibujar (código LaTeX visible) en ${where}.`
+    : i.kind === "overlap" ? `${cap(where)} se superpone con otra zona de la diapositiva.`
     : `Un componente de ${where} falló al mostrarse.`;
   return { text, detail: i.message };
 }
@@ -104,7 +106,32 @@ export function detectSlideIssues(root: HTMLElement): SlideIssue[] {
       if (fs < MIN_FONT_PX) small++;
     }
     if (small > 0) issues.push({ slot, kind: "small_text", severity: "warning", message: `Hay texto demasiado pequeño para leerse al proyectar (en ${slotLabel(slot)}).`, detail: `Texto menor de ${MIN_FONT_PX}px.`, element: "texto", bbox: slotBbox });
+    // LaTeX sin renderizar: comandos o entornos visibles como texto (fuera de KaTeX).
+    const rawWalker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = rawWalker.nextNode(); n; n = rawWalker.nextNode()) {
+      const p = n.parentElement;
+      if (!p || p.closest(".katex, .katex-error") || p.closest("svg") || p.closest("pre, code")) continue;
+      if (/\\(?:begin|end)\{|\\(?:times|cdot|alpha|beta|frac|sqrt|pm|leq|geq|sum|int|lambda|theta|pi)\b/.test(n.textContent ?? "")) {
+        issues.push({ slot, kind: "latex_raw", severity: "warning", message: `Hay una fórmula sin dibujar (código LaTeX visible) en ${slotLabel(slot)}.`, detail: `Texto: «${(n.textContent ?? "").trim().slice(0, 80)}»`, element: "una fórmula", bbox: toCanvas(p.getBoundingClientRect()) });
+        break;
+      }
+    }
     if (!el.textContent?.trim() && !el.querySelector("svg, img, canvas, iframe, table")) issues.push({ slot, kind: "empty_slot", severity: "warning", message: `${cap(slotLabel(slot))} está vacío.`, detail: "", element: "área vacía", bbox: slotBbox });
+  }
+  // Solape entre zonas (p. ej. el título invade el contenido). `full-visual` superpone el título a propósito.
+  if (!root.matches(".lm-layout-full-visual") && !root.querySelector(".lm-layout-full-visual")) {
+    const live = slots.filter((e) => e.dataset.lmHidden !== "1");
+    for (let a = 0; a < live.length; a++) for (let b = a + 1; b < live.length; b++) {
+      const A = live[a]!, B = live[b]!;
+      if (A.contains(B) || B.contains(A)) continue;
+      const ra = A.getBoundingClientRect(), rb = B.getBoundingClientRect();
+      const ox = (Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left)) / scale;
+      const oy = (Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top)) / scale;
+      if (ox > 12 && oy > 12) {
+        const slot = A.dataset.lmSlot ?? null;
+        issues.push({ slot, kind: "overlap", severity: "warning", message: `${cap(slotLabel(slot))} se superpone con ${slotLabel(B.dataset.lmSlot ?? null)}.`, detail: `Zonas solapadas ${Math.round(ox)}×${Math.round(oy)} px.`, element: "bloque", bbox: toCanvas(ra) });
+      }
+    }
   }
   return issues;
 }

@@ -4,6 +4,7 @@ import remarkMath from "remark-math";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import katex from "katex";
+import { wrapBareMath } from "@lamina/contracts";
 
 export const renderLatex = (tex: string, display = true) =>
   katex.renderToString(tex, { throwOnError: false, strict: "ignore", trust: false, displayMode: display, output: "htmlAndMathml", maxExpand: 200 });
@@ -33,7 +34,7 @@ export function Md({ children, className, inline }: { children: string; classNam
         unwrapDisallowed: true,
         components: inline ? { p: ({ children }: { children?: ReactNode }) => createElement("span", null, children) } : undefined,
       } as any,
-      children,
+      wrapBareMath(children),
     ),
   );
 }

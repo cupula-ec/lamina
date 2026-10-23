@@ -6,11 +6,13 @@ import { toast } from "sonner";
 import { Latex } from "@lamina/engine";
 import type { ContentDraft, Section } from "@lamina/contracts";
 import { Callout } from "@/components/ui/Callout";
+import { QuotaNote, type QuotaUse } from "@/components/QuotaNote";
 import { approveContentAction, regenerateContentAction, restoreContentVersionAction, saveContentAction } from "@/actions/presentations";
 import { BlockEditor, FixForm, ORIGIN, REASON_HELP, TYPE_LABEL, newBlock, replaceLatex, uid, type Chunk, type Source, type Version, type Warn } from "./blocks";
 
 
-export function ContentEditor({ presentationId, stage, versionId, sha256, versionN, initial, versions, sources, chunks, readOnly }: {
+export function ContentEditor({ presentationId, stage, versionId, sha256, versionN, initial, versions, sources, chunks, readOnly, quota }: {
+  quota?: QuotaUse;
   presentationId: string; stage: string; versionId: string; sha256: string; versionN: number; initial: ContentDraft; versions: Version[]; sources: Source[]; chunks: Chunk[]; readOnly: boolean;
 }) {
   const router = useRouter();
@@ -147,7 +149,11 @@ export function ContentEditor({ presentationId, stage, versionId, sha256, versio
                           <button type="button" className="font-bold underline-offset-4 hover:underline" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : b.id)}>{TYPE_LABEL[b.type]} {isOpen ? "▾" : "▸"}</button>
                           <span className={`tag ${o.tone}`}>{o.label}</span>
                           {refs.map(({ c, s: src }, i) => <span key={i} className="tag tag-info" title={c.text}>Fuente: {(src?.title ?? "—").slice(0, 28)}</span>)}
-                          {warns.length > 0 && <span className="tag tag-warn">{warns.length} por revisar</span>}
+                          {warns.length > 0 && (
+                            <span className="tag tag-warn">⚠ {warns.length} por revisar
+                              <button type="button" className="ml-2 font-bold underline" onClick={() => { const ci = cards.findIndex((c) => c.w.blockId === b.id); if (ci >= 0) { setCard(ci); setFixing(null); } document.getElementById("avisos")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Revisar</button>
+                            </span>
+                          )}
                           {reviewed > 0 && <span className="tag tag-ok">✓ revisado</span>}
                           {!readOnly && (
                             <span className="ml-auto flex gap-1">
@@ -157,7 +163,6 @@ export function ContentEditor({ presentationId, stage, versionId, sha256, versio
                             </span>
                           )}
                         </div>
-                        {warns.map((w, i) => <p key={i} className="mt-2 text-sm font-bold text-warn">⚠ {w.message}</p>)}
                         {isOpen && (
                           <div className="mt-3 space-y-3">
                             <BlockEditor b={b} ro={ro} onChange={(nb) => mut((d) => { d.sections[si]!.slidesHint[hi]!.blocks[bi] = nb; })} />
@@ -199,6 +204,7 @@ export function ContentEditor({ presentationId, stage, versionId, sha256, versio
               <button className="btn btn-sm btn-mark" disabled={pending || !feedback.trim() || dirty} onClick={() => regenerate(true)}>Regenerar con comentarios</button>
               <button className="btn btn-sm" disabled={pending || dirty} onClick={() => regenerate(false)}>Regenerar sin comentarios</button>
             </div>
+            <QuotaNote q={quota} what="regeneraciones de contenido" />
             {dirty && <p className="hint mt-2">Guarda tus cambios antes de regenerar.</p>}
           </section>
         )}

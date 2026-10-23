@@ -7,6 +7,7 @@ export const ERROR_CODES = [
   "invalid_input",
   "invalid_transition",
   "stale_version",
+  "run_cancelled",
   "quota_exceeded",
   "provider_quota",
   "provider_failed",

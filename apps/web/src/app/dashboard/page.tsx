@@ -11,6 +11,7 @@ import { getDb } from "@/lib/db";
 import { loadChangelog } from "@/lib/changelog";
 import { listConnections } from "@/lib/mcp-access";
 import { requireUser } from "@/lib/session";
+import { PresentationMenu } from "@/components/PresentationMenu";
 import { STAGE_LABEL, nextAction, pageFor, stageTone } from "@/lib/stages";
 import type { Stage } from "@lamina/contracts";
 
@@ -74,7 +75,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                   <li key={p.id} className="sheet flex flex-col gap-3 p-4">
                     <div className="flex items-start justify-between gap-2">
                       <Link href={pageFor(p.id, p.stage, p.pendingJob?.name)} className="font-display text-lg font-bold leading-snug underline-offset-4 hover:underline">{p.title}</Link>
-                      <StageTag label={STAGE_LABEL[p.stage as Stage]} tone={stageTone(p.stage)} />
+                      <div className="flex flex-none items-center gap-1"><StageTag label={STAGE_LABEL[p.stage as Stage]} tone={stageTone(p.stage)} /><PresentationMenu id={p.id} title={p.title} busy={["researching", "designing", "polishing"].includes(p.stage)} /></div>
                     </div>
                     <p className="text-sm text-ink-2">
                       {p.level} · actualizada {p.updatedAt.toLocaleDateString("es-EC", { day: "numeric", month: "short" })}
@@ -120,6 +121,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               </dl>
             </section>
           )}
+          <p className="text-sm"><Link href="/cuenta/uso" className="font-bold underline underline-offset-4">Ver mi uso y límites</Link></p>
         </aside>
       </div>
     </AppShell>

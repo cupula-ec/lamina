@@ -5,9 +5,10 @@
 import { and, eq, sql } from "drizzle-orm";
 import { DeckDocument, LaminaError, formatStylePref, type AccentId, type Stage, type ThemeId, type Visibility } from "@lamina/contracts";
 import type { Db, Tx } from "./client";
-import { approvals, contentVersions, deckVersions, events, presentations } from "./schema";
+import { approvals, contentVersions, deckVersions, events, presentations, sourceChunks, sources } from "./schema";
 import { randomBytes } from "node:crypto";
 import { hashJson, sha256Hex } from "./hash";
+import { runContext } from "./run-context";
 import { buildBranding } from "./branding";
 import { DEFAULT_CONCURRENT_JOBS } from "./quota";
 
@@ -24,6 +25,8 @@ async function lock(tx: Tx, id: string, ownerId?: string): Promise<Pres> {
   const p = rows[0];
   if (!p) throw new LaminaError("not_found", "Presentación no encontrada", 404);
   if (ownerId !== undefined && p.ownerId !== ownerId) throw new LaminaError("not_found", "Presentación no encontrada", 404);
+  const run = runContext.getStore();
+  if (run && run.presentationId === id && run.epoch !== p.cancelEpoch) throw new LaminaError("run_cancelled", "El trabajo fue cancelado", 409);
   return p;
 }
 
@@ -95,6 +98,40 @@ export async function addContentVersion(
     .where(eq(contentVersions.presentationId, presentationId));
   const [row] = await tx.insert(contentVersions).values({ presentationId, n: n + 1, ...v }).returning();
   return row!;
+}
+
+/**
+ * Duplica una presentación: mismos datos, contenido vigente y fuentes (texto) en una presentación nueva en content_review.
+ * No copia el diseño, los archivos subidos ni la publicación: el docente revisa el contenido y genera su propio diseño.
+ */
+export function duplicatePresentation(db: Db, id: string, ownerId: string) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id, ownerId);
+    if (RUNNING_STAGES.includes(p.stage as Stage)) throw new LaminaError("invalid_transition", "Espera a que termine el proceso para duplicar.", 409);
+    if (!p.currentContentVersionId) throw new LaminaError("invalid_transition", "Aún no hay contenido que duplicar.", 409);
+    const [cv] = await tx.select().from(contentVersions).where(eq(contentVersions.id, p.currentContentVersionId));
+    if (!cv) throw new LaminaError("not_found", "No se encontró el contenido vigente", 404);
+    const [copy] = await tx.insert(presentations).values({
+      ownerId, title: `${p.title.slice(0, 190)} (copia)`, topic: p.topic, level: p.level, objective: p.objective, language: p.language,
+      extraNotes: p.extraNotes, subject: p.subject, period: p.period, groupName: p.groupName, themeId: p.themeId, origin: p.origin, stage: "content_review",
+    }).returning();
+    // Fuentes y fragmentos con ids nuevos; las referencias del contenido se reescriben.
+    let json = JSON.stringify(cv.content);
+    const srcs = await tx.select().from(sources).where(eq(sources.presentationId, id));
+    for (const src of srcs) {
+      const [ns] = await tx.insert(sources).values({ presentationId: copy!.id, kind: src.kind, origin: src.origin, url: src.url, title: src.title, uploadId: null, status: src.status, error: src.error }).returning();
+      const chunks = await tx.select().from(sourceChunks).where(eq(sourceChunks.sourceId, src.id));
+      for (const c of chunks) {
+        const [nc] = await tx.insert(sourceChunks).values({ sourceId: ns!.id, presentationId: copy!.id, ord: c.ord, page: c.page, text: c.text }).returning();
+        json = json.split(c.id).join(nc!.id);
+      }
+    }
+    const content = JSON.parse(json);
+    const row = await addContentVersion(tx, copy!.id, { content, sha256: hashJson(content), authorKind: "docente", parentId: null, note: `Duplicada de «${p.title.slice(0, 80)}»` });
+    const done = await set(tx, copy!.id, { currentContentVersionId: row.id });
+    await evt(tx, "presentation_duplicated", p, { copyId: copy!.id });
+    return done;
+  });
 }
 
 /** researching → content_review: registra la versión generada por la IA. */
@@ -170,7 +207,7 @@ export function beginDesign(db: Db, id: string, ownerId: string, pending?: Pendi
     if (expectCurrentDeckVersionId && p.currentDeckVersionId !== expectCurrentDeckVersionId) throw new LaminaError("stale_version", "El diseño cambió mientras tanto. Recarga la página.", 409);
     if (!p.approvedContentVersionId) throw new LaminaError("invalid_transition", "El contenido no está aprobado", 409);
     await assertConcurrency(tx, p.ownerId, id);
-    return set(tx, id, { stage: "designing", prevStage: p.stage, lastError: null, resumeAt: null, pendingJob: pending ?? null });
+    return set(tx, id, { stage: "designing", prevStage: p.stage, lastError: null, resumeAt: null, pendingJob: pending ?? null, designBaseId: p.currentDeckVersionId });
   });
 }
 
@@ -262,7 +299,7 @@ export function designFinish(db: Db, id: string, versionId: string) {
     const p = await lock(tx, id);
     if (p.stage !== "designing" || p.currentDeckVersionId !== versionId) return null;
     await evt(tx, "design_ready", p, { versionId });
-    return set(tx, id, { stage: "design_review", prevStage: null, pendingJob: null, lastError: null, resumeAt: null });
+    return set(tx, id, { stage: "design_review", prevStage: null, pendingJob: null, lastError: null, resumeAt: null, designBaseId: null });
   });
 }
 
@@ -295,6 +332,17 @@ export function beginPolish(db: Db, id: string, ownerId: string, pending?: Pendi
     if (!p.approvedDeckVersionId) throw new LaminaError("invalid_transition", "El diseño no está aprobado", 409);
     await assertConcurrency(tx, p.ownerId, id);
     return set(tx, id, { stage: "polishing", prevStage: p.stage, lastError: null, resumeAt: null, pendingJob: pending ?? null });
+  });
+}
+
+/** design_approved → final_review sin pulido: el diseño aprobado pasa a ser la versión final (el pulido es opcional). */
+export function skipPolish(db: Db, id: string, ownerId: string) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id, ownerId);
+    expectStage(p, ["design_approved"], "continuar sin pulir");
+    if (!p.approvedDeckVersionId) throw new LaminaError("invalid_transition", "El diseño no está aprobado", 409);
+    await evt(tx, "polish_skipped", p, { versionId: p.approvedDeckVersionId });
+    return set(tx, id, { stage: "final_review", finalDeckVersionId: p.approvedDeckVersionId, prevStage: null, lastError: null });
   });
 }
 
@@ -473,6 +521,11 @@ export function resumeFromWait(db: Db, id: string, ownerId?: string) {
   });
 }
 
+const BACK_STAGES = ["content_review", "design_review", "design_approved", "content_approved"];
+const backStage = (p: Pres) => (BACK_STAGES.includes(p.prevStage ?? "") ? (p.prevStage as Stage) : null);
+/** Si se abandona un diseño a medias, la versión vigente vuelve a la que había antes de empezar (o a ninguna). */
+const restoreDesign = (p: Pres) => (p.prevStage === "design_review" || p.prevStage === "content_approved" ? { currentDeckVersionId: p.designBaseId ?? null, designBaseId: null } : {});
+
 /** Abandona un trabajo detenido/en espera y vuelve a la versión anterior (para poder seguir editando y aprobando). */
 export function cancelPending(db: Db, id: string, ownerId: string) {
   return db.transaction(async (tx) => {
@@ -480,7 +533,34 @@ export function cancelPending(db: Db, id: string, ownerId: string) {
     expectStage(p, ["failed_recoverable", "quota_wait"], "cancelar el trabajo");
     const back = p.prevStage === "content_review" || p.prevStage === "design_review" || p.prevStage === "design_approved" ? p.prevStage : p.prevStage === "content_approved" ? "content_approved" : p.prevStage === "draft" ? null : null;
     if (!back) throw new LaminaError("invalid_transition", "No hay una versión anterior a la que volver; elimina la presentación o reintenta.", 409);
-    return set(tx, id, { stage: back, lastError: null, resumeAt: null, pendingJob: null });
+    return set(tx, id, { stage: back, lastError: null, resumeAt: null, pendingJob: null, cancelEpoch: p.cancelEpoch + 1, ...restoreDesign(p) });
+  });
+}
+
+/**
+ * Cancela un trabajo EN CURSO (el docente se cansó de esperar). Vuelve a la versión anterior si existe; si no (primer borrador),
+ * queda en failed_recoverable «cancelado» para poder reintentar o eliminar. El handler que siga corriendo se descarta solo:
+ * todas sus transiciones exigen la etapa en ejecución y fallan sin efecto.
+ */
+export function cancelRunning(db: Db, id: string, ownerId: string) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id, ownerId);
+    expectStage(p, RUNNING_STAGES, "cancelar el trabajo");
+    const back = backStage(p);
+    await evt(tx, "job_cancelled", p, { stage: p.stage });
+    // Invalida a los handlers que ya estaban corriendo (época anterior): ya no podrán escribir.
+    const base = { cancelEpoch: p.cancelEpoch + 1, resumeAt: null, progress: null } as const;
+    if (back) return set(tx, id, { ...base, stage: back, lastError: null, pendingJob: null, ...restoreDesign(p) });
+    return set(tx, id, { ...base, stage: "failed_recoverable", lastError: "Cancelaste este trabajo. Puedes reintentarlo o eliminar la presentación." });
+  });
+}
+
+/** Borra la fila de la presentación (hijos en cascada) solo si ningún trabajo la está procesando; el bloqueo evita carreras con «generar». */
+export function deleteIfIdle(db: Db, id: string, ownerId: string) {
+  return db.transaction(async (tx) => {
+    const p = await lock(tx, id, ownerId);
+    if (RUNNING_STAGES.includes(p.stage as Stage)) throw new LaminaError("invalid_transition", "Esta presentación se está procesando. Espera a que termine o cancela el trabajo.", 409);
+    await tx.delete(presentations).where(eq(presentations.id, id));
   });
 }
 

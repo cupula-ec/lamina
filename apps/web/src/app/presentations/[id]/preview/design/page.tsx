@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
-import { schema } from "@lamina/db";
+import { schema, usageFor } from "@lamina/db";
 import type { SlideIssue } from "@lamina/engine";
 import type { Stage } from "@lamina/contracts";
 import { AppShell } from "@/components/AppShell";
@@ -12,7 +12,7 @@ import { Callout } from "@/components/ui/Callout";
 import { getDb } from "@/lib/db";
 import { env } from "@/lib/env";
 import { requireOwner } from "@/lib/guard";
-import { artifactsFor, deckVersions, loadDeck, provisionalForDeck } from "@/lib/presentation-view";
+import { artifactsFor, deckVersions, loadDeck, polishReport, provisionalForDeck, repairReport } from "@/lib/presentation-view";
 import { requireUser } from "@/lib/session";
 import { DesignReview } from "./review";
 import { StyleChange } from "./style-change";
@@ -32,6 +32,8 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
   const shownId = /^[0-9a-f-]{36}$/i.test(sp.v ?? "") && versions.some((v) => v.id === sp.v) ? sp.v! : (["polishing"].includes(stage) ? p.approvedDeckVersionId : ["final_review", "published", "private_final"].includes(stage) ? p.finalDeckVersionId : p.currentDeckVersionId) ?? p.currentDeckVersionId;
   const cur = await loadDeck(shownId ?? null);
   const arts = await artifactsFor(cur?.row.id ?? null);
+  const report = cur ? await repairReport(cur.row.id, arts) : null;
+  const polish = cur ? await polishReport(cur.row.id, arts) : null;
   const prov = await provisionalForDeck(p.id, cur?.row.componentPins ?? {});
   const reqs = await getDb().select().from(schema.componentRequests).where(eq(schema.componentRequests.presentationId, p.id)).orderBy(desc(schema.componentRequests.createdAt));
   const waitingRender = !!cur && arts.length < cur.deck.slides.length;
@@ -62,6 +64,9 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
             issues={Object.fromEntries(arts.map((a) => [a.slideId, (a.issues as SlideIssue[]).map((i, index) => ({ ...i, index }))]))}
             rendered={arts.filter((a) => a.path).map((a) => a.slideId)}
             waitingRender={waitingRender}
+            quota={await usageFor(getDb(), user.id)}
+            repairReport={report}
+            polishReport={polish}
             prov={prov}
             requests={reqs.map((r) => ({ id: r.id, name: r.suggestedName, purpose: r.purpose, status: r.status, error: r.error, slideId: r.slideId }))}
             versions={versions.map((v) => ({ ...v, createdAt: v.createdAt.toISOString() }))}

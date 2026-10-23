@@ -51,6 +51,50 @@ export async function artifactsFor(deckVersionId: string | null) {
   return getDb().select().from(schema.renderArtifacts).where(eq(schema.renderArtifacts.deckVersionId, deckVersionId));
 }
 
+export type RepairReport = { tried: number; resolved: string[]; unresolved: string[] };
+
+const errCount = (issues: unknown[]) => (issues as { severity: string; ignored?: boolean }[]).filter((i) => i.severity === "error" && !i.ignored).length;
+
+/**
+ * Resultado real de la corrección automática: compara, para cada diapositiva que cambió, los errores de la versión de partida
+ * (primer ancestro que no es "repair") con los de la versión actual. Devuelve null si la versión no viene de una corrección.
+ */
+export async function repairReport(versionId: string, arts: { slideId: string; path?: string; issues: unknown[] }[]): Promise<RepairReport | null> {
+  const db = getDb();
+  const [cur] = await db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, versionId));
+  if (!cur || cur.kind !== "repair") return null;
+  let base = cur;
+  for (let i = 0; i < 12 && base.kind === "repair" && base.parentId; i++) {
+    const [parent] = await db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, base.parentId));
+    if (!parent) break;
+    base = parent;
+  }
+  // «Intentadas» = diapositivas que tenían errores en la versión de partida; se resuelven si hoy no tienen ninguno.
+  const beforeArts = await artifactsFor(base.id);
+  const resolved: string[] = [], unresolved: string[] = [];
+  for (const b of beforeArts) {
+    if (!b.path || errCount(b.issues) === 0) continue;
+    const now = arts.find((a) => a.slideId === b.slideId);
+    // Sin captura nueva (no se pudo dibujar) no cuenta como resuelta.
+    (now?.path && errCount(now.issues) === 0 ? resolved : unresolved).push(b.slideId);
+  }
+  return { tried: resolved.length + unresolved.length, resolved, unresolved };
+}
+
+export type PolishReport = { slidesChanged: number; errorsBefore: number; errorsAfter: number };
+
+/** Qué hizo realmente el pulido: diapositivas con cambios (transición/pasos) y errores de diseño antes y después. */
+export async function polishReport(versionId: string, arts: { slideId: string; issues: unknown[] }[]): Promise<PolishReport | null> {
+  const [cur] = await getDb().select().from(schema.deckVersions).where(eq(schema.deckVersions.id, versionId));
+  if (!cur || cur.kind !== "polish" || !cur.parentId) return null;
+  const [parent] = await getDb().select().from(schema.deckVersions).where(eq(schema.deckVersions.id, cur.parentId));
+  if (!parent) return null;
+  const before = new Map(DeckDocument.parse(parent.deck).slides.map((s) => [s.id, sha256Hex(JSON.stringify(s))]));
+  const slidesChanged = DeckDocument.parse(cur.deck).slides.filter((s) => before.get(s.id) !== sha256Hex(JSON.stringify(s))).length;
+  const errorsBefore = (await artifactsFor(parent.id)).reduce((n, a) => n + errCount(a.issues), 0);
+  return { slidesChanged, errorsBefore, errorsAfter: arts.reduce((n, a) => n + errCount(a.issues), 0) };
+}
+
 export const tokenHash = (t: string) => sha256Hex(t);
 
 /** Provisionales fijados por un deck (por id+versión+hash del bundle): lo publicado no cambia aunque el componente evolucione. */

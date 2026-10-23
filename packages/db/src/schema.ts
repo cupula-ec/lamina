@@ -271,6 +271,10 @@ export const presentations = pgTable("presentations", {
   lastError: text("last_error"),
   /** Progreso legible del job en curso (p. ej. «OCR página 12 de 40»); el worker lo limpia al terminar. */
   progress: text("progress"),
+  /** Se incrementa al cancelar un trabajo en curso: los handlers que ya estaban corriendo (época anterior) no pueden escribir. */
+  cancelEpoch: integer("cancel_epoch").notNull().default(0),
+  /** Versión de diseño vigente al empezar a diseñar: a ella se vuelve si el trabajo se cancela. */
+  designBaseId: uuid("design_base_id"),
   /** Job en curso o a reanudar: { name, payload }. */
   pendingJob: jsonb("pending_job").$type<{ name: string; payload: Record<string, unknown> }>(),
   visibility: text("visibility").notNull().default("private"),

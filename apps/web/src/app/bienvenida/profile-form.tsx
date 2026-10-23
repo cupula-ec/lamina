@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { completeOnboardingAction, saveProfileAction } from "@/actions/profile";
@@ -16,6 +16,15 @@ export function ProfileForm({ mode, institutions, initial }: { mode: "onboarding
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pending, start] = useTransition();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file) { setPreview(null); return; }
+    const u = URL.createObjectURL(file);
+    setPreview(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  const clearFile = () => { setFile(null); setError(null); if (inputRef.current) inputRef.current.value = ""; };
   const nameOk = fullName.trim().length >= 3;
 
   async function upload(f: File): Promise<string | null> {
@@ -77,15 +86,24 @@ export function ProfileForm({ mode, institutions, initial }: { mode: "onboarding
           <div className="mb-2 flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={logoUrl} alt="Tu logo actual" className="h-14 max-w-48 rounded border-2 border-ink bg-white object-contain p-1" />
+            <button type="button" className="btn btn-sm" onClick={() => inputRef.current?.click()} disabled={busy}>Reemplazar</button>
             <button type="button" className="btn btn-sm btn-danger" onClick={() => void removeLogo()} disabled={busy}>Quitar logo</button>
           </div>
         )}
-        <input id="logo" className="field" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" onChange={(e) => {
+        {file && preview && (
+          <div className="mb-2 flex flex-wrap items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview} alt="Vista previa del logo nuevo" className="h-14 max-w-48 rounded border-2 border-ink bg-white object-contain p-1" />
+            <span className="text-sm"><strong>{file.name}</strong> · se aplicará al guardar</span>
+            <button type="button" className="btn btn-sm" onClick={clearFile}>Deshacer selección</button>
+          </div>
+        )}
+        <input id="logo" ref={inputRef} className="field" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" onChange={(e) => {
           const f = e.target.files?.[0] ?? null;
           if (f && f.size > 1024 * 1024) { setError("El logo supera 1 MB."); e.target.value = ""; setFile(null); return; }
           setError(null); setFile(f);
         }} />
-        <p className="hint mt-1">Tu logo se mostrará junto al de tu institución en las carátulas. PNG, JPEG, WebP o SVG, hasta 1 MB. Se convierte a PNG por seguridad.</p>
+        <p className="hint mt-1">{logoUrl || file ? "Se usa tu logo personal en tus carátulas." : "Sin logo personal, las carátulas usan solo el de tu institución (si la eliges)."} Tu logo se mostrará junto al de tu institución en las carátulas. PNG, JPEG, WebP o SVG, hasta 1 MB. Se convierte a PNG por seguridad.</p>
       </div>
       {error && <Callout tone="bad">{error}</Callout>}
       {msg && <p role="status" className="font-bold text-ok">{msg}</p>}
