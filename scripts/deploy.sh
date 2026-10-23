@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 TARGET="${1:-cupula-server-cloud-2}"; REMOTE="${2:-/opt/lamina}"
 echo "deploy -> $TARGET:$REMOTE"
 ssh "$TARGET" "sudo mkdir -p $REMOTE && sudo chown -R \$(id -u):\$(id -g) $REMOTE"
-rsync -az --delete --exclude .git --exclude node_modules --exclude .next --exclude data --exclude '.env*' --exclude e2e/test-results --exclude 'apps/web/.env.local' ./ "$TARGET:$REMOTE/"
+rsync -az --delete --exclude .git --exclude node_modules --exclude .next --exclude data --exclude '.env*' --exclude e2e/test-results --exclude 'apps/web/.env.local' --exclude apps/promo/out --exclude apps/promo/public ./ "$TARGET:$REMOTE/"
 ssh "$TARGET" "cd $REMOTE && bash scripts/provision.sh $REMOTE"
 ssh "$TARGET" "cd $REMOTE && docker build -q -f sandbox/Dockerfile -t lamina-sandbox:latest . && docker compose -f docker-compose.prod.yml build web worker renderer migrate sandbox-runner"
 # El worker solo arranca si hay clave de OpenRouter (nunca en modo fake en producción).

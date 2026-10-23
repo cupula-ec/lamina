@@ -13,3 +13,4 @@ playwright-report
 .DS_Store
 e2e/test-results
 apps/web/.env.local
+apps/promo
