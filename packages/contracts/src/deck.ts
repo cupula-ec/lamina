@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LAYOUT_IDS, LAYOUTS, type LayoutId } from "./layouts";
 import { ACCENT_IDS, DEFAULT_THEME_ID, THEME_IDS } from "./themes";
+import { DeckMotion, SlideMotion } from "./motion";
 
 /** DeckDocument v1: declarativo. Sin HTML ni scripts; texto = Markdown que se sanea al renderizar. */
 export const DECK_SCHEMA_VERSION = 1 as const;
@@ -12,6 +13,8 @@ export const ComponentRef = z.object({
   componentId: z.string().min(1).max(64).regex(/^[A-Za-z][A-Za-z0-9_-]*$/),
   version: z.string().regex(/^\d+\.\d+\.\d+$/),
   props: z.record(z.string(), z.unknown()),
+  /** Deck v2: identifica el elemento entre diapositivas (magic-move). Único dentro de cada diapositiva. */
+  key: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,39}$/).optional(),
 });
 export type ComponentRef = z.infer<typeof ComponentRef>;
 
@@ -42,6 +45,8 @@ export const Slide = z.object({
   notes: z.string().max(2000).default(""),
   build: Build.default({ steps: [] }),
   transition: Transition.default("fade"),
+  /** Deck v2: entrada de los elementos; ausente = comportamiento v2. */
+  motion: SlideMotion.optional(),
   /** Justificación registrada por la IA de diseño (qué comunica el slide y por qué esos componentes). */
   rationale: z.string().max(600).optional(),
   /** Ajustes manuales de posición, tamaño y escala por slot; ausente = geometría del layout. */
@@ -97,6 +102,8 @@ export const DeckMeta = z.object({
   author: z.string().max(120).optional(),
   branding: Branding.optional(),
   logo: LogoSpec.optional(),
+  /** Deck v2: preset de motion ("none" lo apaga); ausente = animaciones v2. */
+  motion: DeckMotion.optional(),
 });
 
 export const DeckDocument = z
@@ -127,6 +134,12 @@ export const DeckDocument = z
         if (!names.has(k)) ctx.addIssue({ code: "custom", path: ["slides", i, "adjust", k], message: `ajuste de un slot inexistente: ${k}` });
         else if (a.w !== undefined && a.x !== undefined && a.x + a.w > 1920) ctx.addIssue({ code: "custom", path: ["slides", i, "adjust", k], message: `el slot "${k}" se sale del lienzo (ancho)` });
         else if (a.h !== undefined && a.y !== undefined && a.y + a.h > 1080) ctx.addIssue({ code: "custom", path: ["slides", i, "adjust", k], message: `el slot "${k}" se sale del lienzo (alto)` });
+      }
+      const keys = new Set<string>();
+      for (const [k, r] of Object.entries(s.slots)) {
+        if (!r.key) continue;
+        if (keys.has(r.key)) ctx.addIssue({ code: "custom", path: ["slides", i, "slots", k, "key"], message: `key repetida en la diapositiva: ${r.key}` });
+        keys.add(r.key);
       }
       s.build.steps.forEach((st, j) =>
         st.reveal.forEach((r) => {

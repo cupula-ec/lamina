@@ -118,7 +118,7 @@ export const ConicFigure = defineComponent({
             <>
               <svg x={0} y={0} width={W} height={H} overflow="hidden">
                 {lines.map((l, i) => <line key={`l${i}`} className={l.cls} x1={sx(l.p1[0])} y1={sy(l.p1[1])} x2={sx(l.p2[0])} y2={sy(l.p2[1])} />)}
-                {curves.map((c, i) => <path key={`c${i}`} className="lm-curve" stroke={PLOT_COLORS[0]} d={pathOf(c, sx, sy).join(" ")} />)}
+                {curves.map((c, i) => <path key={`c${i}`} className="lm-curve" pathLength={1} stroke={PLOT_COLORS[0]} d={pathOf(c, sx, sy).join(" ")} />)}
               </svg>
               {props.showFoci && foci.map((f, i) => <g key={`f${i}`}><circle className="lm-point" cx={sx(f[0])} cy={sy(f[1])} r={9} /><Tag x={sx(f[0]) + 14} y={sy(f[1]) - 14} text={foci.length > 1 ? `F${i + 1}` : "F"} /></g>)}
               {props.showVertices && vertices.map((v, i) => <circle key={`v${i}`} cx={sx(v[0])} cy={sy(v[1])} r={7} fill="var(--lm-accent2)" />)}
@@ -159,7 +159,7 @@ export const ImplicitPlot = defineComponent({
         <Frame b={b} W={W} H={H} label={props.caption ?? props.curves.map((c) => c.label ?? c.equation).join(", ")}>
           {({ sx, sy }) => (
             <>
-              {compiled.map((f, i) => f ? <path key={`c${i}`} className="lm-curve" stroke={PLOT_COLORS[i]} d={implicitContours(f, b, 110).map((s) => `M${sx(s[0]).toFixed(1)},${sy(s[1]).toFixed(1)}L${sx(s[2]).toFixed(1)},${sy(s[3]).toFixed(1)}`).join("")} /> : null)}
+              {compiled.map((f, i) => f ? <path key={`c${i}`} className="lm-curve" pathLength={1} stroke={PLOT_COLORS[i]} d={implicitContours(f, b, 110).map((s) => `M${sx(s[0]).toFixed(1)},${sy(s[1]).toFixed(1)}L${sx(s[2]).toFixed(1)},${sy(s[3]).toFixed(1)}`).join("")} /> : null)}
               {props.points.map((p, i) => <g key={`p${i}`}><circle className="lm-point" cx={sx(p.x)} cy={sy(p.y)} r={9} />{p.label && <Tag x={sx(p.x) + 16} y={sy(p.y) - 14} text={p.label} />}</g>)}
               {props.curves.length > 1 && props.curves.map((c, i) => <g key={`lg${i}`} transform={`translate(${M.l + 24},${M.t + 30 + i * 40})`}><line x1={0} x2={48} y1={0} y2={0} stroke={PLOT_COLORS[i]} strokeWidth={6} /><text x={62} y={9} className="lm-plot-label">{c.label ?? c.equation}</text></g>)}
               {bad >= 0 && <text x={W / 2} y={H / 2} textAnchor="middle" className="lm-plot-label" data-lamina-error="props">{`No se pudo evaluar la ecuación ${bad + 1}`}</text>}
@@ -199,7 +199,7 @@ export const ParametricPlot = defineComponent({
         <Frame b={b} W={W} H={H} label={props.caption ?? props.curves.map((c) => c.label ?? `(${c.x}, ${c.y})`).join(", ")}>
           {({ sx, sy }) => (
             <>
-              {series.map((s, i) => <path key={`c${i}`} className="lm-curve" stroke={PLOT_COLORS[i]} d={pathOf(s, sx, sy).join(" ")} />)}
+              {series.map((s, i) => <path key={`c${i}`} className="lm-curve" pathLength={1} stroke={PLOT_COLORS[i]} d={pathOf(s, sx, sy).join(" ")} />)}
               {props.markers.map((m, i) => { const f = fns[m.curve]; if (!f) return null; let x = NaN, y = NaN; try { x = f.fx(m.t); y = f.fy(m.t); } catch { /* ignorar */ } if (!Number.isFinite(x) || !Number.isFinite(y)) return null; return <g key={`m${i}`}><circle className="lm-point" cx={sx(x)} cy={sy(y)} r={9} />{m.label && <Tag x={sx(x) + 16} y={sy(y) - 14} text={m.label} />}</g>; })}
               {bad >= 0 && <text x={W / 2} y={H / 2} textAnchor="middle" className="lm-plot-label" data-lamina-error="props">{`No se pudo evaluar la curva ${bad + 1}`}</text>}
             </>
@@ -244,7 +244,7 @@ export const PolarPlot = defineComponent({
                 {rings.map((r) => <circle key={`r${r}`} cx={sx(0)} cy={sy(0)} r={Math.abs(sx(r) - sx(0))} fill="none" />)}
                 {[0, 30, 60, 90, 120, 150].map((d) => { const a = (d * Math.PI) / 180; return <line key={`a${d}`} x1={sx(-R * Math.cos(a))} y1={sy(-R * Math.sin(a))} x2={sx(R * Math.cos(a))} y2={sy(R * Math.sin(a))} />; })}
               </g>
-              {series.map((s, i) => <path key={`c${i}`} className="lm-curve" stroke={PLOT_COLORS[i]} d={pathOf(s, sx, sy).join(" ")} />)}
+              {series.map((s, i) => <path key={`c${i}`} className="lm-curve" pathLength={1} stroke={PLOT_COLORS[i]} d={pathOf(s, sx, sy).join(" ")} />)}
               {props.curves.length > 1 && props.curves.map((c, i) => <g key={`lg${i}`} transform={`translate(${M.l + 24},${M.t + 30 + i * 40})`}><line x1={0} x2={48} y1={0} y2={0} stroke={PLOT_COLORS[i]} strokeWidth={6} /><text x={62} y={9} className="lm-plot-label">{c.label ?? c.r}</text></g>)}
               {bad >= 0 && <text x={W / 2} y={H / 2} textAnchor="middle" className="lm-plot-label" data-lamina-error="props">{`No se pudo evaluar la curva ${bad + 1}`}</text>}
             </>

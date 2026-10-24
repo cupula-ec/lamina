@@ -79,7 +79,7 @@ export const FunctionPlot = defineComponent({
             {shade && <path d={shade} className="lm-shade" />}
             {props.asymptotes.vertical.map((a, i) => <line key={`av${i}`} className="lm-asymptote" x1={sx(a)} x2={sx(a)} y1={m.t} y2={H - m.b} />)}
             {props.asymptotes.horizontal.map((a, i) => <line key={`ah${i}`} className="lm-asymptote" x1={m.l} x2={W - m.r} y1={sy(a)} y2={sy(a)} />)}
-            {series.map((s, i) => toPaths(s, sx, sy, y0, y1).map((d, k) => <path key={`f${i}-${k}`} d={d} className="lm-curve" stroke={PLOT_COLORS[i]} strokeDasharray={PLOT_DASH[i]} />))}
+            {series.map((s, i) => toPaths(s, sx, sy, y0, y1).map((d, k) => <path key={`f${i}-${k}`} d={d} className="lm-curve" pathLength={1} stroke={PLOT_COLORS[i]} strokeDasharray={PLOT_DASH[i]} />))}
             {props.secants.map((sc, i) => {
               const c = compiled[sc.fnIndex]; if (!c?.ok) return null;
               const ya = c.f(sc.a), yb = c.f(sc.b); if (!Number.isFinite(ya) || !Number.isFinite(yb) || sc.a === sc.b) return null;

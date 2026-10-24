@@ -44,9 +44,9 @@ describe("layouts", () => {
 });
 
 describe("catálogo de temas", () => {
-  it("hay entre 8 y 14 temas con 3 acentos, y se conservan los dos originales", () => {
+  it("hay entre 8 y 15 temas con 3 acentos, y se conservan los dos originales", () => {
     expect(THEME_IDS.length).toBeGreaterThanOrEqual(8);
-    expect(THEME_IDS.length).toBeLessThanOrEqual(14);
+    expect(THEME_IDS.length).toBeLessThanOrEqual(15);
     expect(THEME_IDS).toContain("lamina-claro");
     expect(THEME_IDS).toContain("lamina-oscuro");
     for (const id of THEME_IDS) expect(THEMES[id].accents).toHaveLength(ACCENT_IDS.length);

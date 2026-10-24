@@ -12,7 +12,7 @@ import type { Ctx } from "../ctx";
 import { expectStage } from "../run";
 import { resolveImage, type ResolvedImage } from "../images";
 import { loadProvisional, lookupFor, manifestsFor, type ProvisionalComponent } from "../catalog";
-import { LaminaError, detectArea } from "@lamina/contracts";
+import { LaminaError, detectArea, motionForTheme } from "@lamina/contracts";
 
 const SlideOut = z.object({
   slide: Slide,
@@ -234,15 +234,17 @@ export async function designGenerate(
   } finally { if (hb) clearInterval(hb); }
 
   // Logo persistente (deck v2): conserva el de la versión anterior (el docente pudo cambiarlo); si no, el del perfil, solo con el flag.
+  // Motion (deck v2): conserva el de la versión anterior; si no, el preset del tema, solo con el flag.
+  const motion = prevDeck ? prevDeck.meta.motion : (await flagEnabled(ctx.db, "v3_motion", { userId: p.ownerId, presentationId: p.id })) ? motionForTheme(style.themeId) : undefined;
   const logo = prevDeck ? prevDeck.meta.logo : (await flagEnabled(ctx.db, "v3_logo", { userId: p.ownerId, presentationId: p.id })) ? await effectiveLogo(ctx.db, p.ownerId) : undefined;
   const deck: Deck = DeckDocument.parse({
-    schemaVersion: logo ? 2 : 1, engineVersion: ENGINE_VERSION, themeId: style.themeId, accent: style.accent,
-    meta: { title: content.meta.topic.slice(0, 190), topic: content.meta.topic, level: content.meta.level, language: content.meta.language, ...(author ? { author } : {}), branding, ...(logo ? { logo } : {}) },
+    schemaVersion: logo || motion ? 2 : 1, engineVersion: ENGINE_VERSION, themeId: style.themeId, accent: style.accent,
+    meta: { title: content.meta.topic.slice(0, 190), topic: content.meta.topic, level: content.meta.level, language: content.meta.language, ...(author ? { author } : {}), branding, ...(logo ? { logo } : {}), ...(motion ? { motion } : {}) },
     slides: withBrandedCover(slides, branding),
   });
   const final = validateDeckAgainstCatalog(deck, lookup);
   // Último recurso: si algo no valida, deck 100 % determinista (nunca se bloquea al docente).
-  const fallback = (): Deck => { const d = deckFromContent(content, author, { branding, themeId: style.themeId, accent: style.accent, images: allImages }); return { ...d, schemaVersion: logo ? 2 : d.schemaVersion, meta: { ...d.meta, branding, ...(logo ? { logo } : {}) }, slides: withBrandedCover(d.slides, branding) }; };
+  const fallback = (): Deck => { const d = deckFromContent(content, author, { branding, themeId: style.themeId, accent: style.accent, images: allImages }); return { ...d, schemaVersion: logo || motion ? 2 : d.schemaVersion, meta: { ...d.meta, branding, ...(logo ? { logo } : {}), ...(motion ? { motion } : {}) }, slides: withBrandedCover(d.slides, branding) }; };
   const safe: Deck = final.ok ? final.deck : fallback();
   const pins: Record<string, { version: string; bundleHash?: string }> = {};
   const provById = new Map(prov.map((x) => [x.manifest.id, x]));
@@ -250,7 +252,7 @@ export async function designGenerate(
 
   const saved = await wf.designDrafted(ctx.db, p.id, {
     deck: safe, sha256: hashJson(safe), contentVersionId: data.contentVersionId, parentId: data.baseDeckVersionId, componentPins: pins,
-    note: data.feedback ? "Regenerado con comentarios" : "Diseño inicial", allowSchemaV2: !!logo,
+    note: data.feedback ? "Regenerado con comentarios" : "Diseño inicial", allowSchemaV2: !!logo || !!motion,
   });
   if (durable) await units.clearRun(ctx.db, { presentationId: p.id, runKey: scope.runKey }).catch(() => {}); // el resultado ya vive en la versión guardada
   // Render → detección → reparación puntual (design.repair) → design_review. Si no se puede encolar, se cierra sin reparar.

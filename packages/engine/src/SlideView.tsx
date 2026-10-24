@@ -1,7 +1,8 @@
 "use client";
 import { Component, createElement, useMemo, useState, type ReactNode } from "react";
+import type { DeckMotion } from "@lamina/contracts";
 import type { AccentId, Branding, DeckDocument, LogoSpec, Slide } from "@lamina/contracts";
-import { DEFAULT_THEME_ID, LAYOUTS, brandColorFor, institutionalAccents, logoZone, withLogoZone, type LogoZone } from "@lamina/contracts";
+import { DEFAULT_THEME_ID, LAYOUTS, MOTION_SPECS, brandColorFor, institutionalAccents, logoZone, withLogoZone, type LogoZone } from "@lamina/contracts";
 import { CANVAS, adjustedBox } from "./geometry";
 import { isSlotVisible, revealCounts } from "./build";
 import { ErrorCard } from "./primitives";
@@ -44,7 +45,7 @@ export type PageInfo = { n: number; total: number };
 
 /** Propiedades de estilo de un deck para SlideView: tema, acento, marcas y semilla de la decoración (idénticas en vista previa, publicada y capturas). */
 export function deckViewProps(deck: Pick<DeckDocument, "themeId" | "accent" | "meta">) {
-  return { themeId: deck.themeId as string, accent: deck.accent, branding: deck.meta.branding, logo: deck.meta.logo, seed: deck.meta.title };
+  return { themeId: deck.themeId as string, accent: deck.accent, branding: deck.meta.branding, logo: deck.meta.logo, motion: deck.meta.motion, seed: deck.meta.title };
 }
 
 const INTERIOR_NO_FOOTER = new Set(["title", "cover-branded", "section", "closing", "full-visual"]);
@@ -107,17 +108,21 @@ function Chrome({ layout, branding, page, logo, zone }: { layout: string; brandi
 }
 
 /** Un slide pintado en el canvas lógico 1920×1080 (sin escala). */
-export function SlideView({ slide, resolver, step = 0, themeId, accent, branding, logo, seed, page }: { slide: Slide; resolver: Resolver; step?: number; themeId?: string; accent?: AccentId; branding?: Branding; logo?: LogoSpec; seed?: string; page?: PageInfo }) {
+export function SlideView({ slide, resolver, step = 0, themeId, accent, branding, logo, motion, seed, page }: { slide: Slide; resolver: Resolver; step?: number; themeId?: string; accent?: AccentId; branding?: Branding; logo?: LogoSpec; motion?: DeckMotion; seed?: string; page?: PageInfo }) {
   const counts = useMemo(() => revealCounts(slide, step), [slide, step]);
   const zone = slide.layout === "title" || slide.layout === "cover-branded" ? null : logoZone(logo, { institution: !!branding?.institution?.logoUrl, personal: !!branding?.personalLogoUrl });
   const spec = LAYOUTS[slide.layout];
   const theme = themeId ?? DEFAULT_THEME_ID;
   const brand = brandColorFor(theme, branding?.institution?.colors?.primary); // si no contrasta con el fondo del tema, se usa el acento del tema
   // Tema institucional-marca: acentos derivados de los colores de la institución, ya ajustados en OKLCH para que contrasten (V3 §5.7).
+  // Motion V3: solo con un preset en el deck (ausente o "none" = animaciones v2). Cada elemento entra con un desfase por orden de aparición.
+  const mspec = motion && motion !== "none" ? MOTION_SPECS[motion] : null;
+  const stagger = !!mspec && slide.motion?.enter !== "none";
+  let order = 0;
   const inst = theme === "institucional-marca" ? institutionalAccents(branding?.institution?.colors?.primary, branding?.institution?.colors?.secondary) : null;
   return createElement(
     "div",
-    { className: `lm-slide lm-layout-${slide.layout}`, "data-lm-slide": slide.id, "data-theme": theme, "data-accent": accent, style: { width: CANVAS.width, height: CANVAS.height, ...(brand ? { "--lm-brand": brand } : {}), ...(inst ? { "--lm-accent": inst.accent, "--lm-accent2": inst.accent2 } : {}) } },
+    { className: `lm-slide lm-layout-${slide.layout}`, "data-lm-slide": slide.id, "data-theme": theme, "data-accent": accent, ...(mspec ? { "data-motion": stagger ? motion : "static" } : {}), style: { width: CANVAS.width, height: CANVAS.height, ...(mspec ? { "--lm-m-enter": `${mspec.enterMs}ms`, "--lm-m-stagger": `${mspec.staggerMs}ms`, "--lm-m-dist": `${mspec.distancePx}px`, "--lm-m-ease": mspec.ease, "--lm-m-draw": `${mspec.drawMs}ms` } : {}), ...(brand ? { "--lm-brand": brand } : {}), ...(inst ? { "--lm-accent": inst.accent, "--lm-accent2": inst.accent2 } : {}) } },
     createElement(SlideDecor, { themeId: theme, layout: slide.layout, seed: `${seed ?? ""}|${slide.id}` }),
     spec.slots.map((s) => {
       const ref = slide.slots[s.name];
@@ -132,7 +137,7 @@ export function SlideView({ slide, resolver, step = 0, themeId, accent, branding
           className: `lm-slot lm-slot-${s.name} ${visible ? "" : "lm-slot-hidden"}`,
           "data-lm-slot": s.name,
           "data-lm-hidden": visible ? "0" : "1",
-          style: { left: b.x, top: b.y, width: b.w, height: b.h },
+          style: { left: b.x, top: b.y, width: b.w, height: b.h, ...(stagger ? { "--lm-i": order++ } : {}), ...(ref.key ? { viewTransitionName: `lm-${ref.key}` } : {}) },
         },
         visible
           ? fs === 1

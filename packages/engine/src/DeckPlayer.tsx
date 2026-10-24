@@ -1,6 +1,8 @@
 "use client";
 import { createElement as h, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { DeckDocument } from "@lamina/contracts";
+import { MOTION_SPECS } from "@lamina/contracts";
+import { flushSync } from "react-dom";
 import { CANVAS } from "./geometry";
 import { entryStep, nextPos, prevPos, stepsOf } from "./build";
 import { SlideView, deckViewProps } from "./SlideView";
@@ -53,9 +55,22 @@ export function DeckPlayer({ deck, resolver, channelKey, presenter = false, init
     return () => ro.disconnect();
   }, []);
 
-  const go = useCallback((p: Pos, d: 1 | -1) => { setDir(d); setPos(p); }, []);
-  const next = useCallback(() => setPos((p) => { const n = nextPos(slides, p); setDir(1); return n; }), [slides]);
-  const prev = useCallback(() => setPos((p) => { const n = prevPos(slides, p); setDir(-1); return n; }), [slides]);
+  const motion = deck.meta.motion;
+  const mspec = motion && motion !== "none" ? MOTION_SPECS[motion] : null;
+  /** Magic-move: si las dos diapositivas comparten alguna `key` y el navegador lo soporta, el cambio va dentro de una View Transition. */
+  const move = useCallback((from: Pos, to: Pos, apply: () => void) => {
+    const doc = typeof document !== "undefined" ? (document as Document & { startViewTransition?: (cb: () => void) => unknown }) : null;
+    const a = slides[from.slide], b = slides[to.slide];
+    const shared = !!mspec && !!doc?.startViewTransition && from.slide !== to.slide && !!a && !!b
+      && Object.values(a.slots).some((r) => r.key && Object.values(b.slots).some((q) => q.key === r.key))
+      && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (shared) doc!.startViewTransition!(() => flushSync(apply)); else apply();
+  }, [slides, mspec]);
+  const posRef = useRef(pos);
+  posRef.current = pos;
+  const go = useCallback((p: Pos, d: 1 | -1) => { setDir(d); move(posRef.current, p, () => setPos(p)); }, [move]);
+  const next = useCallback(() => { const n = nextPos(slides, posRef.current); setDir(1); move(posRef.current, n, () => setPos(n)); }, [slides, move]);
+  const prev = useCallback(() => { const n = prevPos(slides, posRef.current); setDir(-1); move(posRef.current, n, () => setPos(n)); }, [slides, move]);
 
   // Sincronización con la ventana del presentador.
   useEffect(() => {
@@ -100,7 +115,7 @@ export function DeckPlayer({ deck, resolver, channelKey, presenter = false, init
       onTouchEnd: (e: React.TouchEvent) => { if (touch.current == null) return; const dx = e.changedTouches[0]!.clientX - touch.current; if (Math.abs(dx) > 50) (dx < 0 ? next : prev)(); touch.current = null; },
     },
       h("div", { className: "lm-canvas-pos", style: { width: CANVAS.width * scale, height: CANVAS.height * scale, visibility: fitted ? "visible" : "hidden" } },
-        h("div", { key: slide.id, className: `lm-canvas lm-tr-${slide.transition} lm-dir-${dir}`, style: { transform: `scale(${scale})`, transformOrigin: "top left", width: CANVAS.width, height: CANVAS.height } },
+        h("div", { key: slide.id, className: `lm-canvas lm-tr-${mspec && slide.transition !== "none" ? mspec.transition : slide.transition} lm-dir-${dir}`, style: { transform: `scale(${scale})`, transformOrigin: "top left", width: CANVAS.width, height: CANVAS.height } },
           h(SlideView, { slide, resolver, step: pos.step, ...deckViewProps(deck), page: { n: pos.slide + 1, total } }))),
     ),
     showChrome ? h("div", { className: "lm-chrome", "aria-live": "polite" },

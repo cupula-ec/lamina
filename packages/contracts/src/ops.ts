@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ComponentRef, LogoSpec, Slide } from "./deck";
 import { Block, SlideHint } from "./content";
 import { ACCENT_IDS, THEME_IDS } from "./themes";
+import { DeckMotion } from "./motion";
 
 /**
  * Operaciones del workspace (PLAN-v3 §5.0): un único motor de cambios para el editor web, el harness de la IA y el MCP.
@@ -26,6 +27,8 @@ export const DeckOp = z.discriminatedUnion("op", [
   z.object({ op: z.literal("set_theme"), themeId: z.enum(THEME_IDS), accent: z.enum(ACCENT_IDS).optional() }),
   /** Logo persistente (deck v2). `null` lo quita. Solo se admite con el flag de escritura v2 (ver `V2_OPS`). */
   z.object({ op: z.literal("set_logo"), logo: LogoSpec.nullable() }),
+  /** Motion del deck (deck v2). `null` lo quita (vuelve a las animaciones v2). Solo con el flag de escritura v2. */
+  z.object({ op: z.literal("set_motion"), motion: DeckMotion.nullable() }),
 ]);
 export type DeckOp = z.infer<typeof DeckOp>;
 
@@ -46,9 +49,9 @@ export type ContentOp = z.infer<typeof ContentOp>;
 export const WorkspaceOp = z.union([DeckOp, ContentOp]);
 export type WorkspaceOp = z.infer<typeof WorkspaceOp>;
 export const OP_TARGET = (o: WorkspaceOp): "deck" | "content" =>
-  (["add_slide", "replace_slide", "remove_slide", "move_slide", "set_slot", "remove_slot", "set_slot_props", "set_build", "set_notes", "set_theme", "set_logo"] as string[]).includes(o.op) ? "deck" : "content";
+  (["add_slide", "replace_slide", "remove_slide", "move_slide", "set_slot", "remove_slot", "set_slot_props", "set_build", "set_notes", "set_theme", "set_logo", "set_motion"] as string[]).includes(o.op) ? "deck" : "content";
 /** Ops que producen datos de esquema v2: solo se aplican cuando el llamador tiene el flag de escritura correspondiente. */
-export const V2_OPS: readonly string[] = ["set_logo"];
+export const V2_OPS: readonly string[] = ["set_logo", "set_motion"];
 
 export const OpAuthor = z.enum(["ia", "mcp", "docente", "sistema"]);
 export type OpAuthor = z.infer<typeof OpAuthor>;
