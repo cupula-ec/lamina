@@ -61,6 +61,23 @@ export function validateDeckAgainstCatalog(deck: unknown, extra?: CatalogLookup)
   return errors.length ? { ok: false, errors } : { ok: true, deck: d.data };
 }
 
+/**
+ * Validador para `workspace.applyOps`: solo exige que lo que CAMBIÓ cumpla el catálogo (los problemas previos de otras
+ * diapositivas no bloquean). Devuelve issues con `slideId`.
+ */
+export function deckValidatorFor(extra?: CatalogLookup) {
+  return (deck: DeckDocument, touched: string[]): { code: string; message: string; slideId?: string }[] => {
+    const v = validateDeckAgainstCatalog(deck, extra);
+    if (v.ok) return [];
+    const out: { code: string; message: string; slideId?: string }[] = [];
+    for (const e of v.errors) {
+      const m = e.match(/^slide ([^/]+)\//);
+      if (m && touched.includes(m[1]!)) out.push({ code: "catalog", message: e, slideId: m[1] });
+    }
+    return out;
+  };
+}
+
 /** Documentación compacta del catálogo para el prompt de diseño. */
 export function catalogForPrompt(manifests: ComponentManifest[] = NATIVE_MANIFESTS): string {
   return manifests
