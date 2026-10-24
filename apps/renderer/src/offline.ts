@@ -52,17 +52,20 @@ const INTERNAL = /^\/api\/(assets|branding)\//;
  */
 export async function localizeAssets(deck: unknown, fetchAsset: (url: string) => Promise<{ body: Uint8Array; type: string } | null>): Promise<{ deck: unknown; files: Record<string, Uint8Array>; missing: number }> {
   const files: Record<string, Uint8Array> = {};
-  const seen = new Map<string, string>();
+  const seen = new Map<string, Promise<string>>();
   let missing = 0;
+  const localize = async (v: string): Promise<string> => {
+    const got = await fetchAsset(v).catch(() => null);
+    if (!got) { missing++; return ""; }
+    const name = `assets/${Object.keys(files).length + 1}.${EXT[got.type] ?? "bin"}`;
+    files[name] = got.body;
+    return name;
+  };
   const walk = async (v: unknown): Promise<unknown> => {
     if (typeof v === "string" && INTERNAL.test(v)) {
-      if (seen.has(v)) return seen.get(v);
-      const got = await fetchAsset(v).catch(() => null);
-      if (!got) { missing++; seen.set(v, ""); return ""; }
-      const name = `assets/${Object.keys(files).length + 1}.${EXT[got.type] ?? "bin"}`;
-      files[name] = got.body;
-      seen.set(v, name);
-      return name;
+      // La promesa se guarda ANTES de esperar: la misma imagen usada en varios sitios (en paralelo) se descarga una sola vez.
+      if (!seen.has(v)) seen.set(v, localize(v));
+      return seen.get(v);
     }
     if (Array.isArray(v)) return Promise.all(v.map(walk));
     if (v && typeof v === "object") return Object.fromEntries(await Promise.all(Object.entries(v).map(async ([k, x]) => [k, await walk(x)])));
