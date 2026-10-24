@@ -113,18 +113,23 @@ describe("RateLimiter", () => {
   });
 });
 
-import { extractJson, repairJson } from "../src/client";
-describe("reparación de JSON", () => {
-  it("recorta prosa, fences y cierra salida truncada", () => {
+import { extractJson } from "../src/client";
+describe("extracción de JSON", () => {
+  it("recorta prosa y fences, quita comas finales y comillas tipográficas", () => {
     expect(extractJson('Claro, aquí tienes:\n```json\n{"a":1,"b":[1,2,]}\n```\nListo.')).toEqual({ a: 1, b: [1, 2] });
-    expect(extractJson('{"a":{"b":[1,2')).toEqual({ a: { b: [1, 2] } });
-    expect(extractJson('{"a":"hola')).toEqual({ a: "hola" });
     expect(extractJson('We are given {"a": "x}"} and more {"z":1}')).toEqual({ a: "x}" });
     expect(extractJson('{“a”: 1}')).toEqual({ a: 1 });
   });
-  it("sin JSON lanza", () => {
+  it("no toca un JSON ya válido (comas dentro de cadenas)", () => {
+    expect(extractJson('{"tsx":"const a = [1, 2, ]; f({x:1, })"}')).toEqual({ tsx: "const a = [1, 2, ]; f({x:1, })" });
+  });
+  it("no «cierra» salida truncada ni acepta prosa; es rápido con muchos espacios", () => {
+    expect(() => extractJson('{"slides":[{"id":"a","text":"La derivada es el lím')).toThrow();
+    expect(() => extractJson('{"n":12')).toThrow();
     expect(() => extractJson("We are giving you the answer in English")).toThrow();
-    expect(repairJson("nada")).toBe("nada");
+    const t0 = Date.now();
+    expect(() => extractJson('{"a":"x"' + " ".repeat(200_000))).toThrow();
+    expect(Date.now() - t0).toBeLessThan(500);
   });
 });
 
@@ -140,5 +145,13 @@ describe("aborto del job", () => {
     await expect(client.structured({ role: "content", task: "t", schema: S, system: "s", user: "u" })).rejects.toMatchObject({ name: "JobAbortedError" });
     expect(calls).toBe(1);
     expect(hk.calls).toHaveLength(0);
+  });
+});
+
+describe("OpenRouterProvider: lectura del cuerpo", () => {
+  it("un corte durante res.text() es ProviderError(unavailable), no un AbortError suelto", async () => {
+    const f = vi.fn(async () => ({ ok: true, status: 200, headers: new Headers(), text: async () => { throw new DOMException("aborted", "AbortError"); } }) as unknown as Response);
+    const p = new OpenRouterProvider("k", { fetch: f as any });
+    await expect(p.chat({ role: "content", task: "t", model: "google/gemma-4-31b-it:free", system: "", user: "", json: true })).rejects.toBeInstanceOf(ProviderError);
   });
 });

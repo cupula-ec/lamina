@@ -216,6 +216,10 @@ export const institutions = pgTable("institutions", {
   secondaryColor: text("secondary_color"),
   fontId: text("font_id"),
   active: boolean("active").notNull().default(true),
+  /** V3: institución creada por un docente («otra universidad»); null = sembrada por el sistema. */
+  createdBy: text("created_by"),
+  /** V3: las existentes quedan verificadas; las creadas por docentes esperan a un admin y no se listan a otros. */
+  verified: boolean("verified").notNull().default(true),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
@@ -233,6 +237,22 @@ export const userProfiles = pgTable("user_profiles", {
   personalLogoPath: text("personal_logo_path"),
   personalLogoMime: text("personal_logo_mime"),
   onboardedAt: ts("onboarded_at"),
+  /** V3 (§5.9): todo nullable; null = sin dato. */
+  subjects: text("subjects").array(),
+  career: text("career"),
+  faculty: text("faculty"),
+  yearsTeaching: integer("years_teaching"),
+  modality: text("modality"), // presencial | virtual | hibrida
+  levels: text("levels").array(), // grado | posgrado | tecnologico | otro
+  techFamiliarity: integer("tech_familiarity"), // 1..5
+  aiFamiliarity: integer("ai_familiarity"), // 1..5
+  /** Consentimiento de investigación: separado y opcional; no reemplaza el consentimiento general. */
+  researchConsentAt: ts("research_consent_at"),
+  researchConsentVersion: text("research_consent_version"),
+  researchConsentWithdrawnAt: ts("research_consent_withdrawn_at"),
+  /** V3 (§5.7): logo por defecto del docente. null = comportamiento v2. */
+  logoCorner: text("logo_corner"), // tl | tr | bl | br | none
+  logoWhich: text("logo_which"), // institution | personal | both
   /** Cuotas por usuario que sobrescriben los valores por defecto (clave → límite diario). */
   quotaOverrides: jsonb("quota_overrides").$type<Record<string, number>>().notNull().default({}),
   createdAt: createdAt(),

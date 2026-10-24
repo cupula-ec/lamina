@@ -87,16 +87,24 @@ export function beginContentGeneration(db: Db, id: string, ownerId: string, pend
   });
 }
 
+/** Puerta de escritura (PLAN-v3 §4, lectores antes que escritores): nada escribe schemaVersion > 1 hasta que se active el flag que lo permite. */
+function assertWritable(doc: unknown, allowV2: boolean | undefined) {
+  const v = (doc as { schemaVersion?: number } | null)?.schemaVersion;
+  if (!allowV2 && typeof v === "number" && v > 1) throw new LaminaError("invalid_input", `schemaVersion ${v} todavía no se admite para guardar`, 400);
+}
+
 export async function addContentVersion(
   tx: Tx,
   presentationId: string,
-  v: { content: unknown; sha256: string; authorKind: "ia" | "docente" | "mcp"; parentId: string | null; note?: string },
+  v: { content: unknown; sha256: string; authorKind: "ia" | "docente" | "mcp"; parentId: string | null; note?: string; allowSchemaV2?: boolean },
 ) {
+  assertWritable(v.content, v.allowSchemaV2);
+  const { allowSchemaV2: _a, ...rest } = v;
   const [{ n } = { n: 0 }] = await tx
     .select({ n: sql<number>`coalesce(max(${contentVersions.n}),0)::int` })
     .from(contentVersions)
     .where(eq(contentVersions.presentationId, presentationId));
-  const [row] = await tx.insert(contentVersions).values({ presentationId, n: n + 1, ...v }).returning();
+  const [row] = await tx.insert(contentVersions).values({ presentationId, n: n + 1, ...rest }).returning();
   return row!;
 }
 
@@ -217,13 +225,16 @@ export async function addDeckVersion(
   v: {
     deck: unknown; sha256: string; contentVersionId: string; authorKind: "ia" | "docente" | "mcp"; parentId: string | null;
     kind?: "design" | "polish" | "repair" | "edit" | "style"; note?: string; componentPins?: Record<string, { version: string; bundleHash?: string }>; issues?: unknown[];
+    allowSchemaV2?: boolean;
   },
 ) {
+  assertWritable(v.deck, v.allowSchemaV2);
+  const { allowSchemaV2: _a, ...rest } = v;
   const [{ n } = { n: 0 }] = await tx
     .select({ n: sql<number>`coalesce(max(${deckVersions.n}),0)::int` })
     .from(deckVersions)
     .where(eq(deckVersions.presentationId, presentationId));
-  const [row] = await tx.insert(deckVersions).values({ presentationId, n: n + 1, ...v }).returning();
+  const [row] = await tx.insert(deckVersions).values({ presentationId, n: n + 1, ...rest }).returning();
   return row!;
 }
 

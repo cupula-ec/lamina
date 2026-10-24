@@ -21,7 +21,7 @@ export default async function Instituciones() {
       <h1 className="mt-3 text-3xl font-bold">Instituciones</h1>
       <p className="mt-1 max-w-[65ch] text-ink-2">Las instituciones activas aparecen en el listado de los docentes y su logo y colores se usan en la carátula de las presentaciones.</p>
       <div className="mt-6">
-        <InstitutionsPanel items={rows.map((i) => ({ id: i.id, name: i.name, short: i.short, slug: i.slug, primaryColor: i.primaryColor, secondaryColor: i.secondaryColor, active: i.active, logoUrl: institutionLogoUrl(i) ?? null, users: nBy.get(i.id) ?? 0 }))} />
+        <InstitutionsPanel items={rows.map((i) => ({ id: i.id, name: i.name, short: i.short, slug: i.slug, primaryColor: i.primaryColor, secondaryColor: i.secondaryColor, active: i.active, logoUrl: institutionLogoUrl(i) ?? null, users: nBy.get(i.id) ?? 0, verified: i.verified }))} />
       </div>
     </AppShell>
   );

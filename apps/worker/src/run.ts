@@ -1,6 +1,6 @@
 import { LaminaError } from "@lamina/contracts";
 import { QuotaWaitError } from "@lamina/ai";
-import { runContext, schema, workflow as wf } from "@lamina/db";
+import { flagEnabled, runContext, schema, workflow as wf } from "@lamina/db";
 import { eq } from "drizzle-orm";
 import type { Ctx } from "./ctx";
 
@@ -15,14 +15,24 @@ export const friendly = (e: unknown): string => {
  * Envuelve un handler: cuota agotada → quota_wait con hora de reanudación; error definitivo → failed_recoverable
  * (con mensaje amigable y registro); error transitorio → relanza para que pg-boss reintente con backoff.
  */
+/**
+ * Señal de aborto del job SOLO con jobs durables activos (v3_durable_jobs): sin reanudación, cortar un handler largo perdería el
+ * trabajo en cada reintento (con v2 el handler seguía en segundo plano y terminaba entregando). Se decide por presentación.
+ */
+export async function jobSignal(ctx: Ctx, presentationId: string, ownerId: string | undefined, signal: AbortSignal | undefined) {
+  if (!signal || !ownerId) return undefined;
+  return (await flagEnabled(ctx.db, "v3_durable_jobs", { userId: ownerId, presentationId })) ? signal : undefined;
+}
+
 export function guarded<P extends { presentationId: string }>(ctx: Ctx, name: string, handler: (ctx: Ctx, data: P) => Promise<void>, retryLimit = 2) {
   return async (jobs: { data: P; retryCount?: number; signal?: AbortSignal }[]) => {
     for (const job of jobs) {
       const id = job.data.presentationId;
-      const [cur] = await ctx.db.select({ epoch: schema.presentations.cancelEpoch }).from(schema.presentations).where(eq(schema.presentations.id, id));
+      const [cur] = await ctx.db.select({ epoch: schema.presentations.cancelEpoch, ownerId: schema.presentations.ownerId }).from(schema.presentations).where(eq(schema.presentations.id, id));
       if (!cur) continue;
+      const signal = await jobSignal(ctx, id, cur.ownerId, job.signal);
       try {
-        await runContext.run({ presentationId: id, epoch: cur.epoch, signal: job.signal }, async () => {
+        await runContext.run({ presentationId: id, epoch: cur.epoch, signal }, async () => {
           try {
             await handler(ctx, job.data);
           } catch (e) {
@@ -33,8 +43,14 @@ export function guarded<P extends { presentationId: string }>(ctx: Ctx, name: st
               return;
             }
             // pg-boss expiró el handler (timeout/cierre): suelta todo; el reintento reanuda desde las unidades ya terminadas.
-            if (job.signal?.aborted || (e as Error).name === "JobAbortedError" || (e as Error).name === "AbortError") {
-              ctx.log(`${name}: abortado por expiración/cierre; se reanudará`, { id });
+            // Solo cuenta como aborto del job la señal del propio job (un timeout de llamada es un fallo del modelo, no del job).
+            if (signal?.aborted) {
+              const attempts = (job.retryCount ?? 0) + 1;
+              if (attempts > retryLimit) {
+                ctx.log(`${name}: abortado en el último intento`, { id });
+                await wf.failJob(ctx.db, id, "El trabajo tardó más de lo permitido y se detuvo. Las diapositivas ya generadas se conservan: puedes reintentar.");
+                await ctx.db.insert(schema.events).values({ name: "job_failed", presentationId: id, data: { job: name, code: "timeout" } });
+              } else ctx.log(`${name}: abortado por expiración/cierre; pg-boss lo reintenta y se reanuda`, { id });
               return;
             }
             const code = e instanceof LaminaError ? e.code : "internal";

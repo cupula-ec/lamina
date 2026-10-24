@@ -37,8 +37,8 @@ export type StructuredOpts<T> = {
   check?: (value: T) => string[];
 };
 
-/** Primer objeto/arreglo JSON equilibrado del texto (respeta cadenas y escapes). Si queda abierto, devuelve el resto para cerrarlo. */
-function balancedSlice(t: string): { text: string; open: string[] } | null {
+/** Primer objeto/arreglo JSON equilibrado del texto (respeta cadenas y escapes). null si no hay o quedó abierto (salida truncada). */
+function balancedSlice(t: string): string | null {
   const start = t.search(/[\[{]/);
   if (start < 0) return null;
   const stack: string[] = [];
@@ -56,37 +56,53 @@ function balancedSlice(t: string): { text: string; open: string[] } | null {
     else if (c === "{") stack.push("}");
     else if (c === "[") stack.push("]");
     else if (c === "}" || c === "]") {
-      if (stack.pop() !== c) return { text: t.slice(start, i), open: [] };
-      if (!stack.length) return { text: t.slice(start, i + 1), open: [] };
+      if (stack.pop() !== c) return null;
+      if (!stack.length) return t.slice(start, i + 1);
     }
   }
-  return { text: t.slice(start) + (inStr ? '"' : ""), open: stack.reverse() };
+  return null;
 }
 
-/** Reparación barata de JSON de modelos pequeños: prosa alrededor, fences, comas finales, comillas tipográficas y salida truncada. */
-export function repairJson(text: string): string {
-  let t = text.trim();
-  const fence = t.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/i);
-  if (fence && /[\[{]/.test(fence[1]!)) t = fence[1]!.trim();
-  const b = balancedSlice(t);
-  if (!b) return t;
-  let out = b.text.replace(/[\u201c\u201d]/g, '"').replace(/,\s*([}\]])/g, "$1");
-  if (b.open.length) out = out.replace(/[,:\s]+$/, "") + b.open.join("");
-  return out.replace(/,\s*([}\]])/g, "$1");
-}
-
-export function extractJson(text: string): unknown {
-  try {
-    return JSON.parse(repairJson(text));
-  } catch (first) {
-    // Último recurso: el recorte clásico (primer { o [ hasta el último } o ]).
-    let t = text.trim();
-    const start = t.search(/[\[{]/);
-    if (start > 0) t = t.slice(start);
-    const end = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
-    if (end >= 0) t = t.slice(0, end + 1);
-    try { return JSON.parse(t); } catch { throw first; }
+/** Quita comas finales y normaliza comillas tipográficas SOLO fuera de cadenas (una sola pasada, lineal). */
+function tidyOutsideStrings(t: string): string {
+  let out = "";
+  let inStr = false;
+  let smart = false; // la cadena se abrió con comilla tipográfica: se cierra con ” (o con ")
+  let esc = false;
+  for (let i = 0; i < t.length; i++) {
+    let c = t[i]!;
+    if (inStr) {
+      if (esc) { esc = false; out += c; continue; }
+      if (c === "\\") { esc = true; out += c; continue; }
+      if (c === '"' || (smart && c === "\u201d")) { inStr = false; smart = false; out += '"'; continue; }
+      out += c;
+      continue;
+    }
+    if (c === "\u201c" || c === "\u201d") { smart = true; inStr = true; out += '"'; continue; }
+    if (c === '"') { inStr = true; out += c; continue; }
+    if (c === ",") {
+      let j = i + 1;
+      while (j < t.length && /\s/.test(t[j]!)) j++;
+      if (t[j] === "}" || t[j] === "]") continue;
+    }
+    out += c;
   }
+  return out;
+}
+
+/**
+ * Extrae el JSON de la respuesta de un modelo: prosa alrededor, fences, comas finales y comillas tipográficas.
+ * Un JSON ya válido NO se toca. Una salida truncada (estructura abierta) NO se «cierra»: lanza para que cuente como
+ * respuesta inválida y se pida de nuevo (cerrarla aceptaría texto cortado a media frase como si estuviera completo).
+ */
+export function extractJson(text: string): unknown {
+  let t = text.trim();
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence && /[\[{]/.test(fence[1]!)) t = fence[1]!.trim();
+  const slice = balancedSlice(t) ?? balancedSlice(text);
+  if (!slice) throw new SyntaxError("sin un objeto JSON completo (¿respuesta truncada o en prosa?)");
+  try { return JSON.parse(slice); } catch { /* se intenta ordenar fuera de cadenas */ }
+  return JSON.parse(tidyOutsideStrings(slice));
 }
 
 export function schemaPrompt(schema: ZodType): string {

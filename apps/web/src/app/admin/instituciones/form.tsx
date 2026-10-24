@@ -3,9 +3,9 @@ import { useState, useTransition } from "react";
 import { Callout } from "@/components/ui/Callout";
 import { useRouter } from "next/navigation";
 import { BRAND_MIN_CONTRAST, BRAND_THEMES, brandColorFor, contrastRatio } from "@lamina/contracts";
-import { createInstitutionAction, deleteInstitutionAction, setInstitutionActiveAction, updateInstitutionAction } from "@/actions/institutions";
+import { createInstitutionAction, deleteInstitutionAction, setInstitutionActiveAction, updateInstitutionAction, verifyInstitutionAction } from "@/actions/institutions";
 
-type Item = { id: string; name: string; short: string; slug: string; primaryColor: string | null; secondaryColor: string | null; active: boolean; logoUrl: string | null; users: number };
+type Item = { id: string; name: string; short: string; slug: string; primaryColor: string | null; secondaryColor: string | null; active: boolean; logoUrl: string | null; users: number; verified: boolean };
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const FALLBACK = "#003976";
 
@@ -64,7 +64,7 @@ function Row({ item, onDone }: { item: Item; onDone: () => void }) {
     <li className="p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="font-bold">{item.name} <span className="font-normal text-ink-2">· {item.short}</span></p>
-        <p className="flex flex-wrap gap-2 text-xs"><span className={`tag ${item.active ? "tag-ok" : "tag-mute"}`}>{item.active ? "Activa" : "Desactivada"}</span><span className="tag tag-mute">{item.users} docentes</span></p>
+        <p className="flex flex-wrap gap-2 text-xs">{!item.verified && <span className="tag tag-warn">Creada por un docente · pendiente de verificar</span>}<span className={`tag ${item.active ? "tag-ok" : "tag-mute"}`}>{item.active ? "Activa" : "Desactivada"}</span><span className="tag tag-mute">{item.users} docentes</span></p>
       </div>
       <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_auto]">
         <form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); run(() => updateInstitutionAction({ id: item.id, name: f.name, short: f.short, primaryColor: f.primaryColor.trim() || null, secondaryColor: f.secondaryColor.trim() || null, active: item.active }), "Cambios guardados."); }}>
@@ -82,6 +82,7 @@ function Row({ item, onDone }: { item: Item; onDone: () => void }) {
           <div className="flex flex-wrap gap-2 sm:col-span-2">
             <button className="btn btn-sm btn-primary" disabled={pending}>Guardar</button>
             {logo && <button type="button" className="btn btn-sm" onClick={() => void removeLogo()}>Quitar logo</button>}
+            {!item.verified && <button type="button" className="btn btn-sm btn-primary" disabled={pending} onClick={() => run(() => verifyInstitutionAction({ id: item.id }), "Verificada: ya la ven todos los docentes.")}>Verificar</button>}
             <button type="button" className="btn btn-sm" disabled={pending} onClick={() => run(() => setInstitutionActiveAction({ id: item.id, active: !item.active }), item.active ? "Desactivada." : "Activada.")}>{item.active ? "Desactivar" : "Activar"}</button>
             <button type="button" className="btn btn-sm btn-danger" disabled={pending || item.users > 0} title={item.users > 0 ? "Tiene docentes asignados: desactívala" : undefined} onClick={() => { if (confirm(`¿Eliminar ${item.name}? No se puede deshacer.`)) run(() => deleteInstitutionAction({ id: item.id }), "Eliminada."); }}>Eliminar</button>
           </div>

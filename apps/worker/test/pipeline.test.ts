@@ -257,3 +257,41 @@ describe("jobs durables (V3 bloque 1)", () => {
     expect(await h.db.select().from(schema.workUnits).where(eq(schema.workUnits.presentationId, p.id))).toHaveLength(0);
   });
 });
+
+describe("guarded: aborto del job (revisión bloques 0-1)", () => {
+  async function pres() {
+    const o = await user();
+    const p = await wf.createPresentation(h.db, o, { title: "t", topic: "La derivada", level: "U", objective: "o" });
+    await wf.beginContentGeneration(h.db, p.id, o, { name: "research", payload: {} });
+    return { o, p };
+  }
+  const stageOf = async (id: string) => (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, id)))[0]!.stage;
+
+  it("con jobs durables: señal abortada en el último intento → failed_recoverable (no queda colgado)", async () => {
+    const { setFlag } = await import("@lamina/db");
+    await setFlag(h.db, "v3_durable_jobs", { mode: "all" });
+    const { p } = await pres();
+    const ac = new AbortController(); ac.abort();
+    const handler = async () => { throw Object.assign(new Error("job abortado"), { name: "JobAbortedError" }); };
+    await guarded(ctx, "x", handler as any)([{ data: { presentationId: p.id } as any, retryCount: 2, signal: ac.signal }]);
+    expect(await stageOf(p.id)).toBe("failed_recoverable");
+  });
+  it("con jobs durables: abortado antes del último intento → no falla (pg-boss reintenta)", async () => {
+    const { p } = await pres();
+    const ac = new AbortController(); ac.abort();
+    await guarded(ctx, "x", (async () => { throw new Error("cortado"); }) as any)([{ data: { presentationId: p.id } as any, retryCount: 0, signal: ac.signal }]);
+    expect(await stageOf(p.id)).toBe("researching");
+  });
+  it("sin el flag la señal NO se usa: un error cualquiera sigue el camino v2", async () => {
+    const { setFlag } = await import("@lamina/db");
+    await setFlag(h.db, "v3_durable_jobs", { mode: "off" });
+    const { p } = await pres();
+    const ac = new AbortController(); ac.abort();
+    let sawSignal: unknown = "unset";
+    const { runSignal } = await import("@lamina/db");
+    await guarded(ctx, "x", (async () => { sawSignal = runSignal(); throw new LaminaError("validation_failed", "x", 422); }) as any)([{ data: { presentationId: p.id } as any, retryCount: 0, signal: ac.signal }]);
+    expect(sawSignal).toBeUndefined();
+    expect(await stageOf(p.id)).toBe("failed_recoverable");
+    await setFlag(h.db, "v3_durable_jobs", { mode: "all" });
+  });
+});

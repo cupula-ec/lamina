@@ -18,6 +18,9 @@ describe("flags V3", () => {
     expect(resolveFlag(cfg, "v3_areas", { userId: "x" })).toBe(false);
     expect(resolveFlag(cfg, "v3_motion", { userId: "x" })).toBe(true);
   });
+  it("`off` apaga también los overrides (interruptor general)", () => {
+    expect(resolveFlag({ v3_images: { mode: "off", users: { u1: true }, presentations: { p1: true } } }, "v3_images", { userId: "u1", presentationId: "p1" })).toBe(false);
+  });
   it("overrides: presentación > usuario > modo", () => {
     expect(resolveFlag(cfg, "v3_images", { userId: "u9" })).toBe(true);
     expect(resolveFlag(cfg, "v3_images", { userId: "t1", presentationId: "p1" })).toBe(false);

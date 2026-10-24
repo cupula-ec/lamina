@@ -70,7 +70,7 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
         });
       } catch (e) {
         // JSON ilegible / respuesta inválida de todos los modelos: cuenta como un intento, no aborta el bucle.
-        if (e instanceof LaminaError && e.code === "provider_failed") {
+        if (e instanceof LaminaError && e.code === "provider_failed" && !/credenciales/i.test(e.message)) {
           errors = [e.message.slice(0, 300)];
           ctx.log(`component ${data.suggestedName}: intento ${attempt} sin respuesta válida`, { error: errors[0] });
           continue;

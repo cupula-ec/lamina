@@ -7,7 +7,9 @@ cd "$(dirname "$0")/.."
 TARGET="${1:-cupula-server-cloud-2}"; REMOTE="${2:-/opt/lamina}"
 echo "deploy -> $TARGET:$REMOTE"
 SERVICES="${SERVICES:-web worker renderer sandbox-runner}"
+[[ "$SERVICES" =~ ^(web|worker|renderer|sandbox-runner)( (web|worker|renderer|sandbox-runner))*$ ]] || { echo "SERVICES inválido: '$SERVICES' (use nombres separados por espacio: web worker renderer sandbox-runner)"; exit 2; }
 has() { [[ " $SERVICES " == *" $1 "* ]]; }
+drains() { has worker || has renderer; }   # el renderer también ejecuta jobs (render): se drenan antes de recrearlo
 DRAIN_SECS="${DRAIN_SECS:-120}"   # espera máx. a que terminen los jobs en curso antes de recrear contenedores
 # SQL por stdin contra el postgres de producción (tolera que aún no exista: primer deploy).
 pgq() { ssh "$TARGET" "cd $REMOTE && docker compose -f docker-compose.prod.yml exec -T postgres sh -c 'psql -U \$POSTGRES_USER -d \$POSTGRES_DB -At -v ON_ERROR_STOP=1'" 2>/dev/null || true; }
@@ -16,13 +18,13 @@ rsync -az --delete --exclude .git --exclude node_modules --exclude .next --exclu
 # apps/promo (video) no se despliega: lockfile y workspace salen del último commit, no del árbol de trabajo.
 for f in pnpm-lock.yaml pnpm-workspace.yaml; do git show "HEAD:$f" | ssh "$TARGET" "cat > $REMOTE/$f"; done
 ssh "$TARGET" "cd $REMOTE && bash scripts/provision.sh $REMOTE"
-ssh "$TARGET" "cd $REMOTE && docker build -q -f sandbox/Dockerfile -t lamina-sandbox:latest . && docker compose -f docker-compose.prod.yml build migrate $SERVICES"
+ssh "$TARGET" "cd $REMOTE && $(has sandbox-runner && echo 'docker build -q -f sandbox/Dockerfile -t lamina-sandbox:latest . &&') docker compose -f docker-compose.prod.yml build migrate $SERVICES"
 # Jobs en curso: se espera a que drenen (DRAIN_SECS) y, lo que siga activo, se respalda y se reencola tras el deploy.
-for ((i = 0; has worker && i < DRAIN_SECS; i += 10)); do
+for ((i = 0; drains && i < DRAIN_SECS; i += 10)); do
   [[ -n "$(echo "select 1 from pgboss.job where state='active' limit 1" | pgq)" ]] || break
   echo "esperando jobs activos ($i/${DRAIN_SECS}s)..."; sleep 10
 done
-ACTIVE=""; if has worker; then ACTIVE="$(echo "select id from pgboss.job where state='active'" | pgq)"; fi
+ACTIVE=""; if drains; then ACTIVE="$(echo "select id from pgboss.job where state='active'" | pgq)"; fi
 if [[ -n "$ACTIVE" ]]; then
   echo "AVISO: jobs activos que se reencolarán tras el deploy:"; echo "$ACTIVE"
   echo "$ACTIVE" | ssh "$TARGET" "cat > /var/tmp/lamina-active-jobs-\$(date +%s).txt"

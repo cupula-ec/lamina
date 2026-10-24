@@ -33,7 +33,7 @@ Hasta que existan los jobs durables (bloque 1) **no desplegar el worker con jobs
 
 ## Feature flags
 
-Se guardan en `app_settings` (clave `v3_flags`), sin deploy. Orden de activación: `testers` → `volunteers` → `all`. Para apagar: `mode: "off"`.
+Se guardan en `app_settings` (clave `v3_flags`), sin deploy. Orden de activación: `testers` → `volunteers` → `all`. Para apagar: `mode: "off"` (apaga también los overrides por usuario/presentación; para activar a una sola persona usar `mode: "testers"` con su id).
 
 ```sql
 -- Ver
@@ -49,7 +49,7 @@ Nombres: ver `FLAG_NAMES` en `packages/db/src/flags.ts`. La caché es de 15 s.
 
 ## Timeouts de jobs
 
-El timeout real lo aplica el worker con `QUEUE_CONFIG` (`packages/jobs/src/index.ts`) al crear la cola, **no** la fila ya encolada. Se puede sobrescribir por entorno sin tocar código: `LAMINA_JOB_EXPIRE_DESIGN_GENERATE=2400` (segundos, mínimo 30) y reiniciar el worker.
+El timeout lo fija el worker con `QUEUE_CONFIG` (`packages/jobs/src/index.ts`) en la COLA al arrancar (`createQueue` + `updateQueue`) y cada job lo copia al encolarse: **los jobs ya encolados conservan su valor**. Se puede sobrescribir por entorno sin tocar código: `LAMINA_JOB_EXPIRE_DESIGN_GENERATE=2400` (segundos, mínimo 30) y reiniciar el worker; afecta a los jobs que se encolen después.
 
 ## Reversión
 

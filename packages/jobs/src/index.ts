@@ -15,7 +15,10 @@ export const QUEUE_CONFIG: Record<JobName, { expireInSeconds: number; retryLimit
   render: { expireInSeconds: 5 * 60, retryLimit: 2, policy: "standard" },
 };
 
-/** Timeout real de un job (s): el worker aplica ESTE valor (la fila ya encolada no cuenta). Sobrescribible por env: LAMINA_JOB_EXPIRE_<NOMBRE> (p. ej. LAMINA_JOB_EXPIRE_DESIGN_REPAIR=1800). */
+/**
+ * Timeout de un job (s). Se aplica a la COLA al arrancar el worker (createQueue + updateQueue) y se copia a cada job al encolarse:
+ * los jobs ya encolados conservan el valor con el que nacieron. Sobrescribible por env: LAMINA_JOB_EXPIRE_<NOMBRE> (p. ej. LAMINA_JOB_EXPIRE_DESIGN_REPAIR=1800).
+ */
 export function expireSeconds(name: JobName, env: Record<string, string | undefined> = process.env): number {
   const v = Number(env[`LAMINA_JOB_EXPIRE_${name.replace(/\W+/g, "_").toUpperCase()}`]);
   return Number.isFinite(v) && v >= 30 ? Math.floor(v) : QUEUE_CONFIG[name].expireInSeconds;
@@ -30,6 +33,8 @@ export async function createBoss(connectionString: string): Promise<Boss> {
       policy: c.policy, expireInSeconds: expireSeconds(name as JobName), retryLimit: c.retryLimit, retryDelay: 20, retryBackoff: true, retryDelayMax: 300,
       deleteAfterSeconds: 3 * 24 * 3600, retentionSeconds: 3 * 24 * 3600,
     });
+    // createQueue no pisa una cola existente: updateQueue sí, para que el timeout nuevo surta efecto en producción.
+    await boss.updateQueue(name, { expireInSeconds: expireSeconds(name as JobName), retryLimit: c.retryLimit });
   }
   return boss;
 }

@@ -138,7 +138,7 @@ export const ContentDraft = z.object({
 export type ContentDraft = z.infer<typeof ContentDraft>;
 
 /** Variante que se pide al modelo: sin warnings (los añade el validador). */
-export const ContentDraftModelOutput = ContentDraft.omit({ warnings: true, verification: true });
+export const ContentDraftModelOutput = ContentDraft.omit({ warnings: true, verification: true }).extend({ schemaVersion: z.literal(CONTENT_SCHEMA_VERSION) });
 
 /** Lector tolerante: acepta v1 y v2. */
 export function parseContentAny(raw: unknown): ContentDraft {

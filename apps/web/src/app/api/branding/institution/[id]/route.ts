@@ -3,12 +3,20 @@ import { NextResponse } from "next/server";
 import { LaminaError } from "@lamina/contracts";
 import { institutionLogoUrl, schema } from "@lamina/db";
 import { getDb } from "@/lib/db";
-import { requireAdminApi } from "@/lib/session";
+import { requireUserApi } from "@/lib/session";
 import { processLogo } from "@/lib/branding-image";
 import { isUuid, logoHeaders, newLogoName, rateLimitUpload, readLogoUpload, readLogoVersion, retireLogos, saveLogo } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+/** Admin, o el docente que creó la institución mientras no esté verificada. */
+async function authorize(inst: { createdBy: string | null; verified: boolean }) {
+  const u = await requireUserApi();
+  if (u.role === "admin") return u;
+  if (inst.createdBy === u.id && !inst.verified) return u;
+  throw new LaminaError("forbidden", "Solo administradores", 403);
+}
 
 const fail = (e: unknown) => {
   if (e instanceof LaminaError) return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
@@ -28,12 +36,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const admin = await requireAdminApi();
     const { id } = await params;
     if (!isUuid(id)) throw new LaminaError("not_found", "Institución no encontrada", 404);
     const db = getDb();
     const [inst] = await db.select().from(schema.institutions).where(eq(schema.institutions.id, id));
     if (!inst) throw new LaminaError("not_found", "Institución no encontrada", 404);
+    const admin = await authorize(inst);
     rateLimitUpload(`inst:${admin.id}`);
     const { png } = await processLogo(await readLogoUpload(req));
     const name = newLogoName(id);
@@ -46,12 +54,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdminApi();
     const { id } = await params;
     if (!isUuid(id)) throw new LaminaError("not_found", "Institución no encontrada", 404);
     const db = getDb();
     const [inst] = await db.select().from(schema.institutions).where(eq(schema.institutions.id, id));
     if (!inst) throw new LaminaError("not_found", "Institución no encontrada", 404);
+    await authorize(inst);
     await db.update(schema.institutions).set({ logoPath: null, logoMime: null, updatedAt: new Date() }).where(eq(schema.institutions.id, id));
     await retireLogos("institution", id, null);
     return NextResponse.json({ ok: true });

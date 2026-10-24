@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import { appSettings } from "./schema";
 
@@ -16,10 +16,10 @@ export type FlagConfig = Partial<Record<FlagName, FlagRule>>;
 
 export const FLAGS_KEY = "v3_flags";
 
-/** Resolución pura: override por presentación > override por usuario > modo global. */
+/** Resolución pura: `off` apaga todo; si no, override por presentación > override por usuario > modo global. */
 export function resolveFlag(cfg: FlagConfig | null | undefined, name: FlagName, ctx: { userId?: string; presentationId?: string } = {}): boolean {
   const r = cfg?.[name];
-  if (!r) return false;
+  if (!r || r.mode === "off") return false; // `off` es el interruptor general: apaga también los overrides
   if (ctx.presentationId && r.presentations && ctx.presentationId in r.presentations) return !!r.presentations[ctx.presentationId];
   if (ctx.userId && r.users && ctx.userId in r.users) return !!r.users[ctx.userId];
   switch (r.mode) {
@@ -47,9 +47,10 @@ export async function flagEnabled(db: Db, name: FlagName, ctx: { userId?: string
   try { return resolveFlag(await loadFlags(db), name, ctx); } catch { return false; }
 }
 
+/** Atómico en SQL (mezcla jsonb): dos cambios simultáneos de flags distintos no se pisan. */
 export async function setFlag(db: Db, name: FlagName, rule: FlagRule): Promise<void> {
-  const cur = await loadFlags(db, true);
-  const value = { ...cur, [name]: rule };
-  await db.insert(appSettings).values({ key: FLAGS_KEY, value }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
+  const patch = JSON.stringify({ [name]: rule });
+  await db.insert(appSettings).values({ key: FLAGS_KEY, value: { [name]: rule } })
+    .onConflictDoUpdate({ target: appSettings.key, set: { value: sql`${appSettings.value} || ${patch}::jsonb`, updatedAt: new Date() } });
   cache = null;
 }

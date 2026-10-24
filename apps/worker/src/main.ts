@@ -12,7 +12,7 @@ import { designGenerate } from "./handlers/design";
 import { polish } from "./handlers/polish";
 import { designRepair } from "./handlers/repair";
 import { research } from "./handlers/research";
-import { guarded } from "./run";
+import { guarded, jobSignal } from "./run";
 
 const env = loadEnv();
 const { db, pool } = createDb(env.DATABASE_URL, 8);
@@ -36,9 +36,9 @@ await boss.work("design.generate", conc("design.generate", 1), guarded(ctx, "des
 await boss.work("design.repair", conc("design.repair", 1), async (jobs: { data: any; signal?: AbortSignal }[]) => {
   for (const j of jobs) {
     const data = JOB_PAYLOADS["design.repair"].parse(j.data);
-    const [cur] = await db.select({ epoch: schema.presentations.cancelEpoch }).from(schema.presentations).where(eq(schema.presentations.id, data.presentationId));
+    const [cur] = await db.select({ epoch: schema.presentations.cancelEpoch, ownerId: schema.presentations.ownerId }).from(schema.presentations).where(eq(schema.presentations.id, data.presentationId));
     // Con la señal del job: si pg-boss lo expira, la reparación se corta y libera la cola (antes seguía en segundo plano y bloqueaba al siguiente).
-    await runContext.run({ presentationId: data.presentationId, epoch: cur?.epoch ?? 0, signal: j.signal }, () => designRepair(ctx, data));
+    await runContext.run({ presentationId: data.presentationId, epoch: cur?.epoch ?? 0, signal: await jobSignal(ctx, data.presentationId, cur?.ownerId, j.signal) }, () => designRepair(ctx, data));
   }
 });
 await boss.work("polish", conc("polish", 1), guarded(ctx, "polish", polish as any) as any);
@@ -62,6 +62,8 @@ async function purge() {
   await db.delete(schema.aiCalls).where(lt(schema.aiCalls.createdAt, cutoff));
   await db.delete(schema.jobErrors).where(lt(schema.jobErrors.createdAt, cutoff));
   await db.delete(schema.events).where(lt(schema.events.createdAt, cutoff));
+  // Unidades de trabajo de ejecuciones canceladas/abandonadas (solo `clearRun` las borra al terminar bien).
+  await db.delete(schema.workUnits).where(lt(schema.workUnits.updatedAt, new Date(Date.now() - 7 * 24 * 3600 * 1000)));
 }
 
 /** Unidades `running` con heartbeat vencido (el proceso murió): vuelven a `pending`. */

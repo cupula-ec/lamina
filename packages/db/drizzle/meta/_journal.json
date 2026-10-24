@@ -50,6 +50,13 @@
       "when": 1792814441999,
       "tag": "0006_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792814622749,
+      "tag": "0007_profile_v3",
+      "breakpoints": true
     }
   ]
 }

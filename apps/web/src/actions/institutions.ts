@@ -68,3 +68,11 @@ export async function deleteInstitutionAction(input: { id: string }) {
     await purgeLogos("institution", id);
   });
 }
+
+/** Un admin verifica una institución creada por un docente: desde entonces se lista a todos. */
+export async function verifyInstitutionAction(input: { id: string }) {
+  return adm(async () => {
+    const r = await getDb().update(schema.institutions).set({ verified: true, updatedAt: new Date() }).where(eq(schema.institutions.id, Id.parse(input.id))).returning({ id: schema.institutions.id });
+    if (!r.length) throw new LaminaError("not_found", "Institución no encontrada", 404);
+  });
+}

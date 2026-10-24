@@ -51,7 +51,9 @@ export class OpenRouterProvider implements Provider {
     } finally {
       clearTimeout(timer);
     }
-    const raw = await res.text();
+    let raw: string;
+    try { raw = await res.text(); }
+    catch (e) { throw new ProviderError("unavailable", `red/timeout leyendo la respuesta: ${(e as Error).message}`); }
     let json: any;
     try { json = JSON.parse(raw); } catch { json = undefined; }
     const msg: string = json?.error?.message ?? raw.slice(0, 300);
