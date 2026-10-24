@@ -23,7 +23,7 @@ const SOFT_IDENTS = new Set(["top", "parent", "frames", "self", "open", "origin"
 const RUNTIME_KINDS = new Set([ts.SyntaxKind.VariableDeclaration, ts.SyntaxKind.Parameter, ts.SyntaxKind.BindingElement, ts.SyntaxKind.FunctionDeclaration, ts.SyntaxKind.ClassDeclaration, ts.SyntaxKind.ImportSpecifier, ts.SyntaxKind.ImportClause, ts.SyntaxKind.NamespaceImport]);
 function isRuntimeDeclaration(d: ts.Declaration): boolean {
   if (!RUNTIME_KINDS.has(d.kind)) return false;
-  if (d.flags & ts.NodeFlags.Ambient) return false;
+  for (let p: ts.Node | undefined = d; p; p = p.parent) if (ts.canHaveModifiers(p) && ts.getModifiers(p)?.some((m) => m.kind === ts.SyntaxKind.DeclareKeyword)) return false;
   if (ts.getCombinedModifierFlags(d) & ts.ModifierFlags.Ambient) return false;
   if (ts.isFunctionDeclaration(d) && !d.body) return false;
   return true;
