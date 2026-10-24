@@ -4,6 +4,8 @@ import { ACCENT_IDS, DEFAULT_THEME_ID, THEME_IDS } from "./themes";
 
 /** DeckDocument v1: declarativo. Sin HTML ni scripts; texto = Markdown que se sanea al renderizar. */
 export const DECK_SCHEMA_VERSION = 1 as const;
+/** Versiones que ESTE código sabe leer. v2 (V3 de producto) añade solo campos opcionales; los lectores van primero, los escritores después (PLAN-v3 §4). */
+export const DECK_READABLE_VERSIONS = [1, 2] as const;
 export const ENGINE_VERSION = "1.0.0";
 
 export const ComponentRef = z.object({
@@ -87,7 +89,7 @@ export const DeckMeta = z.object({
 
 export const DeckDocument = z
   .object({
-    schemaVersion: z.literal(DECK_SCHEMA_VERSION),
+    schemaVersion: z.union([z.literal(1), z.literal(2)]),
     engineVersion: z.string(),
     /** Compatibilidad: un tema desconocido (retirado o de una versión futura) cae al tema base. */
     themeId: z.enum(THEME_IDS).catch(DEFAULT_THEME_ID),
@@ -125,3 +127,8 @@ export type DeckDocument = z.infer<typeof DeckDocument>;
 
 /** Variante que produce la IA de diseño (el engine/meta los fija el servidor). */
 export const DeckSlidesModelOutput = z.object({ slides: z.array(Slide).min(1).max(60) });
+
+/** Lector tolerante: acepta v1 y v2 (las versiones guardadas nunca se reescriben). */
+export function parseDeckAny(raw: unknown): DeckDocument {
+  return DeckDocument.parse(raw);
+}

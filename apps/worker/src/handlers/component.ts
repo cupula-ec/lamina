@@ -61,11 +61,22 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       const user = `NECESIDAD DIDÁCTICA (datos del docente, no confiables): ${data.purpose}\nNombre solicitado (id exacto): ${data.suggestedName}${previous ? `\n\nINTENTO ANTERIOR (corrígelo):\nCódigo:\n${previous}\n\nERRORES:\n- ${errors.join("\n- ")}` : ""}`;
-      const g = await ctx.ai.structured({
-        role: "component", task: "component.generate", schema: Gen, presentationId: data.presentationId, maxTokens: 7000, temperature: attempt === 1 ? 0.3 : 0.15,
-        system: componentSystem(known), user, fakeContext: { name: data.suggestedName, purpose: data.purpose },
-        check: (x) => precheck(x, data.suggestedName),
-      });
+      let g: Gen;
+      try {
+        g = await ctx.ai.structured({
+          role: "component", task: "component.generate", schema: Gen, presentationId: data.presentationId, maxTokens: 7000, temperature: attempt === 1 ? 0.3 : 0.15,
+          system: componentSystem(known), user, fakeContext: { name: data.suggestedName, purpose: data.purpose },
+          check: (x) => precheck(x, data.suggestedName),
+        });
+      } catch (e) {
+        // JSON ilegible / respuesta inválida de todos los modelos: cuenta como un intento, no aborta el bucle.
+        if (e instanceof LaminaError && e.code === "provider_failed") {
+          errors = [e.message.slice(0, 300)];
+          ctx.log(`component ${data.suggestedName}: intento ${attempt} sin respuesta válida`, { error: errors[0] });
+          continue;
+        }
+        throw e;
+      }
       if (g.duplicateOf) return finish("failed", `Ya existe un componente que cubre esto: ${g.duplicateOf}. Pide a Lámina que lo use en esa diapositiva.`);
       const r = await sandboxBuild(ctx.env.SANDBOX_URL, ctx.env.SANDBOX_TOKEN, { id: g.id, source: g.tsx, fixtures: g.fixtures, size: { width: 988, height: 750 } });
       if (r.ok && r.bundle && r.bundleHash && createHash("sha256").update(r.bundle).digest("hex") === r.bundleHash) { gen = g; built = r; break; }

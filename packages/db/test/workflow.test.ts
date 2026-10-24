@@ -88,7 +88,8 @@ describe("workflow", () => {
     const { p, v } = await toContentReview(o);
     await wf.approveContent(h.db, p.id, o, v.id, v.sha256);
     await wf.beginDesign(h.db, p.id, o);
-    const [{ cancelEpoch: oldEpoch }] = await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id));
+    const [row0] = await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id));
+    const oldEpoch = row0!.cancelEpoch;
     await wf.cancelRunning(h.db, p.id, o);
     await wf.beginDesign(h.db, p.id, o); // el docente relanza
     // el handler viejo (época anterior) intenta escribir y fracasar

@@ -112,3 +112,18 @@ describe("RateLimiter", () => {
     expect(await l.acquire(70_000)).toBe(true);
   });
 });
+
+import { extractJson, repairJson } from "../src/client";
+describe("reparación de JSON", () => {
+  it("recorta prosa, fences y cierra salida truncada", () => {
+    expect(extractJson('Claro, aquí tienes:\n```json\n{"a":1,"b":[1,2,]}\n```\nListo.')).toEqual({ a: 1, b: [1, 2] });
+    expect(extractJson('{"a":{"b":[1,2')).toEqual({ a: { b: [1, 2] } });
+    expect(extractJson('{"a":"hola')).toEqual({ a: "hola" });
+    expect(extractJson('We are given {"a": "x}"} and more {"z":1}')).toEqual({ a: "x}" });
+    expect(extractJson('{“a”: 1}')).toEqual({ a: 1 });
+  });
+  it("sin JSON lanza", () => {
+    expect(() => extractJson("We are giving you the answer in English")).toThrow();
+    expect(repairJson("nada")).toBe("nada");
+  });
+});

@@ -60,3 +60,14 @@ describe("ComponentManifest", () => {
     expect(ComponentManifest.safeParse({ ...m, version: "1.0.0" }).success).toBe(true);
   });
 });
+
+import { parseContentAny, parseDeckAny } from "../src";
+describe("lectores v1/v2", () => {
+  it("aceptan v1 y v2 sin reescribir; rechazan otras versiones", () => {
+    expect(parseDeckAny(okDeck).schemaVersion).toBe(1);
+    expect(parseDeckAny({ ...okDeck, schemaVersion: 2 }).schemaVersion).toBe(2);
+    expect(() => parseDeckAny({ ...okDeck, schemaVersion: 3 })).toThrow();
+    expect(parseContentAny({ ...okContent, schemaVersion: 2 }).schemaVersion).toBe(2);
+    expect(() => parseContentAny({ ...okContent, schemaVersion: 9 })).toThrow();
+  });
+});

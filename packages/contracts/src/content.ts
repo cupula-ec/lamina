@@ -3,6 +3,8 @@ import { Origin } from "./stage";
 
 /** ContentDraft v1: contenido didáctico tipado y editable, anterior al diseño de slides. */
 export const CONTENT_SCHEMA_VERSION = 1 as const;
+/** Versiones que ESTE código sabe leer (ver deck.ts). */
+export const CONTENT_READABLE_VERSIONS = [1, 2] as const;
 
 const Id = z.string().min(1).max(64);
 const SourceRefs = z.array(z.string().max(64)).max(12).default([]);
@@ -126,7 +128,7 @@ export const VerificationStats = z.object({ verified: z.number().int().min(0), a
 export type VerificationStats = z.infer<typeof VerificationStats>;
 
 export const ContentDraft = z.object({
-  schemaVersion: z.literal(CONTENT_SCHEMA_VERSION),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   meta: ContentMeta,
   sections: z.array(Section).min(1).max(12),
   /** Avisos de verificación (fórmulas no comprobables, fuentes débiles, etc.). */
@@ -137,3 +139,8 @@ export type ContentDraft = z.infer<typeof ContentDraft>;
 
 /** Variante que se pide al modelo: sin warnings (los añade el validador). */
 export const ContentDraftModelOutput = ContentDraft.omit({ warnings: true, verification: true });
+
+/** Lector tolerante: acepta v1 y v2. */
+export function parseContentAny(raw: unknown): ContentDraft {
+  return ContentDraft.parse(raw);
+}

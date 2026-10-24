@@ -71,6 +71,9 @@ export function detectSlideIssues(root: HTMLElement): SlideIssue[] {
     const dirs = new Set<string>();
     for (const c of Array.from(el.querySelectorAll<HTMLElement>("*")).slice(0, 800)) {
       if (c.closest(".katex-mathml") || c.closest("[clip-path]")) continue; // KaTeX accesible y trazos recortados por clip-path no se ven fuera
+      // Interior de una fórmula: struts, \quad, \text y vlists sobresalen por diseño sin verse; solo se mide la fórmula completa.
+      const kx = c.closest(".katex");
+      if (kx && kx !== c) continue;
       const r = c.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
       const tol = 6 * scale;

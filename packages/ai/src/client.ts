@@ -37,15 +37,56 @@ export type StructuredOpts<T> = {
   check?: (value: T) => string[];
 };
 
-export function extractJson(text: string): unknown {
-  let t = text.trim();
-  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) t = fence[1]!.trim();
+/** Primer objeto/arreglo JSON equilibrado del texto (respeta cadenas y escapes). Si queda abierto, devuelve el resto para cerrarlo. */
+function balancedSlice(t: string): { text: string; open: string[] } | null {
   const start = t.search(/[\[{]/);
-  if (start > 0) t = t.slice(start);
-  const end = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
-  if (end >= 0) t = t.slice(0, end + 1);
-  return JSON.parse(t);
+  if (start < 0) return null;
+  const stack: string[] = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < t.length; i++) {
+    const c = t[i]!;
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === "{") stack.push("}");
+    else if (c === "[") stack.push("]");
+    else if (c === "}" || c === "]") {
+      if (stack.pop() !== c) return { text: t.slice(start, i), open: [] };
+      if (!stack.length) return { text: t.slice(start, i + 1), open: [] };
+    }
+  }
+  return { text: t.slice(start) + (inStr ? '"' : ""), open: stack.reverse() };
+}
+
+/** Reparación barata de JSON de modelos pequeños: prosa alrededor, fences, comas finales, comillas tipográficas y salida truncada. */
+export function repairJson(text: string): string {
+  let t = text.trim();
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/i);
+  if (fence && /[\[{]/.test(fence[1]!)) t = fence[1]!.trim();
+  const b = balancedSlice(t);
+  if (!b) return t;
+  let out = b.text.replace(/[\u201c\u201d]/g, '"').replace(/,\s*([}\]])/g, "$1");
+  if (b.open.length) out = out.replace(/[,:\s]+$/, "") + b.open.join("");
+  return out.replace(/,\s*([}\]])/g, "$1");
+}
+
+export function extractJson(text: string): unknown {
+  try {
+    return JSON.parse(repairJson(text));
+  } catch (first) {
+    // Último recurso: el recorte clásico (primer { o [ hasta el último } o ]).
+    let t = text.trim();
+    const start = t.search(/[\[{]/);
+    if (start > 0) t = t.slice(start);
+    const end = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
+    if (end >= 0) t = t.slice(0, end + 1);
+    try { return JSON.parse(t); } catch { throw first; }
+  }
 }
 
 export function schemaPrompt(schema: ZodType): string {

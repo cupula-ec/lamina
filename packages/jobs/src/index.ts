@@ -15,13 +15,19 @@ export const QUEUE_CONFIG: Record<JobName, { expireInSeconds: number; retryLimit
   render: { expireInSeconds: 5 * 60, retryLimit: 2, policy: "standard" },
 };
 
+/** Timeout real de un job (s): el worker aplica ESTE valor (la fila ya encolada no cuenta). Sobrescribible por env: LAMINA_JOB_EXPIRE_<NOMBRE> (p. ej. LAMINA_JOB_EXPIRE_DESIGN_REPAIR=1800). */
+export function expireSeconds(name: JobName, env: Record<string, string | undefined> = process.env): number {
+  const v = Number(env[`LAMINA_JOB_EXPIRE_${name.replace(/\W+/g, "_").toUpperCase()}`]);
+  return Number.isFinite(v) && v >= 30 ? Math.floor(v) : QUEUE_CONFIG[name].expireInSeconds;
+}
+
 export async function createBoss(connectionString: string): Promise<Boss> {
   const boss = new PgBoss({ connectionString, schema: "pgboss", max: 5 });
   boss.on("error", (e) => console.error("[pg-boss]", e));
   await boss.start();
   for (const [name, c] of Object.entries(QUEUE_CONFIG)) {
     await boss.createQueue(name, {
-      policy: c.policy, expireInSeconds: c.expireInSeconds, retryLimit: c.retryLimit, retryDelay: 20, retryBackoff: true, retryDelayMax: 300,
+      policy: c.policy, expireInSeconds: expireSeconds(name as JobName), retryLimit: c.retryLimit, retryDelay: 20, retryBackoff: true, retryDelayMax: 300,
       deleteAfterSeconds: 3 * 24 * 3600, retentionSeconds: 3 * 24 * 3600,
     });
   }
