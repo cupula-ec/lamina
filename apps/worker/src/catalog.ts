@@ -2,7 +2,7 @@ import { and, desc, eq, or } from "drizzle-orm";
 import { z, type ZodType } from "zod";
 import { ComponentManifest } from "@lamina/contracts";
 import { schema } from "@lamina/db";
-import { NATIVE_MANIFESTS, jsonSchemaToZod, type CatalogLookup } from "@lamina/components";
+import { NATIVE_MANIFESTS, FLAG_GATED_COMPONENTS, jsonSchemaToZod, type CatalogLookup } from "@lamina/components";
 import type { Ctx } from "./ctx";
 
 export type ProvisionalComponent = { manifest: ComponentManifest; bundle: string; bundleHash: string; propsSchema: ZodType | undefined };
@@ -31,5 +31,9 @@ export function lookupFor(prov: ProvisionalComponent[]): CatalogLookup {
   };
 }
 
-export const manifestsFor = (prov: ProvisionalComponent[]) => [...NATIVE_MANIFESTS, ...prov.map((p) => p.manifest)];
+/** Catálogo ofrecido a la IA: los componentes V3 con flag apagado quedan fuera (`enabled` = flags V3 activos para esta presentación). */
+export const manifestsFor = (prov: ProvisionalComponent[], enabled: string[] = []) => [
+  ...NATIVE_MANIFESTS.filter((m) => !FLAG_GATED_COMPONENTS[m.id] || enabled.includes(FLAG_GATED_COMPONENTS[m.id]!)),
+  ...prov.map((p) => p.manifest),
+];
 void z;

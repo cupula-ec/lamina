@@ -36,8 +36,11 @@ export type SafeFetchOptions = {
   /** Solo para pruebas: sustituye la comprobación de IP bloqueada. */
   ipBlocked?: (ip: string) => boolean;
   allowedPorts?: number[];
+  /** Cabecera Accept (por defecto documentos). */
+  accept?: string;
 };
 
+export const IMAGE_ALLOWED_TYPES = /^image\/(png|jpe?g|webp|gif|svg\+xml|avif)$/i;
 export const DEFAULT_ALLOWED_TYPES = /^(text\/(html|plain|markdown)|application\/(xhtml\+xml|pdf|vnd\.openxmlformats-officedocument\.wordprocessingml\.document))/i;
 
 function checkUrl(u: URL, ports: number[]) {
@@ -73,6 +76,7 @@ export type FetchedDoc = { url: string; contentType: string; body: Buffer };
 export async function safeFetch(rawUrl: string, opts: SafeFetchOptions = {}): Promise<FetchedDoc> {
   const maxBytes = opts.maxBytes ?? 5 * 1024 * 1024;
   const maxRedirects = opts.maxRedirects ?? 3;
+  const limitLabel = `${Math.round(maxBytes / 1024 / 1024)} MB`;
   const types = opts.allowedTypes ?? DEFAULT_ALLOWED_TYPES;
   const ports = opts.allowedPorts ?? [80, 443];
   const agent = makeAgent(opts.ipBlocked ?? isBlockedIp);
@@ -92,7 +96,7 @@ export async function safeFetch(rawUrl: string, opts: SafeFetchOptions = {}): Pr
         res = await fetch(url, {
           redirect: "manual",
           signal: ctrl.signal,
-          headers: { "user-agent": "LaminaBot/1.0 (+https://lamina.cupula.com.ec)", accept: "text/html,application/pdf,text/plain;q=0.9,*/*;q=0.1" },
+          headers: { "user-agent": "LaminaBot/1.0 (+https://lamina.cupula.com.ec)", accept: opts.accept ?? "text/html,application/pdf,text/plain;q=0.9,*/*;q=0.1" },
           // @ts-expect-error dispatcher es una extensión de undici
           dispatcher: agent,
         });
@@ -115,13 +119,13 @@ export async function safeFetch(rawUrl: string, opts: SafeFetchOptions = {}): Pr
       const ct = (res.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
       if (!types.test(ct)) { clearTimeout(t); await res.body?.cancel(); throw new LaminaError("extraction_failed", `Tipo de contenido no admitido: ${ct || "desconocido"}`, 415); }
       const declared = Number(res.headers.get("content-length"));
-      if (declared > maxBytes) { clearTimeout(t); await res.body?.cancel(); throw new LaminaError("extraction_failed", "El documento supera el tamaño máximo (5 MB)", 413); }
+      if (declared > maxBytes) { clearTimeout(t); await res.body?.cancel(); throw new LaminaError("extraction_failed", `El documento supera el tamaño máximo (${limitLabel})`, 413); }
       const chunks: Buffer[] = [];
       let total = 0;
       try {
         for await (const c of res.body as any as AsyncIterable<Uint8Array>) {
           total += c.byteLength;
-          if (total > maxBytes) { ctrl.abort(); throw new LaminaError("extraction_failed", "El documento supera el tamaño máximo (5 MB)", 413); }
+          if (total > maxBytes) { ctrl.abort(); throw new LaminaError("extraction_failed", `El documento supera el tamaño máximo (${limitLabel})`, 413); }
           chunks.push(Buffer.from(c));
         }
       } catch (e) {

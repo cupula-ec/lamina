@@ -5,6 +5,7 @@ import { hashJson, schema } from "@lamina/db";
 import { getDb } from "@/lib/db";
 import { provisionalForDeck, tokenHash } from "@/lib/presentation-view";
 import { withSignedBranding } from "@/lib/branding";
+import { withSignedAssets } from "@/lib/assets";
 import { RenderClient } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -31,5 +32,5 @@ export default async function RenderPage({ params, searchParams }: { params: Pro
   const prov = await provisionalForDeck(dv.presentationId, dv.componentPins);
   const idx = Math.max(0, Math.min(deck.slides.length - 1, Number(sp.slide ?? 0) || 0));
   const step = sp.step === "max" ? deck.slides[idx]!.build.steps.length : Math.max(0, Number(sp.step ?? 0) || 0);
-  return <RenderClient deck={withSignedBranding(deck, 600, pres.ownerId)} index={idx} step={step} prov={prov} deckHash={hashJson(deck)} storedHash={dv.sha256} />;
+  return <RenderClient deck={await withSignedAssets(withSignedBranding(deck, 600, pres.ownerId), 600, pres.ownerId)} index={idx} step={step} prov={prov} deckHash={hashJson(deck)} storedHash={dv.sha256} />;
 }

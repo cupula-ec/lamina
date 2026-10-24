@@ -7,6 +7,9 @@ const ref = (componentId: string, props: Record<string, unknown>): ComponentRef 
   const e = NATIVE_CATALOG.find((c) => c.def.id === componentId)!;
   return { componentId, version: e.def.version, props };
 };
+/** Imagen ya resuelta y guardada para un bloque `imageRequest` (la resuelve el worker; ver V3 §5.5). */
+export type ImageBlockInfo = { assetId: string; alt: string; credit?: string };
+export type ImageMap = ReadonlyMap<string, ImageBlockInfo>;
 const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n - 1).trimEnd()}…`);
 
 /** md → ítems de lista (por viñetas o por oraciones). */
@@ -19,7 +22,7 @@ export function mdToItems(md: string, max = 6): { text: string }[] {
 
 type Mapped = { layout: Slide["layout"]; slots: Record<string, ComponentRef> };
 
-function blockRef(b: Block): ComponentRef | null {
+function blockRef(b: Block, images?: ImageMap): ComponentRef | null {
   switch (b.type) {
     case "text": return ref("BulletPoints", { items: mdToItems(b.md) });
     case "formula": return ref("FormulaHighlight", { latex: b.latex, caption: b.caption });
@@ -39,7 +42,7 @@ function blockRef(b: Block): ComponentRef | null {
     case "code": return ref("Callout", { variant: "nota", title: clip(`Código (${b.language})`, 80), text: clip(b.source, 420) });
     case "activity": return ref("Callout", { variant: "exito", title: `Actividad · ${b.minutes} min`, text: clip(b.prompt, 420) });
     case "closing": return ref("Summary", { heading: "Ideas clave", points: [...b.keyIdeas, ...(b.questions ?? []).slice(0, 1)].slice(0, 6).map((t) => clip(t, 200)) });
-    case "imageRequest": return null;
+    case "imageRequest": { const im = images?.get(b.id); return im ? ref("Image", { assetId: im.assetId, alt: clip(im.alt, 300), fit: "cover", showCredit: false, ...(im.credit ? { credit: im.credit } : {}) }) : null; }
     case "diagramSpec": {
       const tryRef = (id: string) => {
         const e = NATIVE_CATALOG.find((c) => c.def.id === id)!;
@@ -51,10 +54,10 @@ function blockRef(b: Block): ComponentRef | null {
   }
 }
 
-const VISUAL = new Set(["graphSpec", "table", "diagramSpec"]);
+const VISUAL = new Set(["graphSpec", "table", "diagramSpec", "imageRequest"]);
 
-function mapGroup(blocks: Block[], prev: string[] = [], closing = false): Mapped {
-  const refs = blocks.map(blockRef).filter(Boolean) as ComponentRef[];
+function mapGroup(blocks: Block[], prev: string[] = [], closing = false, images?: ImageMap): Mapped {
+  const refs = blocks.map((b) => blockRef(b, images)).filter(Boolean) as ComponentRef[];
   const visualIdx = blocks.findIndex((b) => VISUAL.has(b.type));
   if (blocks.length === 1) {
     const b = blocks[0]!;
@@ -90,11 +93,11 @@ function groupBlocks(blocks: Block[]): Block[][] {
 }
 
 /** Slide(s) estable(s) determinista(s) para un hint: garantiza un deck válido si la IA falla. */
-export function slidesFromHint(hint: SlideHint, prevLayouts: string[] = [], opts: { closing?: boolean } = {}): Slide[] {
-  const groups = groupBlocks(hint.blocks.filter((b) => b.type !== "imageRequest"));
+export function slidesFromHint(hint: SlideHint, prevLayouts: string[] = [], opts: { closing?: boolean; images?: ImageMap } = {}): Slide[] {
+  const groups = groupBlocks(hint.blocks.filter((b) => b.type !== "imageRequest" || opts.images?.has(b.id)));
   const used = [...prevLayouts];
   return groups.map((g, gi) => {
-    const m = mapGroup(g, used, !!opts.closing);
+    const m = mapGroup(g, used, !!opts.closing, opts.images);
     used.push(m.layout);
     const title = hint.intent.replace(/\.$/, "");
     const slots: Record<string, ComponentRef> = { ...m.slots };
@@ -119,12 +122,12 @@ export function sectionSlide(id: string, title: string, index: number): Slide {
 }
 
 /** Deck completo 100 % determinista (respaldo y proveedor fake). */
-export function deckFromContent(content: ContentDraft, author?: string, opts: { branding?: Branding; themeId?: ThemeId; accent?: AccentId } = {}): DeckDocument {
+export function deckFromContent(content: ContentDraft, author?: string, opts: { branding?: Branding; themeId?: ThemeId; accent?: AccentId; images?: ImageMap } = {}): DeckDocument {
   const slides: Slide[] = [titleSlide(content.meta, author, opts.branding)];
   content.sections.forEach((s, i) => {
     if (content.sections.length > 1) slides.push(sectionSlide(s.id, s.title, i));
     const last = i === content.sections.length - 1 && content.sections.length > 1;
-    for (const h of s.slidesHint) slides.push(...slidesFromHint(h, slides.map((x) => x.layout), { closing: last }));
+    for (const h of s.slidesHint) slides.push(...slidesFromHint(h, slides.map((x) => x.layout), { closing: last, images: opts.images }));
   });
   return {
     schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: opts.themeId ?? "lamina-claro", ...(opts.accent ? { accent: opts.accent } : {}),

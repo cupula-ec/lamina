@@ -6,12 +6,14 @@ import * as text from "./defs/text";
 import * as visual from "./defs/visual";
 import * as misc from "./defs/misc";
 import * as rich from "./defs/rich";
+import * as general from "./defs/general";
 
 export const NATIVE_CATALOG: CatalogEntry[] = [
   text.Title, text.SectionHeader, text.BulletPoints, text.TwoColumn, text.Definition, text.FormulaHighlight, text.Derivation, text.WorkedExample,
   visual.FunctionPlot, visual.Table, visual.VectorDiagram, visual.GeometryFigure,
   misc.UnitsCallout, misc.Quote, misc.Summary, misc.Checkpoint,
   rich.Callout, rich.StatCard, rich.StepsList, rich.ComparisonTable, rich.IconBullets, rich.SectionNumber, rich.AgendaItem,
+  general.Image,
 ];
 
 const byId = new Map(NATIVE_CATALOG.map((c) => [c.def.id, c]));
@@ -26,6 +28,9 @@ export function manifestOf(e: CatalogEntry): ComponentManifest {
   });
 }
 export const NATIVE_MANIFESTS = NATIVE_CATALOG.map(manifestOf);
+/** Componentes de V3 que solo se ofrecen a la IA con su flag encendido (siguen siendo válidos y renderizables si ya están en un deck). */
+export const FLAG_GATED_COMPONENTS: Record<string, string> = { Image: "v3_images" };
+export const manifestsWithout = (gated: string[]) => NATIVE_MANIFESTS.filter((m) => !gated.includes(m.id));
 
 /** Resolver nativo: solo catálogo estable (versión exacta). */
 export const nativeResolver: Resolver = (ref: ComponentRef): Resolved | undefined => {

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { ContentDraft, DeckDocument, Slide, SLOT_GEOMETRY, type DeckDocument as Deck, type Slide as SlideT, type SlideHint } from "@lamina/contracts";
 import { QuotaWaitError, repairSlideSystem } from "@lamina/ai";
-import { hashJson, schema, workflow as wf } from "@lamina/db";
+import { flagEnabled, hashJson, schema, workflow as wf } from "@lamina/db";
 import { enqueue } from "@lamina/jobs";
 import { catalogForPrompt, validateDeckAgainstCatalog } from "@lamina/components";
 import type { Ctx } from "../ctx";
@@ -72,7 +72,8 @@ export async function designRepair(ctx: Ctx, data: { presentationId: string; use
     const hints: SlideHint[] = cv ? ContentDraft.parse(cv.content).sections.flatMap((s) => s.slidesHint) : [];
     const prov = await loadProvisional(ctx, p.id);
     const lookup = lookupFor(prov);
-    const system = repairSlideSystem(catalogForPrompt(manifestsFor(prov)), `${layoutsDoc()}\n\nMedidas de cada área:\n${sizesDoc()}`);
+    const imgs = await flagEnabled(ctx.db, "v3_images", { userId: p.ownerId, presentationId: p.id });
+    const system = repairSlideSystem(catalogForPrompt(manifestsFor(prov, imgs ? ["v3_images"] : [])), `${layoutsDoc()}\n\nMedidas de cada área:\n${sizesDoc()}`);
 
     const fixed = new Map<string, SlideT>();
     for (const slide of deck.slides) {

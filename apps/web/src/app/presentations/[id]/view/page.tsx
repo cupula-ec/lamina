@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { loadDeck, provisionalForDeck, tokenHash } from "@/lib/presentation-view";
 import { getSessionUser } from "@/lib/session";
 import { withSignedBranding } from "@/lib/branding";
+import { withSignedAssets } from "@/lib/assets";
 import { ViewClient } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -38,5 +39,5 @@ export default async function ViewPage({ params, searchParams }: { params: Promi
   const dv = await loadDeck(deckId ?? null);
   if (!dv) notFound();
   const prov = await provisionalForDeck(p.id, dv.row.componentPins);
-  return <ViewClient deck={withSignedBranding(dv.deck, 6 * 3600, p.ownerId)} prov={prov} presenter={sp.presenter === "1" && isOwner} channelKey={`${p.id}:${dv.row.sha256.slice(0, 12)}`} preview={!published || showDraft} backHref={isOwner ? `/presentations/${p.id}/preview/design` : null} />;
+  return <ViewClient deck={await withSignedAssets(withSignedBranding(dv.deck, 6 * 3600, p.ownerId), 6 * 3600, p.ownerId)} prov={prov} presenter={sp.presenter === "1" && isOwner} channelKey={`${p.id}:${dv.row.sha256.slice(0, 12)}`} preview={!published || showDraft} backHref={isOwner ? `/presentations/${p.id}/preview/design` : null} />;
 }

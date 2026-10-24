@@ -71,6 +71,13 @@
       "when": 1792815421742,
       "tag": "0009_exports",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792865424463,
+      "tag": "0010_assets",
+      "breakpoints": true
     }
   ]
 }

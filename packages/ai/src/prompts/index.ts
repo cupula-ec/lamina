@@ -114,7 +114,7 @@ const DESIGN_PEDAGOGY_RULES = `BLOQUES PEDAGÓGICOS DEL CONTENIDO
 - "code" → Callout variant "nota" con el código esencial (≤ 420 caracteres; recorta a las líneas clave).
 - "activity" → Callout variant "exito" (title "Actividad · N min").
 - "closing" → layout "closing" con Summary (ideas clave) y, si caben, las preguntas como último punto.
-- "imageRequest" → ignóralo (aún no hay imágenes).
+- "imageRequest" → si se indican IMÁGENES YA GUARDADAS para ese bloque, usa el componente Image con ese assetId y alt exactos (layout "split-visual" con la imagen en "visual" si hay texto, o "full-visual"/"title-content" si va sola); si no, ignóralo.
 `;
 
 export const repairSlideSystem = (catalog: string, layouts: string) => `Eres un diseñador de presentaciones didácticas que CORRIGE una diapositiva con problemas visuales detectados al dibujarla en un lienzo de 1920×1080 px. Recibes SOLO esa diapositiva, la lista de problemas y las medidas de cada área; devuelves la diapositiva corregida (mismo "id").

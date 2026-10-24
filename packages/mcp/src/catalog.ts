@@ -3,7 +3,7 @@ import type { ZodType } from "zod";
 import { ComponentManifest, type ComponentRef } from "@lamina/contracts";
 import type { Db } from "@lamina/db";
 import { schema } from "@lamina/db";
-import { NATIVE_MANIFESTS, jsonSchemaToZod, type CatalogLookup } from "@lamina/components";
+import { NATIVE_MANIFESTS, FLAG_GATED_COMPONENTS, jsonSchemaToZod, type CatalogLookup } from "@lamina/components";
 
 export type Provisional = { manifest: ComponentManifest; bundleHash: string; propsSchema: ZodType | undefined };
 
@@ -36,7 +36,7 @@ export function lookupFor(prov: Provisional[]): CatalogLookup {
 
 /** Catálogo que se publica a la IA externa: componentes nativos estables (id, versión, schema de props, usos, restricciones, ejemplos). */
 export function catalogDoc() {
-  return NATIVE_MANIFESTS.map((m) => ({
+  return NATIVE_MANIFESTS.filter((m) => !FLAG_GATED_COMPONENTS[m.id]).map((m) => ({
     id: m.id, version: m.version, title: m.title, purpose: m.purpose, useCases: m.useCases, constraints: m.constraints,
     fitsSlots: m.fitsSlots, propsJsonSchema: m.propsJsonSchema, examples: m.examples,
   }));

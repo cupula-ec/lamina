@@ -7,6 +7,9 @@ const E = z.object({
   OPENROUTER_API_KEY: z.string().optional(),
   SEARXNG_URL: z.string().url().optional(),
   TAVILY_API_KEY: z.string().optional(),
+  /** Bancos de imágenes con clave gratuita (opcionales: sin clave se omiten). */
+  UNSPLASH_ACCESS_KEY: z.string().optional(),
+  PEXELS_API_KEY: z.string().optional(),
   /** Presupuesto global diario de llamadas IA (≈ 80 % del cupo free verificado: 1000/día). */
   AI_DAILY_BUDGET: z.coerce.number().default(800),
   /** Servicio de renderizado (capturas/detección de problemas) y sandbox de componentes. */

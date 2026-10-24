@@ -504,6 +504,26 @@ export const exportsTable = pgTable("exports", {
   finishedAt: ts("finished_at"),
 }, (t) => [index("exports_pres_idx").on(t.presentationId, t.createdAt)]);
 
+/** Imágenes de las presentaciones (V3 §5.5). El archivo vive en DATA_DIR/assets/<sha256>.webp (deduplicado); aquí queda la procedencia. */
+export const assets = pgTable("assets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: text("owner_id").notNull(),
+  presentationId: uuid("presentation_id").references(() => presentations.id, { onDelete: "cascade" }),
+  sha256: text("sha256").notNull(),
+  mime: text("mime").notNull().default("image/webp"),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  bytes: integer("bytes").notNull(),
+  origin: text("origin").notNull(), // upload | search | mcp
+  provider: text("provider"),
+  pageUrl: text("page_url"),
+  author: text("author"),
+  license: text("license"),
+  licenseUrl: text("license_url"),
+  alt: text("alt"),
+  createdAt: createdAt(),
+}, (t) => [index("assets_pres_idx").on(t.presentationId), index("assets_owner_idx").on(t.ownerId, t.createdAt)]);
+
 /** Unidad de trabajo persistente de un job (V3 §5.1): su resultado se guarda al terminar, y un reinicio solo repite lo que no estaba `done`. */
 export const workUnits = pgTable("work_units", {
   id: uuid("id").primaryKey().defaultRandom(),

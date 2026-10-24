@@ -10,6 +10,7 @@ import { enqueue } from "@lamina/jobs";
 import { catalogForPrompt, deckFromContent, sectionSlide, slidesFromHint, titleSlide, validateDeckAgainstCatalog, varietyProblem } from "@lamina/components";
 import type { Ctx } from "../ctx";
 import { expectStage } from "../run";
+import { resolveImage, type ResolvedImage } from "../images";
 import { loadProvisional, lookupFor, manifestsFor, type ProvisionalComponent } from "../catalog";
 import { LaminaError } from "@lamina/contracts";
 
@@ -123,7 +124,8 @@ export async function designGenerate(
 
   const prov = await loadProvisional(ctx, p.id);
   const lookup = lookupFor(prov);
-  const catalogDoc = catalogForPrompt(manifestsFor(prov));
+  const v3Images = await flagEnabled(ctx.db, "v3_images", { userId: p.ownerId, presentationId: p.id });
+  const catalogDoc = catalogForPrompt(manifestsFor(prov, v3Images ? ["v3_images"] : []));
   const system = designSlideSystem(catalogDoc, layoutsDoc(), { pedagogy: await flagEnabled(ctx.db, "v3_pedagogy", { userId: p.ownerId, presentationId: p.id }) });
 
   // Contexto de continuidad: intención de las diapositivas vecinas
@@ -140,6 +142,26 @@ export async function designGenerate(
   const scope: units.UnitScope = { presentationId: p.id, runKey: units.runKeyOf(["design", data.contentVersionId, data.baseDeckVersionId, data.feedback ?? "", data.onlySlideIds ?? [], p.cancelEpoch]), kind: "slide" };
   type UnitResult = { slides: SlideT[]; requested?: string };
   const doneMap = durable ? await units.doneUnits(ctx.db, scope) : new Map<string, unknown>();
+  // Imágenes (V3 §5.5): cada imageRequest es una unidad "image"; si no se resuelve, la diapositiva se diseña sin imagen.
+  const imgScope: units.UnitScope = { ...scope, kind: "image" };
+  const imgDone = durable && v3Images ? await units.doneUnits(ctx.db, imgScope) : new Map<string, unknown>();
+  const allImages = new Map<string, ResolvedImage>();
+  const imagesFor = async (h: SlideHint): Promise<Map<string, ResolvedImage>> => {
+    const got = new Map<string, ResolvedImage>();
+    if (!v3Images) return got;
+    for (const b of h.blocks) {
+      if (b.type !== "imageRequest") continue;
+      let r = imgDone.get(b.id) as ResolvedImage | { none: true } | undefined;
+      if (!r) {
+        throwIfAborted();
+        if (durable) await units.startUnit(ctx.db, imgScope, b.id);
+        r = (await resolveImage(ctx, p, b).catch((e) => { ctx.log(`images: ${(e as Error).message}`); return null; })) ?? { none: true };
+        if (durable) await units.finishUnit(ctx.db, imgScope, b.id, r);
+      }
+      if (!("none" in r)) { got.set(b.id, r); allImages.set(b.id, r); }
+    }
+    return got;
+  };
   const wants = (h: { id: string }) => {
     const ex = prevDeck?.slides.filter((x) => ownsHint(h.id, x.id)) ?? [];
     return regenAll || ex.length === 0 || ex.some((x) => only.has(x.id)) || only.has(h.id);
@@ -163,12 +185,13 @@ export async function designGenerate(
       if (stored) { slides.push(...stored.slides); if (stored.requested) requested.add(stored.requested); continue; }
       throwIfAborted();
       if (durable) await units.startUnit(ctx.db, scope, h.id);
+      const imgs = await imagesFor(h);
 
       const prev = hints[idx - 1]?.hint.intent, next = hints[idx + 1]?.hint.intent;
       const current = existing[0];
       const used = slides.map((x) => x.layout);
       const inLastSection = si === content.sections.length - 1 && content.sections.length > 1;
-      const user = `CONTENIDO DE LA DIAPOSITIVA (id "${h.id}", sección «${s.title}»):\n${JSON.stringify({ intent: h.intent, blocks: h.blocks })}\n\nContinuidad: anterior = ${prev ?? "(ninguna)"}; siguiente = ${next ?? "(ninguna)"}.\nNivel: ${content.meta.level}. Idioma: ${content.meta.language}.\nLayouts de las diapositivas anteriores (en orden): ${used.slice(-4).join(", ") || "(ninguna)"}.${inLastSection ? " Esta diapositiva es de la última sección (puedes usar \"closing\" si resume ideas clave)." : ""}${current && data.feedback ? `\n\nVERSIÓN ACTUAL de la diapositiva (JSON):\n${JSON.stringify(current)}` : ""}${data.feedback ? `\n\nCOMENTARIOS DEL DOCENTE (aplícalos): ${data.feedback}` : ""}\n\nDevuelve { "slide": {...con id "${h.id}"}, "missingComponent"?: {...} }.`;
+      const user = `CONTENIDO DE LA DIAPOSITIVA (id "${h.id}", sección «${s.title}»):\n${JSON.stringify({ intent: h.intent, blocks: h.blocks })}\n\nContinuidad: anterior = ${prev ?? "(ninguna)"}; siguiente = ${next ?? "(ninguna)"}.\nNivel: ${content.meta.level}. Idioma: ${content.meta.language}.\nLayouts de las diapositivas anteriores (en orden): ${used.slice(-4).join(", ") || "(ninguna)"}.${inLastSection ? " Esta diapositiva es de la última sección (puedes usar \"closing\" si resume ideas clave)." : ""}${current && data.feedback ? `\n\nVERSIÓN ACTUAL de la diapositiva (JSON):\n${JSON.stringify(current)}` : ""}${data.feedback ? `\n\nCOMENTARIOS DEL DOCENTE (aplícalos): ${data.feedback}` : ""}\n\n${imgs.size ? `\n\nIMÁGENES YA GUARDADAS (usa el componente Image con estos datos EXACTOS, p. ej. en el slot visual de "split-visual"): ${JSON.stringify([...imgs].map(([block, im]) => ({ block, assetId: im.assetId, alt: im.alt })))}` : ""}\n\nDevuelve { "slide": {...con id "${h.id}"}, "missingComponent"?: {...} }.`;
       try {
         const out = await ctx.ai.structured({
           role: "design", task: "design.slide", schema: SlideOut, presentationId: p.id, maxTokens: 3500, temperature: 0.3, system, user,
@@ -182,6 +205,7 @@ export async function designGenerate(
             if (SYSTEM_LAYOUTS.has(sl.layout)) errs.push(`El layout "${sl.layout}" lo coloca el sistema: elige otro para esta diapositiva.`);
             else if (sl.layout === "closing" && !inLastSection) errs.push('El layout "closing" solo se usa en la última sección: elige otro.');
             // Con comentarios del docente (p. ej. «usa este componente») no se impone variedad de layouts: manda lo que pidió.
+            for (const r of Object.values(sl.slots)) if (r.componentId === "Image" && ![...imgs.values()].some((im) => im.assetId === (r.props as { assetId?: string }).assetId) && ![...allImages.values()].some((im) => im.assetId === (r.props as { assetId?: string }).assetId)) errs.push("El componente Image debe usar un assetId de las IMÁGENES YA GUARDADAS; no inventes ids.");
             const rep = data.feedback ? null : varietyProblem(used, sl.layout, h.blocks);
             if (rep) errs.push(rep);
             return errs;
@@ -196,7 +220,7 @@ export async function designGenerate(
         if (durable) await setProgress(++doneCount);
       } catch (e) {
         if (e instanceof LaminaError && e.code === "provider_failed") {
-          slides.push(...slidesFromHint(h, used, { closing: inLastSection })); // fallback estable
+          slides.push(...slidesFromHint(h, used, { closing: inLastSection, images: imgs })); // fallback estable
           if (durable) { await units.failUnit(ctx.db, scope, h.id, e.message).catch(() => {}); await setProgress(++doneCount); } // marcada: se reintenta en una ejecución nueva; cuenta como lista (degradada) para el progreso
         } else {
           if (durable) await units.failUnit(ctx.db, scope, h.id, (e as Error).message, e instanceof QuotaWaitError ? "quota_wait" : "failed").catch(() => {});
@@ -216,7 +240,7 @@ export async function designGenerate(
   });
   const final = validateDeckAgainstCatalog(deck, lookup);
   // Último recurso: si algo no valida, deck 100 % determinista (nunca se bloquea al docente).
-  const fallback = (): Deck => { const d = deckFromContent(content, author, { branding, themeId: style.themeId, accent: style.accent }); return { ...d, schemaVersion: logo ? 2 : d.schemaVersion, meta: { ...d.meta, branding, ...(logo ? { logo } : {}) }, slides: withBrandedCover(d.slides, branding) }; };
+  const fallback = (): Deck => { const d = deckFromContent(content, author, { branding, themeId: style.themeId, accent: style.accent, images: allImages }); return { ...d, schemaVersion: logo ? 2 : d.schemaVersion, meta: { ...d.meta, branding, ...(logo ? { logo } : {}) }, slides: withBrandedCover(d.slides, branding) }; };
   const safe: Deck = final.ok ? final.deck : fallback();
   const pins: Record<string, { version: string; bundleHash?: string }> = {};
   const provById = new Map(prov.map((x) => [x.manifest.id, x]));

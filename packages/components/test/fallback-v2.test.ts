@@ -27,3 +27,14 @@ describe("fallback con bloques pedagógicos v2", () => {
     expect(deck.slides.at(-1)!.layout).toBe("closing");
   });
 });
+
+describe("imageRequest resuelto", () => {
+  const images = new Map([["b3", { assetId: "11111111-1111-4111-8111-111111111111", alt: "Pila de platos", credit: "Ana · CC BY · wikimedia" }]]);
+  it("se convierte en un componente Image válido", () => {
+    const deck = deckFromContent(content, undefined, { images });
+    const s = deck.slides.find((x) => x.id === "h3")!;
+    expect(s.slots.main!.componentId).toBe("Image");
+    expect((s.slots.main!.props as { assetId: string }).assetId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(() => parseDeckAny(deck)).not.toThrow();
+  });
+});

@@ -175,3 +175,9 @@ ol.lm-bullets > li::marker { color: var(--lm-accent); font-weight: 600; }
 .lm-presenter-notes p { margin: 8px 0 0; white-space: pre-wrap; }
 .lm-presenter small { color: #9aa6ba; display: block; margin-bottom: 6px; }
 .lm-presenter-buttons { display: flex; gap: 10px; } .lm-presenter-buttons button { flex: 1; font: 500 18px var(--lm-font-body); padding: 12px; border-radius: 10px; border: 0; background: #2d6cdf; color: #fff; cursor: pointer; }
+
+/* Image (V3 §5.5): figura con texto alternativo obligatorio; el recorte respeta el punto focal. */
+.lm-image { height: 100%; margin: 0; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; }
+.lm-image img { flex: 1 1 auto; min-height: 0; width: 100%; border-radius: var(--lm-radius); object-fit: var(--lm-img-fit, cover); object-position: var(--lm-img-x, 50%) var(--lm-img-y, 50%); background: var(--lm-panel); }
+.lm-image figcaption { font: 500 30px/1.3 var(--lm-font-body); color: var(--lm-muted); }
+.lm-image-credit { display: block; font-size: 24px; opacity: .85; }

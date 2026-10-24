@@ -5,6 +5,7 @@ import { schema } from "@lamina/db";
 import { getDb } from "@/lib/db";
 import { provisionalForDeck, tokenHash } from "@/lib/presentation-view";
 import { withSignedBranding } from "@/lib/branding";
+import { withSignedAssets } from "@/lib/assets";
 import { PrintClient } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -26,5 +27,5 @@ export default async function PrintPage({ params, searchParams }: { params: Prom
   const [pres] = await db.select({ ownerId: schema.presentations.ownerId }).from(schema.presentations).where(eq(schema.presentations.id, dv.presentationId));
   if (!pres) notFound();
   const prov = await provisionalForDeck(dv.presentationId, dv.componentPins);
-  return <PrintClient deck={withSignedBranding(deck, 900, pres.ownerId)} prov={prov} />;
+  return <PrintClient deck={await withSignedAssets(withSignedBranding(deck, 900, pres.ownerId), 900, pres.ownerId)} prov={prov} />;
 }

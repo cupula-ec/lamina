@@ -2,7 +2,7 @@ import { eq, lt } from "drizzle-orm";
 import { JOB_PAYLOADS } from "@lamina/contracts";
 import { createDb, runContext, schema, units, workflow as wf } from "@lamina/db";
 import { createBoss, enqueue } from "@lamina/jobs";
-import { SearxngProvider, TavilyProvider, type SearchProvider } from "@lamina/research";
+import { SearxngProvider, TavilyProvider, defaultImageProviders, type SearchProvider } from "@lamina/research";
 import { makeAi } from "./ai";
 import type { Ctx } from "./ctx";
 import { loadEnv } from "./env";
@@ -22,7 +22,7 @@ if (env.SEARXNG_URL) search.push(new SearxngProvider(env.SEARXNG_URL));
 if (env.TAVILY_API_KEY) search.push(new TavilyProvider(env.TAVILY_API_KEY));
 
 const ctx: Ctx = {
-  env, db, boss, search,
+  env, db, boss, search, images: defaultImageProviders({ searxngUrl: env.SEARXNG_URL, unsplashKey: env.UNSPLASH_ACCESS_KEY, pexelsKey: env.PEXELS_API_KEY }),
   ai: makeAi(env, db, env.LAMINA_AI_PROVIDER === "fake" ? makeFakeProvider() : undefined),
   log: (m, x) => console.log(`[worker] ${new Date().toISOString()} ${m}`, x ?? ""),
 };
