@@ -1,19 +1,37 @@
 import Link from "next/link";
 import { desc, eq, gte, sql } from "drizzle-orm";
-import { schema, today, DEFAULT_QUOTAS } from "@lamina/db";
+import { FLAGS_KEY, FLAG_NAMES, loadFlags, schema, today, DEFAULT_QUOTAS } from "@lamina/db";
 import { AppShell } from "@/components/AppShell";
 import { getDb } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { UsersPanel } from "./users";
 import { ComponentsPanel } from "./components-panel";
 import { McpPanel } from "./mcp-panel";
+import { FlagsAdmin, type FlagRow } from "./flags-panel";
 import { STAGE_LABEL } from "@/lib/stages";
 import type { Stage } from "@lamina/contracts";
 
 export const metadata = { title: "Administración" };
 export const dynamic = "force-dynamic";
 
-const TABS = [["usuarios", "Usuarios"], ["componentes", "Componentes"], ["trabajos", "Trabajos y errores"], ["metricas", "Métricas"], ["ia-externa", "IA externa (MCP)"]] as const;
+const TABS = [["usuarios", "Usuarios"], ["componentes", "Componentes"], ["trabajos", "Trabajos y errores"], ["metricas", "Métricas"], ["ia-externa", "IA externa (MCP)"], ["funciones", "Funciones V3"]] as const;
+
+const FLAG_INFO: Record<string, [string, string]> = {
+  v3_durable_jobs: ["Trabajos durables", "Reanudar una generación interrumpida sin repetir lo hecho; progreso «N de M»."],
+  v3_workspace: ["Espacio de trabajo", "Edición incremental con operaciones (base del editor, el chat y el MCP v2)."],
+  v3_areas: ["Multi-área", "Prompts por área, catálogo y temas propios de programación, humanidades, ciencias y matemáticas ampliadas."],
+  v3_pedagogy: ["Pedagogía", "Motivación, ejercicios con pistas, cierre de clase y cantidad de diapositivas elegible."],
+  v3_images: ["Imágenes", "Búsqueda, ingesta y reemplazo de imágenes en las diapositivas."],
+  v3_motion: ["Motion y carga", "Animaciones por código (entradas, curvas, magic-move) y pantalla de carga con la marca."],
+  v3_logo: ["Logo persistente", "Logo en la esquina elegida de todas las diapositivas y portada con logo real."],
+  v3_harness_repair: ["IA con herramientas: corregir", "«Corregir automáticamente» con el harness (una diapositiva, todo o nada)."],
+  v3_harness_chat: ["IA con herramientas: chat", "Chat con Lámina por diapositiva, con deshacer."],
+  v3_harness_design: ["IA con herramientas: diseño", "Diseño slide a slide con el harness (reservado)."],
+  v3_mcp2: ["MCP v2", "La IA externa es la autora: herramientas incrementales, imágenes y componentes."],
+  v3_student_material: ["Material del alumno", "Página compartible y PDF con resumen, ejercicios y soluciones."],
+  v3_exports: ["Exportaciones", "PDF de la presentación y versión offline (ZIP)."],
+  v3_research_consent: ["Consentimiento de investigación", "Pide el consentimiento opcional de investigación y habilita datos agregados."],
+};
 
 export default async function Admin({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const user = await requireAdmin();
@@ -28,6 +46,13 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     body = <UsersPanel defaults={DEFAULT_QUOTAS} users={users.map(({ u, p }) => ({ id: u.id, email: u.email, name: u.name, role: u.role ?? "teacher", banned: !!u.banned, mustChange: !!p?.mustChangePassword, consent: !!p?.consentAt, quotas: p?.quotaOverrides ?? {}, presentations: nBy.get(u.id) ?? 0, createdAt: u.createdAt.toISOString() }))} />;
   } else if (tab === "componentes") {
     body = await ComponentsPanel();
+  } else if (tab === "funciones") {
+    const cfg = await loadFlags(db, true);
+    const ids = [...new Set(FLAG_NAMES.flatMap((n) => [...(cfg[n]?.testers ?? []), ...(cfg[n]?.volunteers ?? [])]))];
+    const mail = new Map((ids.length ? await db.select({ id: schema.user.id, email: schema.user.email }).from(schema.user).where(sql`${schema.user.id} in ${ids}`) : []).map((u) => [u.id, u.email]));
+    const rows: FlagRow[] = FLAG_NAMES.map((n) => ({ name: n, label: FLAG_INFO[n]?.[0] ?? n, what: FLAG_INFO[n]?.[1] ?? "", mode: cfg[n]?.mode ?? "off", testers: (cfg[n]?.testers ?? []).map((i) => mail.get(i) ?? i), volunteers: (cfg[n]?.volunteers ?? []).map((i) => mail.get(i) ?? i) }));
+    void FLAGS_KEY;
+    body = <FlagsAdmin rows={rows} />;
   } else if (tab === "ia-externa") {
     body = await McpPanel();
   } else if (tab === "trabajos") {

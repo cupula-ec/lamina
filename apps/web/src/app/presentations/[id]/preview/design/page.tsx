@@ -28,6 +28,7 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
   const p = await requireOwner(id, user.id).catch(() => null);
   if (!p) notFound();
   const stage = p.stage as Stage;
+  const materialOn = await flagEnabled(getDb(), "v3_student_material", { userId: user.id, presentationId: p.id });
   const richLoader = await flagEnabled(getDb(), "v3_motion", { userId: user.id, presentationId: p.id });
   const versions = await deckVersions(p.id);
 
@@ -54,7 +55,7 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
         {cur && ["design_review", "final_review", "private_final", "published"].includes(stage) && cur.row.id === (stage === "design_review" ? p.currentDeckVersionId : p.finalDeckVersionId) && (
           <StyleChange presentationId={p.id} baseVersionId={cur.row.id} current={{ themeId: cur.deck.themeId, accent: cur.deck.accent ?? "a" }} topic={cur.deck.meta.topic} branding={cur.deck.meta.branding ?? null} />
         )}
-        {cur && exportsOn && ["design_review", "final_review", "private_final", "published"].includes(stage) && <ExportPanel presentationId={p.id} kinds={["pdf", "offline"]} />}
+        {cur && exportsOn && ["design_review", "final_review", "private_final", "published"].includes(stage) && <ExportPanel presentationId={p.id} kinds={["pdf", "offline", ...(materialOn ? ["student_pdf"] : [])]} materialUrl={materialOn ? `/presentations/${p.id}/material` : undefined} />}
         {cur && (
           <DesignReview chatOn={await flagEnabled(getDb(), "v3_harness_chat", { userId: user.id, presentationId: p.id })}
             presentationId={p.id}

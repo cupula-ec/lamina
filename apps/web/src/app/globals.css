@@ -104,3 +104,17 @@ textarea.field { min-height: 7rem; resize: vertical; }
 @keyframes lm-lift { to { translate: 3px -3px; } }
 @keyframes lm-line { 0% { stroke-dashoffset: 80; } 55%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -80; } }
 @keyframes lm-tipin { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
+
+/* Material del alumno (V3 §5.8): página compartible y PDF */
+.mt-doc { max-width: 46rem; margin: 0 auto; padding: 2rem 1rem 4rem; font: 400 1.05rem/1.6 var(--font-sans); color: var(--color-ink); }
+.mt-doc h1 { font: 700 2rem/1.15 var(--font-display, var(--font-sans)); } .mt-doc h2 { margin: 2rem 0 .5rem; font-size: 1.4rem; font-weight: 700; border-bottom: 2px solid var(--color-ink); padding-bottom: .2rem; }
+.mt-sub { color: var(--color-ink-2); } .mt-by { font-size: .9rem; color: var(--color-ink-2); }
+.mt-doc section > * + * { margin-top: .75rem; } .mt-doc ul, .mt-doc ol { padding-left: 1.3rem; } .mt-doc ul { list-style: disc; }
+.mt-label { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--color-ink-2); }
+.mt-concept, .mt-motiv, .mt-note { padding: .6rem .9rem; background: var(--color-paper-2); border-left: 5px solid var(--color-blue); border-radius: 4px; }
+.mt-example, .mt-exercise, .mt-activity, .mt-solution { padding: .8rem 1rem; border: 2px solid var(--color-ink); border-radius: 8px; break-inside: avoid; } .mt-exercise { border-style: dashed; } .mt-solution-ref { font-size: .85rem; color: var(--color-ink-2); }
+.mt-formula { margin: 0; overflow-x: auto; text-align: center; } .mt-formula figcaption { font-size: .85rem; color: var(--color-ink-2); }
+.mt-code { padding: .8rem 1rem; background: #0b0f14; color: #e6edf3; border-radius: 8px; overflow-x: auto; font: 500 .9rem/1.5 ui-monospace, Menlo, monospace; }
+.mt-table { width: 100%; border-collapse: collapse; } .mt-table th, .mt-table td { border: 1.5px solid var(--color-ink); padding: .3rem .5rem; text-align: left; }
+.mt-keys div { display: flex; gap: .75rem; padding: .25rem 0; } .mt-keys dt { font-weight: 700; min-width: 9rem; }
+@media print { .mt-doc { max-width: none; padding: 0; font-size: 11pt; } .mt-doc h2 { break-after: avoid; } .mt-solutions { break-before: page; } }

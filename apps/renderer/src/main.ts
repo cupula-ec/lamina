@@ -127,6 +127,28 @@ export async function exportOffline(exportId: string) {
   await db.update(schema.exportsTable).set({ status: "done", path: file, bytes: zip.length, finishedAt: new Date() }).where(eq(schema.exportsTable.id, exportId));
 }
 
+/** PDF del material del alumno (A4): se dibuja la misma página que ve el alumno, desde el contenido aprobado. */
+export async function exportStudentPdf(exportId: string) {
+  const [x] = await db.select().from(schema.exportsTable).where(eq(schema.exportsTable.id, exportId));
+  if (!x || x.status === "done" || !x.deckVersionId) return;
+  await db.update(schema.exportsTable).set({ status: "running", error: null }).where(eq(schema.exportsTable.id, exportId));
+  const dir = path.join(env.DATA_DIR, "presentations", x.presentationId, "exports");
+  await fs.mkdir(dir, { recursive: true });
+  const ctx = await (await getBrowser()).newContext({ viewport: { width: 1000, height: 1400 }, deviceScaleFactor: 1, serviceWorkers: "block", reducedMotion: "reduce" });
+  try {
+    const page = await ctx.newPage();
+    const token = await newToken(x.deckVersionId);
+    await page.goto(`${env.WEB_INTERNAL_URL}/render/${x.deckVersionId}/material?token=${token}`, { waitUntil: "load", timeout: 60_000 });
+    await page.waitForSelector("#mt-ready", { timeout: 30_000 });
+    await page.evaluate(() => document.fonts.ready);
+    await page.emulateMedia({ media: "print", reducedMotion: "reduce" });
+    const pdf = await page.pdf({ format: "A4", printBackground: true, margin: { top: "18mm", bottom: "18mm", left: "16mm", right: "16mm" } });
+    const file = path.join(dir, `${exportId}.pdf`);
+    await fs.writeFile(file, pdf, { mode: 0o600 });
+    await db.update(schema.exportsTable).set({ status: "done", path: file, bytes: pdf.length, finishedAt: new Date() }).where(eq(schema.exportsTable.id, exportId));
+  } finally { await ctx.close(); }
+}
+
 const MAX_REPAIR_ATTEMPTS = 2;
 type Iss = { severity: string; ignored?: boolean };
 const errorsOf = (issues: unknown) => (issues as Iss[]).filter((i) => i.severity === "error" && !i.ignored).length;
@@ -221,6 +243,7 @@ await boss.work("export", { localConcurrency: 1 }, async (jobs) => {
     try {
       if (d.kind === "pdf") await exportPdf(d.exportId);
       else if (d.kind === "offline") await exportOffline(d.exportId);
+      else if (d.kind === "student_pdf") await exportStudentPdf(d.exportId);
       else throw new Error(`export ${d.kind}: no disponible todavía`);
       console.log(`[renderer] export ok ${d.exportId}`);
     } catch (e) {

@@ -3,11 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Callout } from "@/components/ui/Callout";
 
 type Item = { id: string; kind: string; status: string; bytes: number | null; error: string | null };
-const LABEL: Record<string, string> = { pdf: "PDF de la presentación", offline: "Versión offline (ZIP)" };
+const LABEL: Record<string, string> = { pdf: "PDF de la presentación", offline: "Versión offline (ZIP)", student_pdf: "Material del alumno (PDF)" };
 const mb = (b: number | null) => (b ? `${(b / 1048576).toFixed(1)} MB` : "");
 
 /** Exporta el diseño vigente (PDF y, más adelante, versión offline). La generación corre en segundo plano; se sondea el estado. */
-export function ExportPanel({ presentationId, kinds = ["pdf"] }: { presentationId: string; kinds?: string[] }) {
+export function ExportPanel({ presentationId, kinds = ["pdf"], materialUrl }: { presentationId: string; kinds?: string[]; materialUrl?: string }) {
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyKind, setBusyKind] = useState<string | null>(null);
@@ -46,6 +46,7 @@ export function ExportPanel({ presentationId, kinds = ["pdf"] }: { presentationI
       <div className="flex flex-wrap gap-2">
         {kinds.map((k) => <button key={k} className="btn" disabled={busyKind === k || active} onClick={() => void request(k)}>{busyKind === k ? "Pidiendo…" : `Generar ${LABEL[k] ?? k}`}</button>)}
       </div>
+      {materialUrl && <p className="text-sm"><a className="underline" href={materialUrl} target="_blank" rel="noreferrer">Ver el material del alumno en pantalla</a> (se comparte con el mismo enlace de la presentación publicada).</p>}
       {active && <p role="status" className="text-sm font-bold">Generando el archivo… puede tardar un minuto.</p>}
       {items.length > 0 && (
         <ul className="divide-y-2 divide-ink/10 text-sm">

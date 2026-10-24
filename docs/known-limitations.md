@@ -12,3 +12,16 @@
 - **Backups** de Postgres y del volumen de datos: cron diario (`scripts/backup.sh`); la restauración de prueba sigue pendiente.
 - **Marca institucional (ADR-011):** se conservan las 3 versiones previas de cada logo; reemplazar el logo de una institución cambia las portadas ya publicadas que lo usan. Los usuarios existentes pasan por `/bienvenida` en su próximo ingreso. El logo y la paleta de la UPS provienen del sitio oficial y están pendientes de validación por la institución.
 - **Temas y layouts (ADR-012):** los decks anteriores a v1.2 se renderizan con su `themeId` original; cambiar de tema regenera el diseño de portada y decoración, no el contenido. Los límites de subida de logos viven en memoria por proceso.
+
+## V3 (todo detrás de feature flags; ver el panel Admin → Funciones V3)
+
+- **Despliegue gradual:** ninguna función V3 se activa sola. Antes de encender un flag que *escribe* datos nuevos (esquema v2 de deck/contenido, `assets`, `chat_runs`), web, worker y renderer deben tener desplegado el código que los *lee*. Cada flag se apaga en segundos sin deploy.
+- **Imágenes:** el crédito en la diapositiva es opcional; la procedencia se guarda siempre. Las fuentes «web abierta» (SearXNG) no traen licencia verificada: el docente decide. La elección automática es heurística (tamaño, proporción, banco libre primero); la elección con un modelo de visión `:free` y la interfaz de «alternativas» del editor están pendientes (la API existe en `/api/presentations/[id]/images`).
+- **Editor:** el chat por diapositiva y «Corregir automáticamente» con el harness existen; la edición directa sobre la diapositiva y el panel contextual (con el modo avanzado plegado) están pendientes.
+- **Harness:** presupuesto de 8 pasos por diapositiva; no cambia el deck completo. `design.slide` con harness (`v3_harness_design`) está reservado y no se usa. El harness no renderiza durante el bucle: el render y la comprobación de que el problema desapareció los hace el flujo existente tras guardar.
+- **Motion:** sin librería de animación; los contadores animados de `StatCard` no se implementaron. Magic-move usa View Transitions (si el navegador no lo soporta, hay fundido). Con `prefers-reduced-motion` no hay animación.
+- **Componentes propuestos por MCP (`propose_component`):** pasan por el mismo camino que los generados (astcheck, TypeScript estricto, sandbox sin red, fixtures); solo para esa presentación y sin rediseño automático. El `astcheck` se relajó (identificadores locales y `arr[i + 1]`); revisado por un agente `reviewer`, pero sigue siendo una barrera más, no la única.
+- **Exportación offline:** el ZIP trae un `index.html` autocontenido (fuentes e imágenes incluidas, ~2–5 MB); los componentes generados corren en un iframe sandbox dentro del archivo. No hay PPTX.
+- **Material del alumno:** se arma sin IA desde el contenido aprobado; las gráficas se describen en texto (no se dibujan) y las imágenes no se incluyen, solo sus créditos.
+- **Consentimiento de investigación (LOPDP):** el texto, la retirada y la anonimización deben ser revisados por una persona antes de activar `v3_research_consent`.
+- **Tests con base de datos:** requieren Postgres en `127.0.0.1:55432` (`docker compose -f docker-compose.dev.yml up -d postgres`). Ejecutar de uno en uno: la máquina de desarrollo ha tenido OOM con agentes y tests en paralelo.

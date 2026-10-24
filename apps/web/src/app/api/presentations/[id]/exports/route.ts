@@ -35,7 +35,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const p = await requireOwner((await params).id, u.id);
     if (!(await flagEnabled(db, "v3_exports", { userId: u.id, presentationId: p.id }))) throw new LaminaError("forbidden", "La exportación todavía no está habilitada para tu cuenta.", 403);
     const kind = ExportKind.safeParse((await req.json().catch(() => ({}))).kind);
-    if (!kind.success || kind.data === "student_pdf") throw new LaminaError("invalid_input", "Tipo de exportación no válido.", 400);
+    if (!kind.success) throw new LaminaError("invalid_input", "Tipo de exportación no válido.", 400);
+    if (kind.data === "student_pdf" && !(await flagEnabled(db, "v3_student_material", { userId: u.id, presentationId: p.id }))) throw new LaminaError("forbidden", "El material del alumno todavía no está habilitado para tu cuenta.", 403);
     const deckId = p.finalDeckVersionId ?? p.currentDeckVersionId;
     if (!deckId) throw new LaminaError("invalid_transition", "Todavía no hay un diseño para exportar.", 409);
     await consumeQuota(db, u.id, "export");

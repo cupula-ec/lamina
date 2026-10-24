@@ -28,7 +28,10 @@
 | 4 | Hecho | `v3_areas` (prompts por área, consultas), `v3_pedagogy` (contenido v2, validación, cierre, diseño). Pendiente: `stepwise` por defecto en todos los componentes (hoy solo `Checkpoint` desde el fallback) |
 | 5 | Hecho el motor (proveedores, ingesta, `assets`, ruta firmada, `Image`, resolución en el diseño, cuota `image`, API de reemplazo `/api/presentations/[id]/images`) detrás de `v3_images` | Falta la UI del editor (va con el panel contextual del bloque 8) y la elección con visión free |
 | 6 | Hecho salvo que `propose_component`/MCP y el visor de avisos de color institucional llegan con sus bloques | Astcheck por ámbito (revisado), SDK con cónicas/implícitas, 28 componentes nuevos por área (flags `v3_areas`/`v3_pedagogy`/`v3_images`), temas por área e institucional-marca (OKLCH), AAA 7:1 en tinta y texto atenuado |
-| 7–10 | Pendientes | |
+| 7 | Hecho | Motion (`v3_motion`), pantalla de carga con marca, exportación offline (ZIP autocontenido verificado sin red en Chromium) |
+| 8 | Parcial | Harness + corregir automáticamente (`v3_harness_repair`) + chat por diapositiva con deshacer (`v3_harness_chat`). Pendiente: edición directa sobre la slide y panel contextual |
+| 9 | Hecho | MCP v2 (`v3_mcp2`): 16 herramientas nuevas, errores accionables, `propose_component`, imágenes; tests de contrato. Falta la prueba manual con ChatGPT real |
+| 10 | Parcial | Material del alumno (`v3_student_material`), panel Admin → Funciones V3 (despliegue gradual), borrador de changelog y límites conocidos. Pendiente: despliegue real, métricas antes/después y changelog v3.0.0 definitivo |
 
 ---
 
