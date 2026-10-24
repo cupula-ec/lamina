@@ -81,6 +81,28 @@ export async function renderComponent(componentVersionId: string, presentationId
   } finally { await ctx.close(); }
 }
 
+/** PDF de la presentación (V3 §5.8): todas las diapositivas en su paso final, una por página 1920×1080, texto vectorial y fuentes incrustadas. */
+export async function exportPdf(exportId: string) {
+  const [x] = await db.select().from(schema.exportsTable).where(eq(schema.exportsTable.id, exportId));
+  if (!x || x.status === "done" || !x.deckVersionId) return;
+  await db.update(schema.exportsTable).set({ status: "running", error: null }).where(eq(schema.exportsTable.id, exportId));
+  const dir = path.join(env.DATA_DIR, "presentations", x.presentationId, "exports");
+  await fs.mkdir(dir, { recursive: true });
+  const ctx = await (await getBrowser()).newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, serviceWorkers: "block", reducedMotion: "reduce" });
+  try {
+    const page = await ctx.newPage();
+    const token = await newToken(x.deckVersionId);
+    await page.goto(`${env.WEB_INTERNAL_URL}/render/${x.deckVersionId}/print?token=${token}`, { waitUntil: "load", timeout: 60_000 });
+    await page.waitForFunction(() => (window as any).__laminaReady === true, undefined, { timeout: 90_000 });
+    await page.evaluate(() => document.fonts.ready);
+    await page.emulateMedia({ media: "print", reducedMotion: "reduce" });
+    const pdf = await page.pdf({ width: "1920px", height: "1080px", printBackground: true, preferCSSPageSize: true });
+    const file = path.join(dir, `${exportId}.pdf`);
+    await fs.writeFile(file, pdf, { mode: 0o600 });
+    await db.update(schema.exportsTable).set({ status: "done", path: file, bytes: pdf.length, finishedAt: new Date() }).where(eq(schema.exportsTable.id, exportId));
+  } finally { await ctx.close(); }
+}
+
 const MAX_REPAIR_ATTEMPTS = 2;
 type Iss = { severity: string; ignored?: boolean };
 const errorsOf = (issues: unknown) => (issues as Iss[]).filter((i) => i.severity === "error" && !i.ignored).length;
@@ -166,6 +188,21 @@ await boss.work("render", { localConcurrency: env.RENDER_CONCURRENCY }, async (j
     } catch (e) {
       if ((e as { code?: string }).code === "run_cancelled") continue;
       throw e;
+    }
+  }
+});
+await boss.work("export", { localConcurrency: 1 }, async (jobs) => {
+  for (const job of jobs) {
+    const d = JOB_PAYLOADS.export.parse(job.data);
+    try {
+      if (d.kind === "pdf") await exportPdf(d.exportId);
+      else throw new Error(`export ${d.kind}: no disponible todavía`);
+      console.log(`[renderer] export ok ${d.exportId}`);
+    } catch (e) {
+      console.error(`[renderer] export fallo ${d.exportId}:`, (e as Error).message);
+      const last = ((job as { retryCount?: number }).retryCount ?? 0) >= 1;
+      if (last || /no disponible/.test((e as Error).message)) await db.update(schema.exportsTable).set({ status: "failed", error: "No se pudo generar el archivo. Inténtalo de nuevo.", finishedAt: new Date() }).where(eq(schema.exportsTable.id, d.exportId)).catch(() => {});
+      if (!/no disponible/.test((e as Error).message)) throw e;
     }
   }
 });

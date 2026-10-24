@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
-import { schema, usageFor } from "@lamina/db";
+import { flagEnabled, schema, usageFor } from "@lamina/db";
 import type { SlideIssue } from "@lamina/engine";
 import type { Stage } from "@lamina/contracts";
 import { AppShell } from "@/components/AppShell";
@@ -16,6 +16,7 @@ import { artifactsFor, deckVersions, loadDeck, polishReport, provisionalForDeck,
 import { requireUser } from "@/lib/session";
 import { DesignReview } from "./review";
 import { StyleChange } from "./style-change";
+import { ExportPanel } from "./export-panel";
 
 export const metadata = { title: "Revisar diseño" };
 export const dynamic = "force-dynamic";
@@ -37,6 +38,7 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
   const prov = await provisionalForDeck(p.id, cur?.row.componentPins ?? {});
   const reqs = await getDb().select().from(schema.componentRequests).where(eq(schema.componentRequests.presentationId, p.id)).orderBy(desc(schema.componentRequests.createdAt));
   const waitingRender = !!cur && arts.length < cur.deck.slides.length;
+  const exportsOn = await flagEnabled(getDb(), "v3_exports", { userId: user.id, presentationId: p.id });
   const activeReq = reqs.some((r) => r.status === "pending" || r.status === "running");
 
   return (
@@ -51,6 +53,7 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
         {cur && ["design_review", "final_review", "private_final", "published"].includes(stage) && cur.row.id === (stage === "design_review" ? p.currentDeckVersionId : p.finalDeckVersionId) && (
           <StyleChange presentationId={p.id} baseVersionId={cur.row.id} current={{ themeId: cur.deck.themeId, accent: cur.deck.accent ?? "a" }} topic={cur.deck.meta.topic} branding={cur.deck.meta.branding ?? null} />
         )}
+        {cur && exportsOn && ["design_review", "final_review", "private_final", "published"].includes(stage) && <ExportPanel presentationId={p.id} />}
         {cur && (
           <DesignReview
             presentationId={p.id}

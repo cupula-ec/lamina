@@ -8,6 +8,7 @@ export const JOB_NAMES = [
   "design.repair",
   "polish",
   "render",
+  "export",
 ] as const;
 export const JobName = z.enum(JOB_NAMES);
 export type JobName = z.infer<typeof JobName>;
@@ -60,6 +61,12 @@ export const RenderPayload = z
   })
   .refine((p) => !!p.deckVersionId !== !!p.componentVersionId, { message: "indica deckVersionId o componentVersionId" });
 
+/** Exportaciones (V3 §5.8): PDF de la presentación, versión offline (ZIP) y PDF del material del alumno. */
+export const EXPORT_KINDS = ["pdf", "offline", "student_pdf"] as const;
+export const ExportKind = z.enum(EXPORT_KINDS);
+export type ExportKind = z.infer<typeof ExportKind>;
+export const ExportPayload = z.object({ presentationId: Uuid, userId: z.string(), exportId: Uuid, kind: ExportKind });
+
 export const JOB_PAYLOADS = {
   research: ResearchPayload,
   "content.generate": ContentGeneratePayload,
@@ -68,6 +75,7 @@ export const JOB_PAYLOADS = {
   "design.repair": DesignRepairPayload,
   polish: PolishPayload,
   render: RenderPayload,
+  export: ExportPayload,
 } as const;
 
 export const jobSingletonKey = (name: JobName, presentationId: string, base: string) => `${name}:${presentationId}:${base}`;

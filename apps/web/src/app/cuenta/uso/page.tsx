@@ -17,6 +17,7 @@ const INFO: Record<QuotaKind, { label: string; what: string }> = {
   ocr_vision_page: { label: "Páginas con visión (OCR)", what: "Leer fórmulas de PDF escaneados con un modelo de visión (solo si lo autorizas)." },
   mcp_call: { label: "Consultas desde tu IA conectada", what: "Llamadas que hace Claude, ChatGPT u otra IA conectada por MCP." },
   mcp_submit: { label: "Envíos desde tu IA conectada", what: "Contenidos o diseños que tu IA envía a Lámina." },
+  export: { label: "Exportaciones", what: "PDF y versión offline de tus presentaciones." },
 };
 const STATIC_LIMITS: [string, string][] = [
   ["Archivos por presentación", "Hasta 3 (PDF, DOCX, TXT o MD), 20 MB cada uno"],

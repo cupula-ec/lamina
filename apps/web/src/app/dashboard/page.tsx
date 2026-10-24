@@ -18,7 +18,7 @@ import type { Stage } from "@lamina/contracts";
 export const metadata = { title: "Mis presentaciones" };
 export const dynamic = "force-dynamic";
 
-const QL: Record<string, string> = { presentation_new: "Presentaciones nuevas", content_regen: "Regeneraciones de contenido", design_regen: "Regeneraciones de diseño", component_request: "Componentes nuevos", ocr_vision_page: "Páginas con visión (OCR)", mcp_call: "Consultas desde tu IA conectada", mcp_submit: "Envíos desde tu IA conectada" };
+const QL: Record<string, string> = { presentation_new: "Presentaciones nuevas", content_regen: "Regeneraciones de contenido", design_regen: "Regeneraciones de diseño", component_request: "Componentes nuevos", ocr_vision_page: "Páginas con visión (OCR)", mcp_call: "Consultas desde tu IA conectada", mcp_submit: "Envíos desde tu IA conectada", export: "Exportaciones (PDF y offline)" };
 const FILTERS = [["todas", "Todas"], ["curso", "En curso"], ["publicadas", "Publicadas"]] as const;
 const DONE = ["published", "private_final"];
 

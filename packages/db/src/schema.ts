@@ -489,6 +489,21 @@ export const workspaceOps = pgTable("workspace_ops", {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("workspace_ops_opid").on(t.workspaceId, t.opId), index("workspace_ops_batch").on(t.workspaceId, t.batchId)]);
 
+/** Exportaciones generadas (V3 §5.8). El archivo vive en DATA_DIR; aquí solo su estado y ruta. */
+export const exportsTable = pgTable("exports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  presentationId: uuid("presentation_id").notNull().references(() => presentations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  kind: text("kind").notNull(), // pdf | offline | student_pdf
+  deckVersionId: uuid("deck_version_id"),
+  status: text("status").notNull().default("pending"), // pending | running | done | failed
+  path: text("path"),
+  bytes: integer("bytes"),
+  error: text("error"),
+  createdAt: createdAt(),
+  finishedAt: ts("finished_at"),
+}, (t) => [index("exports_pres_idx").on(t.presentationId, t.createdAt)]);
+
 /** Unidad de trabajo persistente de un job (V3 §5.1): su resultado se guarda al terminar, y un reinicio solo repite lo que no estaba `done`. */
 export const workUnits = pgTable("work_units", {
   id: uuid("id").primaryKey().defaultRandom(),
