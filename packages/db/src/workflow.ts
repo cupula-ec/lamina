@@ -228,7 +228,13 @@ export async function addDeckVersion(
     allowSchemaV2?: boolean;
   },
 ) {
-  assertWritable(v.deck, v.allowSchemaV2);
+  // Una versión derivada de otra que YA es v2 (reparación, pulido, edición, estilo) hereda el permiso: su base se escribió legítimamente.
+  let allow = v.allowSchemaV2;
+  if (!allow && v.parentId) {
+    const [par] = await tx.select({ deck: deckVersions.deck }).from(deckVersions).where(eq(deckVersions.id, v.parentId));
+    allow = (par?.deck as { schemaVersion?: number } | undefined)?.schemaVersion === 2;
+  }
+  assertWritable(v.deck, allow);
   const { allowSchemaV2: _a, ...rest } = v;
   const [{ n } = { n: 0 }] = await tx
     .select({ n: sql<number>`coalesce(max(${deckVersions.n}),0)::int` })
@@ -611,14 +617,14 @@ export async function checkpointContent(tx: Tx, id: string, v: { content: unknow
 }
 
 /** content_approved | design_review | etapas editables → nueva versión del deck. En `designing` no se confirma (el job está escribiendo). */
-export async function checkpointDeck(tx: Tx, id: string, v: { deck: unknown; sha256: string; baseVersionId: string | null; authorKind: "ia" | "docente" | "mcp"; note?: string }) {
+export async function checkpointDeck(tx: Tx, id: string, v: { deck: unknown; sha256: string; baseVersionId: string | null; authorKind: "ia" | "docente" | "mcp"; note?: string; allowSchemaV2?: boolean }) {
   const p = await lock(tx, id);
   expectStage(p, ["content_approved", "design_review", ...EDITABLE_STAGES], "confirmar cambios del diseño");
   if (!p.approvedContentVersionId) throw new LaminaError("invalid_transition", "El contenido no está aprobado", 409);
   const head = p.stage === "content_approved" ? p.currentDeckVersionId : headDeckVersionId(p);
   if ((head ?? null) !== (v.baseVersionId ?? null)) throw new LaminaError("stale_version", "El diseño cambió desde la versión base del espacio de trabajo", 409, { currentVersionId: head });
   const safe = await withOwnerBranding(tx, p, v.deck, v.sha256);
-  const row = await addDeckVersion(tx, id, { deck: safe.deck, sha256: safe.sha256, contentVersionId: p.approvedContentVersionId, authorKind: v.authorKind, parentId: v.baseVersionId, kind: v.authorKind === "docente" ? "edit" : "design", note: v.note });
+  const row = await addDeckVersion(tx, id, { deck: safe.deck, sha256: safe.sha256, contentVersionId: p.approvedContentVersionId, authorKind: v.authorKind, parentId: v.baseVersionId, kind: v.authorKind === "docente" ? "edit" : "design", note: v.note, allowSchemaV2: v.allowSchemaV2 });
   const next = p.stage === "content_approved" || p.stage === "design_review" ? { stage: "design_review" as Stage, currentDeckVersionId: row.id, approvedDeckVersionId: null, prevStage: null, lastError: null } : { finalDeckVersionId: row.id };
   await set(tx, id, next);
   await evt(tx, "workspace.deck_checkpoint", p, { versionId: row.id });

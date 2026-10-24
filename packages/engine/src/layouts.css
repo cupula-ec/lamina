@@ -19,6 +19,15 @@
 .lm-closing-foot strong { color: var(--lm-accent); letter-spacing: .12em; text-transform: uppercase; flex: none; max-width: 40%; }
 .lm-footer { display: var(--lm-footer-display, none); position: absolute; left: 96px; right: 96px; bottom: 18px; margin: 0; justify-content: space-between; font: 500 24px var(--lm-font-body); color: var(--lm-footer-ink, var(--lm-muted)); letter-spacing: .06em; }
 .lm-footer-n { font-variant-numeric: tabular-nums; }
+/* Logo persistente de las diapositivas interiores (deck v2): zona reservada en la geometría (contracts/geometry.ts). */
+.lm-corner-logos { position: absolute; display: flex; align-items: center; gap: 16px; z-index: 2; }
+.lm-corner-tl { left: 96px; top: 56px; } .lm-corner-tr { right: 96px; top: 56px; }
+.lm-corner-bl { left: 96px; bottom: 8px; } .lm-corner-br { right: 96px; bottom: 8px; }
+.lm-corner-logos .lm-logo { height: var(--lm-corner-h, 48px); max-height: var(--lm-corner-h, 48px); max-width: 200px; width: auto; }
+.lm-footer-solo { justify-content: flex-start; } .lm-footer-solo.lm-footer-right { justify-content: flex-end; }
+/* Portada con logo real: más grande que la barra de v2. */
+.lm-cover-v3 .lm-brandbar { top: 40px; height: 160px; }
+.lm-cover-v3 .lm-logo { max-height: 150px; max-width: 560px; }
 [data-theme="lamina-oscuro"], [data-theme="algebra-grafito"], [data-theme="fisica-aurora"], [data-theme="pizarra"] { --lm-logo-bg: #fff; --lm-logo-pad: 10px 16px; }
 
 /* ───────── Layouts base ───────── */

@@ -6,7 +6,7 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import {
-  LaminaError, OP_TARGET, WorkspaceOp, parseContentAny, parseDeckAny,
+  LaminaError, OP_TARGET, V2_OPS, WorkspaceOp, parseContentAny, parseDeckAny,
   type ApplyResult, type OpAuthor, type OpIssue, type SlideDiff, type DeckDocument, type ContentDraft,
 } from "@lamina/contracts";
 import type { Db, Tx } from "./client";
@@ -24,6 +24,8 @@ export type DeckValidator = (deck: DeckDocument, touchedSlideIds: string[]) => O
 export type ContentValidator = (content: ContentDraft) => OpIssue[] | Promise<OpIssue[]>;
 export type ApplyOpts = {
   opId?: string; dryRun?: boolean; baseRev?: number; label?: string; ownerId?: string;
+  /** El llamador tiene el flag de escritura v2 (ops que producen datos de esquema v2, p. ej. set_logo). */
+  allowV2?: boolean;
   validateDeck?: DeckValidator; validateContent?: ContentValidator;
 };
 
@@ -83,6 +85,10 @@ export async function applyOps(db: Db, presentationId: string, rawOps: unknown[]
   if (bad.length) return { ok: false, issues: bad, newRev: -1, appliedOpIds: [] };
   const ops = parsed.map((r) => (r as { data: WorkspaceOp }).data);
   if (!ops.length) return { ok: false, issues: [{ code: "empty", message: "El lote no trae operaciones" }], newRev: -1, appliedOpIds: [] };
+  if (!opts.allowV2) {
+    const v2 = ops.map((o, i) => (V2_OPS.includes(o.op) ? i : -1)).filter((i) => i >= 0);
+    if (v2.length) return { ok: false, issues: v2.map((opIndex) => ({ opIndex, code: "feature_off", message: "Esta operación todavía no está habilitada para tu cuenta" })), newRev: -1, appliedOpIds: [] };
+  }
   if (ops.length > 100) return { ok: false, issues: [{ code: "too_many", message: "Máximo 100 operaciones por lote" }], newRev: -1, appliedOpIds: [] };
 
   return db.transaction(async (tx): Promise<ApplyResult> => {
@@ -128,7 +134,8 @@ export async function undoBatch(db: Db, presentationId: string, batchId: string,
   const ws = await getWorkspace(db, presentationId, opts.ownerId);
   const rows = await db.select().from(workspaceOps).where(and(eq(workspaceOps.workspaceId, ws.id), eq(workspaceOps.batchId, batchId))).orderBy(desc(workspaceOps.idx));
   if (!rows.length) return { ok: false, issues: [{ code: "not_found", message: "No existe ese lote de cambios" }], newRev: ws.rev, appliedOpIds: [] };
-  return applyOps(db, presentationId, rows.map((r) => r.inverse), author, { ...opts, label: opts.label ?? "Deshacer" });
+  // Las inversas solo revierten cambios ya aplicados (también los de esquema v2): no requieren el flag de escritura.
+  return applyOps(db, presentationId, rows.map((r) => r.inverse), author, { ...opts, allowV2: true, label: opts.label ?? "Deshacer" });
 }
 
 /** Historial de lotes («qué cambió la IA»), el más reciente primero, con las diapositivas que tocó cada uno. */
@@ -175,7 +182,7 @@ export async function commitCheckpoint(db: Db, presentationId: string, ownerId: 
       const baseD = ws.baseDeckVersionId;
       const [dv] = baseD ? await tx.select().from(deckVersions).where(eq(deckVersions.id, baseD)) : [];
       if (!dv || hashJson(parseDeckAny(dv.deck)) !== hashJson(parseDeckAny(ws.deck))) {
-        const row = await wf.checkpointDeck(tx, presentationId, { deck: ws.deck, sha256: hashJson(ws.deck), baseVersionId: baseD, authorKind, note: label });
+        const row = await wf.checkpointDeck(tx, presentationId, { deck: ws.deck, sha256: hashJson(ws.deck), baseVersionId: baseD, authorKind, note: label, allowSchemaV2: true });
         deckVersionId = row.id;
       }
     }

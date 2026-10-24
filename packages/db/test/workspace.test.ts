@@ -151,4 +151,31 @@ describe("workspace: base de datos", () => {
     // en `designing` no se confirma (el job escribe la versión)
     await expect(ws.commitCheckpoint(h.db, id, o, "mcp", "x")).rejects.toMatchObject({ code: "invalid_transition" });
   });
+
+  it("set_logo: bloqueado sin flag de escritura v2; con él el deck pasa a v2, se confirma y deshacer lo devuelve a v1", async () => {
+    const { o, id } = await setup();
+    const logo = { op: "set_logo", logo: { corner: "br", which: "institution", size: "s" } };
+    const off = await ws.applyOps(h.db, id, [logo], "docente", { ownerId: o });
+    expect(off).toMatchObject({ ok: false, issues: [{ code: "feature_off" }] });
+    const before = await ws.getWorkspace(h.db, id);
+    const on = await ws.applyOps(h.db, id, [logo], "docente", { ownerId: o, allowV2: true });
+    expect(on.ok).toBe(true);
+    const w1 = await ws.getWorkspace(h.db, id);
+    expect(parseDeckAny(w1.deck)).toMatchObject({ schemaVersion: 2, meta: { logo: { corner: "br", which: "institution" } } });
+    const cp = await ws.commitCheckpoint(h.db, id, o, "docente", "logo");
+    expect(cp.committed).toBe(true);
+    const [row] = await h.db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, cp.deckVersionId!));
+    expect((row!.deck as { schemaVersion: number }).schemaVersion).toBe(2);
+    // una versión derivada de un deck v2 (edición posterior) hereda el permiso
+    const next = await ws.applyOps(h.db, id, [{ op: "set_notes", slideId: "a", notes: "n" }], "docente", { ownerId: o });
+    expect(next.ok).toBe(true);
+    expect((await ws.commitCheckpoint(h.db, id, o, "docente", "notas")).committed).toBe(true);
+    // deshacer el logo vuelve a v1 sin dejar rastro
+    const undo = await ws.undoBatch(h.db, id, on.ok ? on.batchId! : "", "docente", { ownerId: o });
+    expect(undo.ok).toBe(true);
+    const w2 = parseDeckAny((await ws.getWorkspace(h.db, id)).deck);
+    expect(w2.schemaVersion).toBe(1);
+    expect(w2.meta.logo).toBeUndefined();
+    expect(w2.slides[0]!.notes).toBe("n"); // lo posterior se conserva
+  });
 });

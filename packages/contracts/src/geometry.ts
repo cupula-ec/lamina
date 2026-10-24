@@ -98,3 +98,27 @@ export function adjustedBox(layout: string, slot: string, adj?: SlotFrame): Box 
   const w = Math.max(160, Math.min(adj.w ?? b.w, CANVAS.width)), h = Math.max(120, Math.min(adj.h ?? b.h, CANVAS.height));
   return { x: Math.max(0, Math.min(adj.x ?? b.x, CANVAS.width - w)), y: Math.max(0, Math.min(adj.y ?? b.y, CANVAS.height - h)), w, h };
 }
+
+/* ───── Zona reservada del logo persistente (V3 §5.7) ───── */
+export type LogoZone = { corner: "tl" | "tr" | "bl" | "br"; count: number; height: number; width: number };
+const LOGO_H = { s: 48, m: 64 } as const;
+const LOGO_W = 200;
+const LOGO_GAP = 16;
+
+/** Zona del logo en diapositivas interiores. null = sin logo (sin spec, esquina «none» o ningún logo disponible). */
+export function logoZone(logo: { corner: string; which?: string; size?: string } | undefined, avail: { institution: boolean; personal: boolean }): LogoZone | null {
+  if (!logo || logo.corner === "none") return null;
+  const which = logo.which ?? "both";
+  const count = (which !== "personal" && avail.institution ? 1 : 0) + (which !== "institution" && avail.personal ? 1 : 0);
+  if (!count) return null;
+  const height = LOGO_H[(logo.size as "s" | "m") ?? "s"] ?? LOGO_H.s;
+  return { corner: logo.corner as LogoZone["corner"], count, height, width: count * LOGO_W + (count - 1) * LOGO_GAP };
+}
+
+/** Los logos de esquina SUPERIOR le quitan ancho al título (el resto del contenido no se toca; abajo la banda del pie está libre). */
+export function withLogoZone(box: Box, slot: string, zone: LogoZone | null): Box {
+  if (!zone || slot !== "title" || (zone.corner !== "tl" && zone.corner !== "tr")) return box;
+  const reserve = zone.width + 32;
+  if (box.w - reserve < 400) return box;
+  return zone.corner === "tr" ? { ...box, w: box.w - reserve } : { ...box, x: box.x + reserve, w: box.w - reserve };
+}

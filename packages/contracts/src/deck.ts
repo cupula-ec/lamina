@@ -78,6 +78,17 @@ export const Branding = z.object({
 });
 export type Branding = z.infer<typeof Branding>;
 
+/**
+ * Logo persistente (deck v2, PLAN-v3 §5.7): esquina de las diapositivas interiores y cuál logo. Ausente = comportamiento v2
+ * (sin logo en las interiores y portada como siempre). La portada lo muestra grande en su barra superior.
+ */
+export const LogoSpec = z.object({
+  corner: z.enum(["tl", "tr", "bl", "br", "none"]),
+  which: z.enum(["institution", "personal", "both"]).default("both"),
+  size: z.enum(["s", "m"]).default("s"),
+});
+export type LogoSpec = z.infer<typeof LogoSpec>;
+
 export const DeckMeta = z.object({
   title: z.string().min(1).max(200),
   topic: z.string().max(200),
@@ -85,6 +96,7 @@ export const DeckMeta = z.object({
   language: z.string().min(2).max(8).default("es"),
   author: z.string().max(120).optional(),
   branding: Branding.optional(),
+  logo: LogoSpec.optional(),
 });
 
 export const DeckDocument = z

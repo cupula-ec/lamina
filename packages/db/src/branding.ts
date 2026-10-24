@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { Branding } from "@lamina/contracts";
+import { Branding, LogoSpec } from "@lamina/contracts";
 import type { DbOrTx } from "./client";
 import { institutions, user, userProfiles } from "./schema";
 
@@ -42,4 +42,13 @@ export async function buildBranding(db: DbOrTx, pres: { ownerId: string; subject
     ...(clean(pres.groupName) ? { group: clean(pres.groupName)!.slice(0, 80) } : {}),
   };
   return Branding.parse(out);
+}
+
+/**
+ * Logo persistente efectivo (V3 §5.7) para un deck nuevo: el valor por defecto del perfil (esquina y cuál logo); sin perfil, arriba a la
+ * derecha con ambos. Se aplica solo con el flag `v3_logo`; la presentación puede sobrescribirlo después (op `set_logo`).
+ */
+export async function effectiveLogo(db: DbOrTx, ownerId: string): Promise<LogoSpec> {
+  const [p] = await db.select({ corner: userProfiles.logoCorner, which: userProfiles.logoWhich }).from(userProfiles).where(eq(userProfiles.userId, ownerId));
+  return LogoSpec.parse({ corner: p?.corner ?? "tr", which: p?.which ?? "both", size: "s" });
 }

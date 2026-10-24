@@ -83,6 +83,11 @@ function applyDeckOp(d: Deck, op: DeckOp): { inverse: WorkspaceOp; touched: stri
       s.notes = op.notes;
       return { inverse: { op: "set_notes", slideId: op.slideId, notes: old }, touched: [op.slideId] };
     }
+    case "set_logo": {
+      const old = d.meta.logo ?? null;
+      if (op.logo) d.meta.logo = op.logo; else delete d.meta.logo;
+      return { inverse: { op: "set_logo", logo: old }, touched: [] };
+    }
     case "set_theme": {
       const inv: WorkspaceOp = { op: "set_theme", themeId: d.themeId, ...(d.accent ? { accent: d.accent } : {}) };
       d.themeId = op.themeId;
@@ -166,6 +171,9 @@ function applyContentOp(c: Content, op: ContentOp): { inverse: WorkspaceOp } {
 const zIssues = (e: { issues: { path: PropertyKey[]; message: string }[] }): OpIssue[] =>
   e.issues.slice(0, 12).map((i) => ({ code: "invalid", path: i.path.join("."), message: i.message }));
 
+/** ¿El deck usa algún dato que solo existe en esquema v2? */
+export const needsV2 = (d: Deck) => !!d.meta.logo;
+
 export type WsState = { deck: Deck | null; content: Content | null };
 export type PureResult = { ok: boolean; state: WsState; /** inversa de cada op, alineada con `ops` */ inverses: WorkspaceOp[]; touchedSlideIds: string[]; issues: OpIssue[] };
 
@@ -192,6 +200,8 @@ export function applyOpsPure(state: WsState, ops: WorkspaceOp[]): PureResult {
   }
   const issues: OpIssue[] = [];
   let deck = next.deck, content = next.content;
+  // Los datos v2 llevan schemaVersion 2; sin ellos el deck vuelve a v1 (así deshacer devuelve exactamente el estado inicial).
+  if (deck && ops.some((o) => o.op === "set_logo")) deck.schemaVersion = needsV2(deck) ? 2 : 1;
   if (deck && ops.some((o) => OP_TARGET(o) === "deck")) {
     const parsed = DeckDocument.safeParse(deck);
     if (!parsed.success) {

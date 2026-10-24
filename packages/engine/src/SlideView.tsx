@@ -1,7 +1,7 @@
 "use client";
 import { Component, createElement, useMemo, useState, type ReactNode } from "react";
-import type { AccentId, Branding, DeckDocument, Slide } from "@lamina/contracts";
-import { DEFAULT_THEME_ID, LAYOUTS, brandColorFor } from "@lamina/contracts";
+import type { AccentId, Branding, DeckDocument, LogoSpec, Slide } from "@lamina/contracts";
+import { DEFAULT_THEME_ID, LAYOUTS, brandColorFor, logoZone, withLogoZone, type LogoZone } from "@lamina/contracts";
 import { CANVAS, adjustedBox } from "./geometry";
 import { isSlotVisible, revealCounts } from "./build";
 import { ErrorCard } from "./primitives";
@@ -17,9 +17,9 @@ class Boundary extends Component<{ children: ReactNode; label: string }, { err: 
   }
 }
 
-function SlotContent({ slide, slot, resolver, counts }: { slide: Slide; slot: string; resolver: Resolver; counts: Record<string, number | null> }) {
+function SlotContent({ slide, slot, resolver, counts, zone }: { slide: Slide; slot: string; resolver: Resolver; counts: Record<string, number | null>; zone: LogoZone | null }) {
   const ref = slide.slots[slot]!;
-  const full = adjustedBox(slide.layout, slot, slide.adjust?.[slot]);
+  const full = withLogoZone(adjustedBox(slide.layout, slot, slide.adjust?.[slot]), slot, zone);
   // fontScale: el componente se dibuja en una caja 1/s mayor y se escala s: cabe más (s<1) o se agranda (s>1) manteniendo el área.
   const s = slide.adjust?.[slot]?.fontScale ?? 1;
   const box = s === 1 ? full : { ...full, w: Math.round(full.w / s), h: Math.round(full.h / s) };
@@ -44,7 +44,7 @@ export type PageInfo = { n: number; total: number };
 
 /** Propiedades de estilo de un deck para SlideView: tema, acento, marcas y semilla de la decoración (idénticas en vista previa, publicada y capturas). */
 export function deckViewProps(deck: Pick<DeckDocument, "themeId" | "accent" | "meta">) {
-  return { themeId: deck.themeId as string, accent: deck.accent, branding: deck.meta.branding, seed: deck.meta.title };
+  return { themeId: deck.themeId as string, accent: deck.accent, branding: deck.meta.branding, logo: deck.meta.logo, seed: deck.meta.title };
 }
 
 const INTERIOR_NO_FOOTER = new Set(["title", "cover-branded", "section", "closing", "full-visual"]);
@@ -61,34 +61,55 @@ function Logo({ src, alt, side }: { src: string; alt: string; side: "inst" | "pe
   return createElement("img", { className: `lm-logo lm-logo-${side}`, src, alt, "data-lm-logo": side, decoding: "async", onError: () => setFailed(true) });
 }
 
+/** Logos de la diapositiva interior en la esquina elegida (zona reservada: ver `logoZone`). */
+function CornerLogos({ zone, logo, branding }: { zone: LogoZone; logo: LogoSpec; branding?: Branding }) {
+  const which = logo.which ?? "both";
+  const inst = branding?.institution;
+  const items = [
+    which !== "personal" && inst?.logoUrl ? createElement(Logo, { key: "i", src: inst.logoUrl, alt: `Logo de ${inst.name}`, side: "inst" }) : null,
+    which !== "institution" && branding?.personalLogoUrl ? createElement(Logo, { key: "p", src: branding.personalLogoUrl, alt: "Logo del docente", side: "personal" }) : null,
+  ];
+  return createElement("div", { className: `lm-corner-logos lm-corner-${zone.corner}`, style: { "--lm-corner-h": `${zone.height}px` } as React.CSSProperties, "data-lm-corner-logos": zone.corner }, items);
+}
+
 /** Elementos propios del layout fuera de los slots (marcas, datos del docente, pie). No participan en la detección de problemas. */
-function Chrome({ layout, branding, page }: { layout: string; branding?: Branding; page?: PageInfo }) {
+function Chrome({ layout, branding, page, logo, zone }: { layout: string; branding?: Branding; page?: PageInfo; logo?: LogoSpec; zone: LogoZone | null }) {
   const inst = branding?.institution;
   const short = inst?.short?.trim();
+  const v3 = !!logo; // con `meta.logo` (deck v2) el logo real sustituye al texto de sigla en el pie y la portada lo muestra grande
+  const which = logo?.which ?? "both";
   if (layout === "cover-branded") {
     const line = brandingLine(branding);
-    const left = inst?.logoUrl ? createElement(Logo, { src: inst.logoUrl, alt: `Logo de ${inst.name}`, side: "inst" }) : inst ? createElement("span", { className: "lm-wordmark" }, inst.name) : null;
-    const right = branding?.personalLogoUrl ? createElement(Logo, { src: branding.personalLogoUrl, alt: "Logo del docente", side: "personal" }) : null;
+    const showInst = !v3 || which !== "personal";
+    const showPersonal = !v3 || which !== "institution";
+    const left = !showInst ? null : inst?.logoUrl ? createElement(Logo, { src: inst.logoUrl, alt: `Logo de ${inst.name}`, side: "inst" }) : inst ? createElement("span", { className: "lm-wordmark" }, inst.name) : null;
+    const right = showPersonal && branding?.personalLogoUrl ? createElement(Logo, { src: branding.personalLogoUrl, alt: "Logo del docente", side: "personal" }) : null;
     return createElement(
       "div",
-      { className: "lm-chrome-layer" },
+      { className: `lm-chrome-layer${v3 ? " lm-cover-v3" : ""}` },
       left || right ? createElement("div", { className: "lm-brandbar" }, createElement("div", { className: "lm-brand-left" }, left), createElement("div", { className: "lm-brand-right" }, right)) : null,
       line ? createElement("p", { className: "lm-cover-meta" }, line) : null,
-      createElement("p", { className: "lm-cover-foot" }, short || "Lámina"),
+      v3 && inst?.logoUrl && showInst ? null : createElement("p", { className: "lm-cover-foot" }, short || "Lámina"),
     );
   }
+  const corner = zone ? createElement(CornerLogos, { zone, logo: logo!, branding }) : null;
   if (layout === "closing") {
-    return createElement("div", { className: "lm-chrome-layer" }, createElement("p", { className: "lm-closing-foot" }, createElement("strong", null, short || "Lámina"), inst ? createElement("span", null, inst.name) : null));
+    return createElement("div", { className: "lm-chrome-layer" }, corner, createElement("p", { className: "lm-closing-foot" }, createElement("strong", null, short || "Lámina"), inst ? createElement("span", null, inst.name) : null));
   }
   if (!INTERIOR_NO_FOOTER.has(layout) && (short || page)) {
-    return createElement("div", { className: "lm-chrome-layer" }, createElement("p", { className: "lm-footer" }, createElement("span", null, short ?? ""), page ? createElement("span", { className: "lm-footer-n" }, `${page.n}`) : null));
+    // Logo en una esquina inferior: ocupa el lugar de la sigla y el número de página pasa al lado opuesto.
+    const bottom = zone && (zone.corner === "bl" || zone.corner === "br");
+    return createElement("div", { className: "lm-chrome-layer" }, corner, bottom
+      ? (page ? createElement("p", { className: `lm-footer lm-footer-solo lm-footer-${zone.corner === "bl" ? "right" : "left"}` }, createElement("span", { className: "lm-footer-n" }, `${page.n}`)) : null)
+      : createElement("p", { className: "lm-footer" }, createElement("span", null, short ?? ""), page ? createElement("span", { className: "lm-footer-n" }, `${page.n}`) : null));
   }
-  return null;
+  return corner ? createElement("div", { className: "lm-chrome-layer" }, corner) : null;
 }
 
 /** Un slide pintado en el canvas lógico 1920×1080 (sin escala). */
-export function SlideView({ slide, resolver, step = 0, themeId, accent, branding, seed, page }: { slide: Slide; resolver: Resolver; step?: number; themeId?: string; accent?: AccentId; branding?: Branding; seed?: string; page?: PageInfo }) {
+export function SlideView({ slide, resolver, step = 0, themeId, accent, branding, logo, seed, page }: { slide: Slide; resolver: Resolver; step?: number; themeId?: string; accent?: AccentId; branding?: Branding; logo?: LogoSpec; seed?: string; page?: PageInfo }) {
   const counts = useMemo(() => revealCounts(slide, step), [slide, step]);
+  const zone = slide.layout === "title" || slide.layout === "cover-branded" ? null : logoZone(logo, { institution: !!branding?.institution?.logoUrl, personal: !!branding?.personalLogoUrl });
   const spec = LAYOUTS[slide.layout];
   const theme = themeId ?? DEFAULT_THEME_ID;
   const brand = brandColorFor(theme, branding?.institution?.colors?.primary); // si no contrasta con el fondo del tema, se usa el acento del tema
@@ -99,7 +120,7 @@ export function SlideView({ slide, resolver, step = 0, themeId, accent, branding
     spec.slots.map((s) => {
       const ref = slide.slots[s.name];
       if (!ref) return null;
-      const b = adjustedBox(slide.layout, s.name, slide.adjust?.[s.name]);
+      const b = withLogoZone(adjustedBox(slide.layout, s.name, slide.adjust?.[s.name]), s.name, zone);
       const fs = slide.adjust?.[s.name]?.fontScale ?? 1;
       const visible = isSlotVisible(counts, s.name);
       return createElement(
@@ -113,11 +134,11 @@ export function SlideView({ slide, resolver, step = 0, themeId, accent, branding
         },
         visible
           ? fs === 1
-            ? createElement(SlotContent, { slide, slot: s.name, resolver, counts })
-            : createElement("div", { style: { width: Math.round(b.w / fs), height: Math.round(b.h / fs), transform: `scale(${fs})`, transformOrigin: "0 0" } }, createElement(SlotContent, { slide, slot: s.name, resolver, counts }))
+            ? createElement(SlotContent, { slide, slot: s.name, resolver, counts, zone })
+            : createElement("div", { style: { width: Math.round(b.w / fs), height: Math.round(b.h / fs), transform: `scale(${fs})`, transformOrigin: "0 0" } }, createElement(SlotContent, { slide, slot: s.name, resolver, counts, zone }))
           : null,
       );
     }),
-    createElement(Chrome, { layout: slide.layout, branding, page }),
+    createElement(Chrome, { layout: slide.layout, branding, page, logo, zone }),
   );
 }
