@@ -586,3 +586,30 @@ export async function getPresentationFor(db: Db, id: string, ownerId: string) {
   if (!p) throw new LaminaError("not_found", "Presentación no encontrada", 404);
   return p;
 }
+
+/* ───── Checkpoints del workspace (V3 §5.0) ───── */
+/** Transacción ya abierta y con el workspace bloqueado: la presentación no se bloquea otra vez (misma tx). */
+export async function checkpointContent(tx: Tx, id: string, v: { content: unknown; sha256: string; baseVersionId: string | null; authorKind: "ia" | "docente" | "mcp"; note?: string }) {
+  const p = await lock(tx, id);
+  expectStage(p, ["draft", "content_review"], "confirmar cambios del contenido");
+  if ((p.currentContentVersionId ?? null) !== (v.baseVersionId ?? null)) throw new LaminaError("stale_version", "El contenido cambió desde la versión base del espacio de trabajo", 409, { currentVersionId: p.currentContentVersionId });
+  const row = await addContentVersion(tx, id, { content: v.content, sha256: v.sha256, authorKind: v.authorKind, parentId: v.baseVersionId, note: v.note });
+  await set(tx, id, { stage: "content_review", currentContentVersionId: row.id, approvedContentVersionId: null, lastError: null, prevStage: null });
+  await evt(tx, "workspace.content_checkpoint", p, { versionId: row.id });
+  return row;
+}
+
+/** content_approved | design_review | etapas editables → nueva versión del deck. En `designing` no se confirma (el job está escribiendo). */
+export async function checkpointDeck(tx: Tx, id: string, v: { deck: unknown; sha256: string; baseVersionId: string | null; authorKind: "ia" | "docente" | "mcp"; note?: string }) {
+  const p = await lock(tx, id);
+  expectStage(p, ["content_approved", "design_review", ...EDITABLE_STAGES], "confirmar cambios del diseño");
+  if (!p.approvedContentVersionId) throw new LaminaError("invalid_transition", "El contenido no está aprobado", 409);
+  const head = p.stage === "content_approved" ? p.currentDeckVersionId : headDeckVersionId(p);
+  if ((head ?? null) !== (v.baseVersionId ?? null)) throw new LaminaError("stale_version", "El diseño cambió desde la versión base del espacio de trabajo", 409, { currentVersionId: head });
+  const safe = await withOwnerBranding(tx, p, v.deck, v.sha256);
+  const row = await addDeckVersion(tx, id, { deck: safe.deck, sha256: safe.sha256, contentVersionId: p.approvedContentVersionId, authorKind: v.authorKind, parentId: v.baseVersionId, kind: v.authorKind === "docente" ? "edit" : "design", note: v.note });
+  const next = p.stage === "content_approved" || p.stage === "design_review" ? { stage: "design_review" as Stage, currentDeckVersionId: row.id, approvedDeckVersionId: null, prevStage: null, lastError: null } : { finalDeckVersionId: row.id };
+  await set(tx, id, next);
+  await evt(tx, "workspace.deck_checkpoint", p, { versionId: row.id });
+  return row;
+}

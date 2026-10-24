@@ -8,3 +8,5 @@ export * from "./seed-institutions";
 export * from "./run-context";
 export * from "./flags";
 export * as units from "./work-units";
+export * as workspace from "./workspace";
+export { applyOpsPure, diffDecks } from "./workspace-core";

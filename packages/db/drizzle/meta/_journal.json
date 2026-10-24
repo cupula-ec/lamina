@@ -43,6 +43,13 @@
       "when": 1792814202460,
       "tag": "0005_work_units",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792814441999,
+      "tag": "0006_workspace",
+      "breakpoints": true
     }
   ]
 }

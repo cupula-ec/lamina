@@ -436,6 +436,36 @@ export const componentRequests = pgTable("component_requests", {
   createdAt: createdAt(),
 });
 
+/** Espacio de trabajo por presentación (V3 §5.0). Se crea de forma perezosa desde la versión vigente; no toca `deck_versions`. */
+export const workspaces = pgTable("workspaces", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  presentationId: uuid("presentation_id").notNull().references(() => presentations.id, { onDelete: "cascade" }).unique(),
+  rev: integer("rev").notNull().default(0),
+  content: jsonb("content"),
+  deck: jsonb("deck"),
+  baseDeckVersionId: uuid("base_deck_version_id"),
+  baseContentVersionId: uuid("base_content_version_id"),
+  /** Hay ops sin confirmar (checkpoint) desde la base: un cambio externo de versión ya no re-basa en silencio. */
+  dirty: boolean("dirty").notNull().default(false),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+export const workspaceOps = pgTable("workspace_ops", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  /** rev del workspace DESPUÉS de aplicar el lote (todas las ops de un lote comparten rev). */
+  rev: integer("rev").notNull(),
+  idx: integer("idx").notNull().default(0),
+  /** Idempotencia: `<opId del lote>:<idx>`; único por workspace. */
+  opId: text("op_id").notNull(),
+  author: text("author").notNull(), // ia | mcp | docente | sistema
+  op: jsonb("op").notNull(),
+  inverse: jsonb("inverse").notNull(),
+  batchId: uuid("batch_id").notNull(),
+  label: text("label"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("workspace_ops_opid").on(t.workspaceId, t.opId), index("workspace_ops_batch").on(t.workspaceId, t.batchId)]);
+
 /** Unidad de trabajo persistente de un job (V3 §5.1): su resultado se guarda al terminar, y un reinicio solo repite lo que no estaba `done`. */
 export const workUnits = pgTable("work_units", {
   id: uuid("id").primaryKey().defaultRandom(),
