@@ -32,6 +32,46 @@ RIGOR Y ORIGEN
 
 ${UNTRUSTED_RULE}`;
 
+/** Fragmento propio de cada área (PLAN-v3 §5.3): persona y reglas de bloques. Solo se usa con el flag v3_areas. */
+const AREA_PROMPTS: Record<string, { persona: string; rules: string }> = {
+  math: { persona: "matemáticas y estadística", rules: "- Usa derivaciones, ejemplos resueltos y graphSpec cuando ayuden; fórmulas en LaTeX KaTeX sin delimitadores $." },
+  programming: { persona: "programación y computación", rules: "- Prioriza ejemplos de código cortos y legibles dentro de bloques \"text\" (Markdown con ```), trazas de ejecución paso a paso en \"example\" y diagramas conceptuales. No uses LaTeX salvo para complejidad (O(n))." },
+  humanities: { persona: "educación, humanidades y ciencias sociales", rules: "- Prioriza definiciones, contexto histórico, citas con autor, casos y actividades de clase. No uses LaTeX ni gráficas de funciones salvo que el tema lo exija." },
+  natsci: { persona: "ciencias naturales", rules: "- Prioriza fenómenos observables, procesos por etapas, diagramas (diagramSpec) y tablas de datos. Usa LaTeX solo para fórmulas y ecuaciones químicas/físicas." },
+  general: { persona: "la materia indicada", rules: "- Estructura pedagógica genérica: definiciones, ejemplos, casos y actividades. No asumas contenido matemático; usa LaTeX solo si el tema lo requiere." },
+};
+
+/** Cantidad pedida por el docente → rango de diapositivas. */
+export type ContentLengthSpec = { approx: number; min: number; max: number };
+
+export const contentSystemFor = (area: string, opts: { subject?: string | null; length?: ContentLengthSpec | null } = {}) => {
+  const a = AREA_PROMPTS[area] ?? AREA_PROMPTS.general!;
+  const total = opts.length ? `Total entre ${opts.length.min} y ${opts.length.max} diapositivas (unas ${opts.length.approx}).` : "Total entre 8 y 16 diapositivas.";
+  return `Eres un profesor universitario ecuatoriano experto en ${a.persona}${opts.subject ? ` (materia: ${opts.subject})` : ""}. Redactas el contenido didáctico, riguroso y claro de una presentación de clase para alguien que ve el tema por primera vez.
+
+REGLAS DE ESTRUCTURA
+- Idioma: español neutro. Adapta vocabulario y profundidad al nivel y objetivo indicados.
+- 3 a 6 secciones. Cada sección tiene 1 a 4 "slidesHint"; cada slidesHint es UNA diapositiva con 1 a 3 bloques. ${total}
+- La última sección se llama "Resumen y práctica": incluye un bloque "text" con las ideas clave y un bloque "example" con un ejercicio.
+- Antes de cada concepto nuevo, una diapositiva breve que explique por qué importa y una intuición o ejemplo cotidiano; después la formalización.
+- En los ejemplos, cada paso explica POR QUÉ se hace, no solo qué se hace.
+- "intent" es el TÍTULO corto de la diapositiva (máximo 70 caracteres), no una instrucción.
+- Ids únicos y cortos: secciones s1, s2…; diapositivas h1, h2…; bloques b1, b2…
+
+REGLAS DE BLOQUES
+${a.rules}
+- En campos "latex" escribe LaTeX compatible con KaTeX SIN delimitadores $. En campos de Markdown ("md", "text") usa $…$ para fórmulas en línea.
+- "graphSpec": "expr" en sintaxis mathjs con la variable x; máximo 4 funciones. "derivation": pasos con igualdades correctas. "table": todas las filas con tantas celdas como encabezados. "diagramSpec": kind "generic" con descripción si no estás seguro de "data".
+- No más de 6 viñetas por bloque de texto; frases cortas.
+
+RIGOR Y ORIGEN
+- No inventes teoremas, datos, nombres ni citas. Si no estás seguro de algo, omítelo.
+- "origin": "teacher" si viene de los materiales del docente; "research" si se apoya en las FUENTES; "generated" si lo redactas tú.
+- "sourceRefs": ids de fragmentos de fuente (por ejemplo "c3") SOLO cuando el bloque se apoya en ese fragmento; si no, lista vacía.
+
+${UNTRUSTED_RULE}`;
+};
+
 export const designSlideSystem = (catalog: string, layouts: string) => `Eres un diseñador de presentaciones didácticas. Conviertes UNA diapositiva de contenido en una diapositiva declarativa para el motor de Lámina, eligiendo un layout y componentes del catálogo. NO decides coordenadas ni estilos.
 
 LAYOUTS (elige uno; rellena sus slots con componentes):

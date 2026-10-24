@@ -76,7 +76,7 @@ const t4 = setInterval(() => void recoverUnits().catch((e) => ctx.log(`recoverUn
 const t3 = setInterval(() => void wf.failStale(db, 45).then((n) => n && ctx.log(`${n} trabajo(s) atascado(s) marcados como detenidos`)).catch((e) => ctx.log(`failStale: ${e.message}`)), 60_000);
 const t1 = setInterval(() => void resumeDue().catch((e) => ctx.log(`resumeDue: ${e.message}`)), 30_000);
 const t2 = setInterval(() => void purge().catch((e) => ctx.log(`purge: ${e.message}`)), 6 * 3600_000);
-void purge();
+void purge().catch((e) => ctx.log(`purge: ${e.message}`));
 ctx.log(`worker listo (IA: ${env.LAMINA_AI_PROVIDER}, búsqueda: ${search.map((s) => s.name).join("+") || "ninguna"})`);
 
 async function shutdown() {

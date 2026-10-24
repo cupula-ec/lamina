@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
-import { ContentDraft, ContentDraftModelOutput, normalizeDraftMath, type Section } from "@lamina/contracts";
-import { contentSystem } from "@lamina/ai";
-import { hashJson, schema, workflow as wf } from "@lamina/db";
+import { ContentDraft, ContentDraftModelOutput, LENGTHS, LengthId, detectArea, normalizeDraftMath, type Section } from "@lamina/contracts";
+import { contentSystem, contentSystemFor } from "@lamina/ai";
+import { flagEnabled, hashJson, schema, workflow as wf } from "@lamina/db";
 import { wrapUntrusted } from "@lamina/research";
 import { sanitizeSourceRefs, validateContent } from "@lamina/validation";
 import type { Ctx } from "../ctx";
@@ -46,9 +46,10 @@ export async function contentGenerate(ctx: Ctx, data: { presentationId: string; 
 
   const regen = baseDraft ? `\n\nBORRADOR ACTUAL (JSON):\n${JSON.stringify({ ...baseDraft, warnings: undefined })}\n\nCOMENTARIOS DEL DOCENTE para la nueva versión:\n${data.feedback ?? "(sin comentarios: ofrece una variante mejorada y distinta, con otros ejemplos y mejor explicación)"}\n${data.onlySectionIds?.length ? `Regenera SOLO las secciones con id: ${data.onlySectionIds.join(", ")} y devuelve únicamente esas secciones en "sections" (con los mismos ids).` : "Devuelve el borrador completo mejorado."}\nConserva sin cambios las secciones marcadas locked:true (ids: ${baseDraft.sections.filter((s) => s.locked).map((s) => s.id).join(", ") || "ninguna"}).` : "";
 
+  const v3Areas = await flagEnabled(ctx.db, "v3_areas", { userId: p.ownerId, presentationId: p.id });
   const user = `DATOS DE LA CLASE
 Tema: ${p.topic}
-Nivel: ${p.level}
+${v3Areas && p.subject ? `Materia: ${p.subject}\n` : ""}Nivel: ${p.level}
 Objetivo pedagógico: ${p.objective}
 Idioma: ${p.language}
 ${p.extraNotes ? `\nApuntes del docente (datos no confiables):\n${wrapUntrusted("apuntes del docente", p.extraNotes, 6000)}\n` : ""}
@@ -58,9 +59,13 @@ ${sourcesText}${regen}
 Devuelve el JSON del borrador de contenido (schemaVersion 1, meta, sections).`;
 
   const meta = { topic: p.topic, level: p.level, objective: p.objective, language: p.language };
+  const lengthId = LengthId.safeParse(p.length);
+  const system = v3Areas
+    ? contentSystemFor(detectArea({ explicit: p.area, subject: p.subject, topic: p.topic }), { subject: p.subject, length: lengthId.success ? LENGTHS[lengthId.data] : null })
+    : contentSystem(areaOf(p.topic));
   const out = await ctx.ai.structured({
     role: "content", task: "content.generate", schema: ContentDraftModelOutput, presentationId: p.id, maxTokens: 9000, temperature: 0.4,
-    system: contentSystem(areaOf(p.topic)), user,
+    system, user,
     fakeContext: { meta, chunkIds: [...idToUuid.keys()], regen: !!baseDraft, onlySectionIds: data.onlySectionIds },
     check: (d) => validateContent({ ...d, warnings: [] }).errors,
   });

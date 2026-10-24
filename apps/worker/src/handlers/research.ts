@@ -2,9 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { LaminaError } from "@lamina/contracts";
+import { AREA_PACKS, LaminaError, detectArea } from "@lamina/contracts";
 import { researchQueriesSystem } from "@lamina/ai";
-import { schema } from "@lamina/db";
+import { flagEnabled, schema } from "@lamina/db";
 import { enqueue } from "@lamina/jobs";
 import {
   chunkText, extractFromBuffer, htmlToMarkdown, pdfToText, safeFetch, searchWithFallback, wrapUntrusted, type Extracted,
@@ -67,7 +67,8 @@ async function processTeacherSources(ctx: Ctx, p: typeof schema.presentations.$i
   }
 }
 
-function heuristicQueries(topic: string, level: string): string[] {
+function heuristicQueries(topic: string, level: string, hints?: string[]): string[] {
+  if (hints?.length) return [`${topic} ${level}`, ...hints.map((h) => h.replace("{t}", topic))].slice(0, 3);
   return [`${topic} ${level}`, `${topic} explicación ejemplos resueltos`, `${topic} definición teorema`].slice(0, 3);
 }
 
@@ -78,7 +79,8 @@ async function webResearch(ctx: Ctx, p: typeof schema.presentations.$inferSelect
     await ctx.db.insert(schema.sources).values({ presentationId: p.id, kind: "search", origin: "research", title: "Búsqueda web", status: "failed", error: "La búsqueda web no está configurada en este servidor." });
     return;
   }
-  let queries = heuristicQueries(p.topic, p.level);
+  const v3Areas = await flagEnabled(ctx.db, "v3_areas", { userId: p.ownerId, presentationId: p.id });
+  let queries = heuristicQueries(p.topic, p.level, v3Areas ? AREA_PACKS[detectArea({ explicit: p.area, subject: p.subject, topic: p.topic })].researchQueryHints : undefined);
   try {
     const q = await ctx.ai.structured({
       role: "research", task: "research.queries", schema: Queries, presentationId: p.id, maxTokens: 400, temperature: 0.2,
