@@ -33,6 +33,13 @@ function blockRef(b: Block): ComponentRef | null {
     case "table": return ref("Table", { headers: b.headers, rows: b.rows, caption: b.caption });
     case "definition": return ref("Definition", { kind: "definicion", name: b.term, statement: b.md });
     case "theorem": return ref("Definition", { kind: "teorema", name: b.name, statement: b.statement, note: b.proofSketch ? clip(b.proofSketch, 250) : undefined });
+    // Bloques pedagógicos v2: hasta que existan los componentes propios (bloque 6) se representan con los actuales.
+    case "motivation": return ref("Callout", { variant: "idea", title: clip(b.hook, 80), text: clip([b.intuition, b.everydayExample].filter(Boolean).join(" "), 420) });
+    case "exercise": return ref("Checkpoint", { question: clip(`${b.statement} ${b.guidingQuestion}`, 400), hint: clip(b.hints[0]!, 200), answer: clip(b.answer, 260), stepwise: true });
+    case "code": return ref("Callout", { variant: "nota", title: clip(`Código (${b.language})`, 80), text: clip(b.source, 420) });
+    case "activity": return ref("Callout", { variant: "exito", title: `Actividad · ${b.minutes} min`, text: clip(b.prompt, 420) });
+    case "closing": return ref("Summary", { heading: "Ideas clave", points: [...b.keyIdeas, ...(b.questions ?? []).slice(0, 1)].slice(0, 6).map((t) => clip(t, 200)) });
+    case "imageRequest": return null;
     case "diagramSpec": {
       const tryRef = (id: string) => {
         const e = NATIVE_CATALOG.find((c) => c.def.id === id)!;
@@ -51,6 +58,7 @@ function mapGroup(blocks: Block[], prev: string[] = [], closing = false): Mapped
   const visualIdx = blocks.findIndex((b) => VISUAL.has(b.type));
   if (blocks.length === 1) {
     const b = blocks[0]!;
+    if (b.type === "closing") return { layout: "closing", slots: { main: refs[0]! } };
     if (closing && b.type === "text") return { layout: "closing", slots: { main: ref("Summary", { heading: "Ideas clave", points: mdToItems(b.md, 5).map((i) => i.text) }) } };
     if (b.type === "formula") {
       // Variedad: una fórmula aislada alterna entre dos layouts para no repetir el mismo tres veces seguidas.
@@ -70,7 +78,7 @@ function mapGroup(blocks: Block[], prev: string[] = [], closing = false): Mapped
 /** Agrupa bloques en slides (máx. 2 por slide; una gráfica/tabla acompaña a un único bloque de texto/fórmula). */
 function groupBlocks(blocks: Block[]): Block[][] {
   const groups: Block[][] = [];
-  const bulky = new Set(["derivation", "example"]);
+  const bulky = new Set(["derivation", "example", "exercise", "code", "closing"]);
   let i = 0;
   while (i < blocks.length) {
     const b = blocks[i]!, n = blocks[i + 1];
@@ -83,7 +91,7 @@ function groupBlocks(blocks: Block[]): Block[][] {
 
 /** Slide(s) estable(s) determinista(s) para un hint: garantiza un deck válido si la IA falla. */
 export function slidesFromHint(hint: SlideHint, prevLayouts: string[] = [], opts: { closing?: boolean } = {}): Slide[] {
-  const groups = groupBlocks(hint.blocks);
+  const groups = groupBlocks(hint.blocks.filter((b) => b.type !== "imageRequest"));
   const used = [...prevLayouts];
   return groups.map((g, gi) => {
     const m = mapGroup(g, used, !!opts.closing);
@@ -93,7 +101,7 @@ export function slidesFromHint(hint: SlideHint, prevLayouts: string[] = [], opts
     if (m.layout !== "title" && m.layout !== "section" && m.layout !== "cover-branded") slots.title = ref("SectionHeader", { title: gi === 0 ? clip(title, 100) : `${clip(title, 46)} (cont.)` });
     return {
       id: gi === 0 ? hint.id : `${hint.id}-${String.fromCharCode(98 + gi - 1)}`,
-      layout: m.layout, slots, notes: "", build: { steps: [] }, transition: "fade" as const,
+      layout: m.layout, slots, notes: "", build: { steps: Object.entries(slots).some(([, r]) => r.componentId === "Checkpoint" && (r.props as { stepwise?: boolean }).stepwise) ? [{ reveal: ["main"] }, { reveal: ["main"] }] : [] }, transition: "fade" as const,
       rationale: "Diseño estable automático (sin IA).",
     } as Slide;
   });

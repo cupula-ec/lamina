@@ -18,7 +18,7 @@ export const ORIGIN: Record<string, { label: string; tone: string }> = {
   generated: { label: "Generado por IA", tone: "tag-mute" },
   edited: { label: "Editado por ti", tone: "tag-warn" },
 };
-export const TYPE_LABEL: Record<string, string> = { text: "Texto", formula: "Fórmula", derivation: "Derivación", example: "Ejemplo resuelto", graphSpec: "Gráfica", table: "Tabla", diagramSpec: "Diagrama", definition: "Definición", theorem: "Teorema" };
+export const TYPE_LABEL: Record<string, string> = { text: "Texto", formula: "Fórmula", derivation: "Derivación", example: "Ejemplo resuelto", graphSpec: "Gráfica", table: "Tabla", diagramSpec: "Diagrama", definition: "Definición", theorem: "Teorema", motivation: "Motivación", exercise: "Ejercicio", code: "Código", imageRequest: "Imagen", activity: "Actividad", closing: "Cierre de clase" };
 
 export const REASON_HELP: Record<string, string> = {
   sin_igualdad: "No es una igualdad que se pueda comparar.",

@@ -74,6 +74,54 @@ export const TheoremBlock = z.object({
   proofSketch: z.string().max(1500).optional(),
 });
 
+/** Bloques pedagógicos de V3 (contenido v2, PLAN-v3 §5.4). Un documento v1 nunca los contiene. */
+export const MotivationBlock = z.object({
+  ...base,
+  type: z.literal("motivation"),
+  hook: z.string().min(1).max(300),
+  intuition: z.string().min(1).max(700),
+  everydayExample: z.string().max(500).optional(),
+});
+export const ExerciseBlock = z.object({
+  ...base,
+  type: z.literal("exercise"),
+  statement: z.string().min(1).max(1500),
+  guidingQuestion: z.string().min(1).max(400),
+  hints: z.array(z.string().min(1).max(400)).min(1).max(3),
+  steps: z.array(z.object({ do: z.string().min(1).max(500), why: z.string().min(1).max(500), latex: Latex.optional() })).min(1).max(10),
+  answer: z.string().min(1).max(600),
+  commonMistakes: z.array(z.string().max(300)).max(4).optional(),
+});
+export const CodeBlock = z.object({
+  ...base,
+  type: z.literal("code"),
+  language: z.string().min(1).max(30),
+  source: z.string().min(1).max(3000),
+  highlightSteps: z.array(z.object({ lines: z.array(z.number().int().min(1).max(200)).min(1).max(12), note: z.string().max(300).optional() })).max(12).optional(),
+});
+export const ImageRequestBlock = z.object({
+  ...base,
+  type: z.literal("imageRequest"),
+  query: z.string().min(1).max(200),
+  purpose: z.string().min(1).max(300),
+  alt: z.string().min(1).max(300),
+});
+export const ActivityBlock = z.object({
+  ...base,
+  type: z.literal("activity"),
+  kind: z.enum(["debate", "pregunta", "pares", "practica"]),
+  prompt: z.string().min(1).max(800),
+  minutes: z.number().int().min(1).max(60),
+});
+export const ClosingBlock = z.object({
+  ...base,
+  type: z.literal("closing"),
+  keyIdeas: z.array(z.string().min(1).max(200)).min(1).max(6),
+  questions: z.array(z.string().min(1).max(300)).max(4).optional(),
+  nextClass: z.string().max(300).optional(),
+  exitTicket: z.string().max(300).optional(),
+});
+
 export const Block = z.discriminatedUnion("type", [
   TextBlock,
   FormulaBlock,
@@ -84,6 +132,12 @@ export const Block = z.discriminatedUnion("type", [
   DiagramSpecBlock,
   DefinitionBlock,
   TheoremBlock,
+  MotivationBlock,
+  ExerciseBlock,
+  CodeBlock,
+  ImageRequestBlock,
+  ActivityBlock,
+  ClosingBlock,
 ]);
 export type Block = z.infer<typeof Block>;
 export type BlockType = Block["type"];
@@ -108,6 +162,9 @@ export const ContentMeta = z.object({
   level: z.string().min(1).max(120),
   objective: z.string().min(1).max(600),
   language: z.string().min(2).max(8).default("es"),
+  /** V3: área y cantidad pedidas (AREA_IDS / LENGTH_IDS). Ausentes = comportamiento v2. */
+  area: z.string().max(20).optional(),
+  length: z.string().max(10).optional(),
 });
 export type ContentMeta = z.infer<typeof ContentMeta>;
 
@@ -138,7 +195,7 @@ export const ContentDraft = z.object({
 export type ContentDraft = z.infer<typeof ContentDraft>;
 
 /** Variante que se pide al modelo: sin warnings (los añade el validador). */
-export const ContentDraftModelOutput = ContentDraft.omit({ warnings: true, verification: true }).extend({ schemaVersion: z.literal(CONTENT_SCHEMA_VERSION) });
+export const ContentDraftModelOutput = ContentDraft.omit({ warnings: true, verification: true }).extend({ schemaVersion: z.union([z.literal(1), z.literal(2)]) });
 
 /** Lector tolerante: acepta v1 y v2. */
 export function parseContentAny(raw: unknown): ContentDraft {

@@ -3,7 +3,7 @@ import { ContentDraft, ContentDraftModelOutput, LENGTHS, LengthId, detectArea, n
 import { contentSystem, contentSystemFor } from "@lamina/ai";
 import { flagEnabled, hashJson, schema, workflow as wf } from "@lamina/db";
 import { wrapUntrusted } from "@lamina/research";
-import { sanitizeSourceRefs, validateContent } from "@lamina/validation";
+import { ensureClosing, sanitizeSourceRefs, validateContent } from "@lamina/validation";
 import type { Ctx } from "../ctx";
 import { expectStage } from "../run";
 import { loadChunks, selectChunks } from "../sources";
@@ -47,6 +47,8 @@ export async function contentGenerate(ctx: Ctx, data: { presentationId: string; 
   const regen = baseDraft ? `\n\nBORRADOR ACTUAL (JSON):\n${JSON.stringify({ ...baseDraft, warnings: undefined })}\n\nCOMENTARIOS DEL DOCENTE para la nueva versión:\n${data.feedback ?? "(sin comentarios: ofrece una variante mejorada y distinta, con otros ejemplos y mejor explicación)"}\n${data.onlySectionIds?.length ? `Regenera SOLO las secciones con id: ${data.onlySectionIds.join(", ")} y devuelve únicamente esas secciones en "sections" (con los mismos ids).` : "Devuelve el borrador completo mejorado."}\nConserva sin cambios las secciones marcadas locked:true (ids: ${baseDraft.sections.filter((s) => s.locked).map((s) => s.id).join(", ") || "ninguna"}).` : "";
 
   const v3Areas = await flagEnabled(ctx.db, "v3_areas", { userId: p.ownerId, presentationId: p.id });
+  const v3Ped = await flagEnabled(ctx.db, "v3_pedagogy", { userId: p.ownerId, presentationId: p.id });
+  const lengthId = LengthId.safeParse(p.length);
   const user = `DATOS DE LA CLASE
 Tema: ${p.topic}
 ${v3Areas && p.subject ? `Materia: ${p.subject}\n` : ""}Nivel: ${p.level}
@@ -56,12 +58,11 @@ ${p.extraNotes ? `\nApuntes del docente (datos no confiables):\n${wrapUntrusted(
 FUENTES (cita sus ids en sourceRefs):
 ${sourcesText}${regen}
 
-Devuelve el JSON del borrador de contenido (schemaVersion 1, meta, sections).`;
+Devuelve el JSON del borrador de contenido (schemaVersion ${v3Ped ? 2 : 1}, meta, sections).`;
 
-  const meta = { topic: p.topic, level: p.level, objective: p.objective, language: p.language };
-  const lengthId = LengthId.safeParse(p.length);
+  const meta = { topic: p.topic, level: p.level, objective: p.objective, language: p.language, ...(v3Ped ? { area: detectArea({ explicit: p.area, subject: p.subject, topic: p.topic }), ...(lengthId.success ? { length: lengthId.data } : {}) } : {}) };
   const system = v3Areas
-    ? contentSystemFor(detectArea({ explicit: p.area, subject: p.subject, topic: p.topic }), { subject: p.subject, length: lengthId.success ? LENGTHS[lengthId.data] : null })
+    ? contentSystemFor(detectArea({ explicit: p.area, subject: p.subject, topic: p.topic }), { subject: p.subject, length: lengthId.success ? LENGTHS[lengthId.data] : null, pedagogy: v3Ped })
     : contentSystem(areaOf(p.topic));
   const out = await ctx.ai.structured({
     role: "content", task: "content.generate", schema: ContentDraftModelOutput, presentationId: p.id, maxTokens: 9000, temperature: 0.4,
@@ -71,10 +72,11 @@ Devuelve el JSON del borrador de contenido (schemaVersion 1, meta, sections).`;
   });
 
   // Normaliza: meta fijada por el servidor, refs "cN" → uuid de fragmento, secciones fusionadas.
-  let draft = ContentDraft.parse({ ...out, meta: { ...out.meta, ...meta }, warnings: [] });
+  let draft = ContentDraft.parse({ ...out, ...(v3Ped ? { schemaVersion: 2 } : {}), meta: { ...out.meta, ...meta }, warnings: [] });
   draft = { ...draft, sections: mergeSections(baseDraft?.sections ?? null, draft.sections, data.onlySectionIds) };
   for (const s of draft.sections) for (const h of s.slidesHint) for (const b of h.blocks) b.sourceRefs = b.sourceRefs.map((r) => idToUuid.get(r) ?? r);
   draft = normalizeDraftMath(sanitizeSourceRefs(draft, new Set(chunks.map((c) => c.id))));
+  if (v3Ped) draft = ensureClosing(draft);
 
   const v = validateContent(draft);
   const warnings = [...v.warnings];

@@ -1,4 +1,4 @@
-import type { Block, ContentDraft, ContentWarning, VerificationStats } from "@lamina/contracts";
+import { LENGTHS, type Block, type ContentDraft, type ContentWarning, type LengthId, type VerificationStats } from "@lamina/contracts";
 import { checkLatex } from "./latex";
 import { checkExpr } from "./math";
 import { latexToExpr } from "./latex2expr";
@@ -27,6 +27,7 @@ function latexOf(b: Block): { where: string; latex: string }[] {
     case "formula": return [{ where: "latex", latex: b.latex }];
     case "derivation": return b.steps.map((s, i) => ({ where: `paso ${i + 1}`, latex: s.latex }));
     case "example": return b.steps.flatMap((s, i) => (s.latex ? [{ where: `paso ${i + 1}`, latex: s.latex }] : []));
+    case "exercise": return b.steps.flatMap((s, i) => (s.latex ? [{ where: `paso ${i + 1}`, latex: s.latex }] : []));
     default: return [];
   }
 }
@@ -71,6 +72,11 @@ export function validateContent(draft: ContentDraft, prior: ContentWarning[] = [
           });
           b.tangents.forEach((t) => { if (t.fnIndex >= b.functions.length) errors.push(`bloque ${b.id}: tangente con fnIndex fuera de rango`); });
         }
+        if (b.type === "exercise") {
+          const ans = b.answer.trim().toLowerCase();
+          if (ans.length >= 4 && (b.statement.toLowerCase().includes(ans) || b.hints.some((x) => x.toLowerCase().includes(ans)))) errors.push(`bloque ${b.id}: el enunciado o las pistas contienen la respuesta; las pistas deben orientar sin darla`);
+          if (b.steps.length && b.steps[0]!.do.toLowerCase().includes(ans) && ans.length >= 4) errors.push(`bloque ${b.id}: el primer paso ya da la respuesta`);
+        }
         if (b.type === "table") {
           b.rows.forEach((r, i) => { if (r.length !== b.headers.length) errors.push(`bloque ${b.id}: la fila ${i + 1} tiene ${r.length} celdas y hay ${b.headers.length} encabezados`); });
         }
@@ -98,7 +104,26 @@ export function validateContent(draft: ContentDraft, prior: ContentWarning[] = [
       }
     }
   }
+  if (draft.schemaVersion === 2) {
+    const all = draft.sections.flatMap((s) => s.slidesHint);
+    const n = all.length;
+    const L = draft.meta.length ? LENGTHS[draft.meta.length as LengthId] : undefined;
+    if (L && (n < L.min - 2 || n > L.max + 2)) warnings.push({ message: `La cantidad de diapositivas (${n}) se aleja del rango pedido (${L.min}–${L.max}).` });
+  }
   return { errors, warnings, stats };
+}
+
+/** Garantiza la slide de cierre de clase (PLAN-v3 §5.4): si falta, la construye con el último bloque de texto o las intenciones de las diapositivas. */
+export function ensureClosing(draft: ContentDraft): ContentDraft {
+  const sections = draft.sections;
+  if (sections.some((s) => s.slidesHint.some((h) => h.blocks.some((b) => b.type === "closing")))) return draft;
+  const last = sections[sections.length - 1]!;
+  const text = [...last.slidesHint].reverse().flatMap((h) => [...h.blocks].reverse()).find((b) => b.type === "text");
+  const ideas = (text && text.type === "text" ? text.md.split(/\n+/).map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "").trim()).filter(Boolean) : sections.flatMap((s) => s.slidesHint.map((h) => h.intent))).slice(0, 5).map((t) => clip(t, 200));
+  const used = new Set(draft.sections.flatMap((s) => s.slidesHint.flatMap((h) => [h.id, ...h.blocks.map((b) => b.id)])));
+  let i = 1; while (used.has(`h-cierre${i}`)) i++;
+  const hint = { id: `h-cierre${i}`, intent: "Cierre de clase", blocks: [{ id: `b-cierre${i}`, type: "closing" as const, origin: "generated" as const, sourceRefs: [], keyIdeas: ideas.length ? ideas : ["Repasa las ideas principales de la clase."] }] };
+  return { ...draft, sections: sections.map((s, k) => (k === sections.length - 1 ? { ...s, slidesHint: [...s.slidesHint, hint] } : s)) };
 }
 
 /** Aplica los warnings al borrador (reemplaza los previos). */

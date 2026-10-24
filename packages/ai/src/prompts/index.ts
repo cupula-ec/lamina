@@ -44,7 +44,7 @@ const AREA_PROMPTS: Record<string, { persona: string; rules: string }> = {
 /** Cantidad pedida por el docente → rango de diapositivas. */
 export type ContentLengthSpec = { approx: number; min: number; max: number };
 
-export const contentSystemFor = (area: string, opts: { subject?: string | null; length?: ContentLengthSpec | null } = {}) => {
+export const contentSystemFor = (area: string, opts: { subject?: string | null; length?: ContentLengthSpec | null; pedagogy?: boolean } = {}) => {
   const a = AREA_PROMPTS[area] ?? AREA_PROMPTS.general!;
   const total = opts.length ? `Total entre ${opts.length.min} y ${opts.length.max} diapositivas (unas ${opts.length.approx}).` : "Total entre 8 y 16 diapositivas.";
   return `Eres un profesor universitario ecuatoriano experto en ${a.persona}${opts.subject ? ` (materia: ${opts.subject})` : ""}. Redactas el contenido didáctico, riguroso y claro de una presentación de clase para alguien que ve el tema por primera vez.
@@ -64,13 +64,25 @@ ${a.rules}
 - "graphSpec": "expr" en sintaxis mathjs con la variable x; máximo 4 funciones. "derivation": pasos con igualdades correctas. "table": todas las filas con tantas celdas como encabezados. "diagramSpec": kind "generic" con descripción si no estás seguro de "data".
 - No más de 6 viñetas por bloque de texto; frases cortas.
 
-RIGOR Y ORIGEN
+${opts.pedagogy ? PEDAGOGY_RULES : ""}RIGOR Y ORIGEN
 - No inventes teoremas, datos, nombres ni citas. Si no estás seguro de algo, omítelo.
 - "origin": "teacher" si viene de los materiales del docente; "research" si se apoya en las FUENTES; "generated" si lo redactas tú.
 - "sourceRefs": ids de fragmentos de fuente (por ejemplo "c3") SOLO cuando el bloque se apoya en ese fragmento; si no, lista vacía.
 
 ${UNTRUSTED_RULE}`;
 };
+
+/** Bloques pedagógicos de contenido v2 (schemaVersion 2). Solo con el flag v3_pedagogy. */
+const PEDAGOGY_RULES = `BLOQUES PEDAGÓGICOS (schemaVersion 2; úsalos además de los anteriores)
+- "motivation" {hook, intuition, everydayExample?}: ANTES de cada concepto nuevo. hook = por qué importa (1 frase); intuition = la idea sin formalismo; everydayExample = situación cotidiana.
+- "exercise" {statement, guidingQuestion, hints[1-3], steps[{do, why, latex?}], answer, commonMistakes?}: para practicar. El enunciado y las pistas NUNCA contienen la respuesta; cada paso explica qué hacer y por qué; la respuesta va al final. Úsalo en lugar de "example" cuando el alumno deba intentarlo; "example" queda para ejemplos resueltos completos.
+- "code" {language, source, highlightSteps?}: código corto (≤ 25 líneas) y correcto.
+- "activity" {kind: debate|pregunta|pares|practica, prompt, minutes}: dinámica de clase.
+- "imageRequest" {query, purpose, alt}: solo si una imagen real aporta (fenómeno, lugar, esquema); query en términos de búsqueda de imágenes.
+- "closing" {keyIdeas[1-6], questions?, nextClass?, exitTicket?}: OBLIGATORIO. La ÚLTIMA diapositiva del borrador es el cierre de clase, con un único bloque "closing".
+- En "meta" repite schemaVersion 2.
+
+`;
 
 export const designSlideSystem = (catalog: string, layouts: string) => `Eres un diseñador de presentaciones didácticas. Conviertes UNA diapositiva de contenido en una diapositiva declarativa para el motor de Lámina, eligiendo un layout y componentes del catálogo. NO decides coordenadas ni estilos.
 
