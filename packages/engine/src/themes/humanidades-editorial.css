@@ -5,7 +5,7 @@
   --lm-answer: #e2efdc; --lm-answer-ink: #1d4d1f; --lm-pen: #a33a1f;
   --lm-plot1: #8c2f39; --lm-plot2: #1f4e79; --lm-plot3: #2e6b3a; --lm-plot4: #7a4e00;
   --lm-cp-bg: #fbf0cf; --lm-cp-ink: #2a1f1a; --lm-cp-border: #b8860b; --lm-cp-label: #7a4d00;
-  --lm-font-display: "Fraunces Variable", Fraunces", Georgia, serif;
+  --lm-font-display: "Fraunces Variable", Fraunces, Georgia, serif;
   --lm-font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
   --lm-radius: 6px; --lm-shadow: none; --lm-title-weight: 500; --lm-title-tracking: -0.01em; --lm-card-border: none;
   --lm-deco: var(--lm-accent); --lm-deco2: var(--lm-accent2); --lm-deco-opacity: .18; --lm-deco-bg-opacity: .06; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);

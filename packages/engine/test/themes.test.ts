@@ -151,3 +151,12 @@ describe("tema institucional automático", () => {
     expect(institutionalAccents("rojo")).toBeNull();
   });
 });
+
+describe("sintaxis de los CSS de temas", () => {
+  it("las comillas de cada declaración están balanceadas (un error rompe el build de la web)", () => {
+    for (const id of THEME_IDS) {
+      const css = fs.readFileSync(path.join(DIR, `${id}.css`), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const line of css.split("\n")) expect((line.match(/"/g) ?? []).length % 2, `${id}: ${line.trim()}`).toBe(0);
+    }
+  });
+});

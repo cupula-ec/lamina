@@ -5,7 +5,7 @@
   --lm-answer: #d4ecd9; --lm-answer-ink: #134d22; --lm-pen: #a8431f;
   --lm-plot1: #2f6b2a; --lm-plot2: #a8431f; --lm-plot3: #4b3a96; --lm-plot4: #1d5fa8;
   --lm-cp-bg: #fbf0cf; --lm-cp-ink: #12261a; --lm-cp-border: #b8860b; --lm-cp-label: #7a4d00;
-  --lm-font-display: "Literata Variable", Literata", Georgia, serif;
+  --lm-font-display: "Literata Variable", Literata, Georgia, serif;
   --lm-font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
   --lm-radius: 26px; --lm-shadow: none; --lm-title-weight: 600; --lm-title-tracking: -0.015em; --lm-card-border: none;
   --lm-deco: var(--lm-accent); --lm-deco2: var(--lm-accent2); --lm-deco-opacity: .18; --lm-deco-bg-opacity: .07; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);
