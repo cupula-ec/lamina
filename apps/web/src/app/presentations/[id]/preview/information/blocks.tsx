@@ -143,6 +143,42 @@ export function BlockEditor({ b, onChange, ro }: { b: Block; onChange: (b: Block
           <Field label="Datos (JSON, opcional)" hint="Si los datos no son válidos, el diseño usará una descripción en texto."><textarea className="field font-mono text-xs" value={b.data ? JSON.stringify(b.data, null, 1) : ""} onChange={(e) => { try { set("data", e.target.value.trim() ? JSON.parse(e.target.value) : undefined); } catch { /* se ignora hasta que sea JSON válido */ } }} readOnly={ro} /></Field>
         </div>
       );
+    case "motivation":
+      return <div className="space-y-2">{inp("hook", "¿Por qué importa? (gancho)")}{inp("intuition", "Intuición", { area: true })}{inp("everydayExample", "Ejemplo cotidiano (opcional)", { area: true })}</div>;
+    case "exercise":
+      return (
+        <div className="space-y-2">
+          {inp("statement", "Enunciado", { area: true })}{inp("guidingQuestion", "Pregunta guía")}
+          <Field label="Pistas (una por línea, máx. 3)"><textarea className="field" value={b.hints.join("\n")} onChange={(e) => set("hints", e.target.value.split("\n").filter((x) => x.trim()).slice(0, 3))} readOnly={ro} /></Field>
+          {b.steps.map((st, i) => (
+            <div key={i} className="space-y-1 border-l-4 border-mark pl-3">
+              <Field label={`Paso ${i + 1}: qué hacer`}><input className="field" value={st.do} onChange={(e) => set("steps", b.steps.map((x, j) => (j === i ? { ...x, do: e.target.value } : x)))} readOnly={ro} /></Field>
+              <Field label="Por qué"><input className="field" value={st.why} onChange={(e) => set("steps", b.steps.map((x, j) => (j === i ? { ...x, why: e.target.value } : x)))} readOnly={ro} /></Field>
+            </div>
+          ))}
+          {inp("answer", "Respuesta", { area: true })}
+        </div>
+      );
+    case "code":
+      return <div className="space-y-2">{inp("language", "Lenguaje")}<Field label="Código"><textarea className="field font-mono text-sm" value={b.source} onChange={(e) => set("source", e.target.value)} readOnly={ro} spellCheck={false} /></Field></div>;
+    case "imageRequest":
+      return <div className="space-y-2">{inp("query", "Qué imagen buscar")}{inp("purpose", "Para qué sirve")}{inp("alt", "Texto alternativo")}</div>;
+    case "activity":
+      return (
+        <div className="space-y-2">
+          <Field label="Tipo"><select className="field" value={b.kind} onChange={(e) => set("kind", e.target.value)} disabled={ro}><option value="debate">Debate</option><option value="pregunta">Pregunta para la clase</option><option value="pares">Trabajo en pares</option><option value="practica">Práctica</option></select></Field>
+          {inp("prompt", "Consigna", { area: true })}
+          <Field label="Minutos"><input className="field" type="number" min={1} max={60} value={b.minutes} onChange={(e) => set("minutes", Math.min(60, Math.max(1, num(e.target.value))))} readOnly={ro} /></Field>
+        </div>
+      );
+    case "closing":
+      return (
+        <div className="space-y-2">
+          <Field label="Ideas clave (una por línea)"><textarea className="field" value={b.keyIdeas.join("\n")} onChange={(e) => set("keyIdeas", e.target.value.split("\n").filter((x) => x.trim()).slice(0, 6))} readOnly={ro} /></Field>
+          <Field label="Preguntas de cierre (una por línea, opcional)"><textarea className="field" value={(b.questions ?? []).join("\n")} onChange={(e) => set("questions", e.target.value.split("\n").filter((x) => x.trim()).slice(0, 4))} readOnly={ro} /></Field>
+          {inp("nextClass", "Próxima clase (opcional)")}{inp("exitTicket", "Ticket de salida (opcional)")}
+        </div>
+      );
   }
 }
 

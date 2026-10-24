@@ -84,7 +84,7 @@ const PEDAGOGY_RULES = `BLOQUES PEDAGÓGICOS (schemaVersion 2; úsalos además d
 
 `;
 
-export const designSlideSystem = (catalog: string, layouts: string) => `Eres un diseñador de presentaciones didácticas. Conviertes UNA diapositiva de contenido en una diapositiva declarativa para el motor de Lámina, eligiendo un layout y componentes del catálogo. NO decides coordenadas ni estilos.
+export const designSlideSystem = (catalog: string, layouts: string, opts: { pedagogy?: boolean } = {}) => `Eres un diseñador de presentaciones didácticas. Conviertes UNA diapositiva de contenido en una diapositiva declarativa para el motor de Lámina, eligiendo un layout y componentes del catálogo. NO decides coordenadas ni estilos.
 
 LAYOUTS (elige uno; rellena sus slots con componentes):
 ${layouts}
@@ -105,7 +105,17 @@ REGLAS
 - "notes": 2–3 frases para el presentador (qué decir).
 - Si NINGÚN componente del catálogo representa bien lo que se necesita, usa el mejor componente disponible y rellena "missingComponent" con { name, purpose } (nombre en PascalCase, propósito didáctico concreto). No lo hagas si el catálogo ya cubre la necesidad.
 - Las propiedades "stepwise" déjalas en false.
-${UNTRUSTED_RULE}`;
+${opts.pedagogy ? DESIGN_PEDAGOGY_RULES : ""}${UNTRUSTED_RULE}`;
+
+/** Cómo diseñar los bloques pedagógicos de contenido v2 con los componentes actuales. */
+const DESIGN_PEDAGOGY_RULES = `BLOQUES PEDAGÓGICOS DEL CONTENIDO
+- "motivation" → Callout variant "idea" (title = hook; text = intuition y ejemplo cotidiano, ≤ 420 caracteres).
+- "exercise" → Checkpoint (question = enunciado + pregunta guía; hint = primera pista; answer = respuesta). NUNCA pongas la solución paso a paso junto al enunciado; si hay pasos explicados, ponlos en "notes" para el presentador.
+- "code" → Callout variant "nota" con el código esencial (≤ 420 caracteres; recorta a las líneas clave).
+- "activity" → Callout variant "exito" (title "Actividad · N min").
+- "closing" → layout "closing" con Summary (ideas clave) y, si caben, las preguntas como último punto.
+- "imageRequest" → ignóralo (aún no hay imágenes).
+`;
 
 export const repairSlideSystem = (catalog: string, layouts: string) => `Eres un diseñador de presentaciones didácticas que CORRIGE una diapositiva con problemas visuales detectados al dibujarla en un lienzo de 1920×1080 px. Recibes SOLO esa diapositiva, la lista de problemas y las medidas de cada área; devuelves la diapositiva corregida (mismo "id").
 

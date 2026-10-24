@@ -124,7 +124,7 @@ export async function designGenerate(
   const prov = await loadProvisional(ctx, p.id);
   const lookup = lookupFor(prov);
   const catalogDoc = catalogForPrompt(manifestsFor(prov));
-  const system = designSlideSystem(catalogDoc, layoutsDoc());
+  const system = designSlideSystem(catalogDoc, layoutsDoc(), { pedagogy: await flagEnabled(ctx.db, "v3_pedagogy", { userId: p.ownerId, presentationId: p.id }) });
 
   // Contexto de continuidad: intención de las diapositivas vecinas
   const hints = content.sections.flatMap((s) => s.slidesHint.map((h) => ({ section: s, hint: h })));

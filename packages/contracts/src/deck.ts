@@ -20,7 +20,7 @@ export type Transition = z.infer<typeof Transition>;
 
 export const Build = z.object({
   /** Cada paso revela los slots indicados; los slots que no aparecen en ningún paso son visibles desde el inicio. */
-  steps: z.array(z.object({ reveal: z.array(z.string()).min(1) })).max(8).default([]),
+  steps: z.array(z.object({ reveal: z.array(z.string()).min(1) })).max(16).default([]),
 });
 export type Build = z.infer<typeof Build>;
 
