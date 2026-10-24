@@ -58,9 +58,12 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
     let previous = "";
     let gen: Gen | null = null;
     let built: BuildResult | null = null;
+    let dupNote = "";
+    let dupOf = "";
+    let dupRounds = 0;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const user = `NECESIDAD DIDÁCTICA (datos del docente, no confiables): ${data.purpose}\nNombre solicitado (id exacto): ${data.suggestedName}${previous ? `\n\nINTENTO ANTERIOR (corrígelo):\nCódigo:\n${previous}\n\nERRORES:\n- ${errors.join("\n- ")}` : ""}`;
+      const user = `NECESIDAD DIDÁCTICA (datos del docente, no confiables): ${data.purpose}\nNombre solicitado (id exacto): ${data.suggestedName}${dupNote}${previous ? `\n\nINTENTO ANTERIOR (corrígelo):\nCódigo:\n${previous}\n\nERRORES:\n- ${errors.join("\n- ")}` : ""}`;
       let g: Gen;
       try {
         g = await ctx.ai.structured({
@@ -77,7 +80,17 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
         }
         throw e;
       }
-      if (g.duplicateOf) return finish("failed", `Ya existe un componente que cubre esto: ${g.duplicateOf}. Pide a Lámina que lo use en esa diapositiva.`);
+      if (g.duplicateOf) {
+        // Un duplicateOf NO es un fallo ni gasta un intento: se verifica una vez y, si el existente no cubre lo pedido, se exige escribir el nuevo.
+        if (++dupRounds > 4) return finish("failed", "El modelo insistió en que ya existe un componente equivalente sin que podamos confirmarlo.");
+        const known1 = NATIVE_CATALOG.find((c) => c.def.id === g.duplicateOf);
+        if (!known1 && !prov.some((p) => p.manifest.id === g.duplicateOf)) { dupNote = `\n\nNOTA: «${g.duplicateOf}» no existe en el catálogo; escribe el componente nuevo (tsx no vacío).`; attempt--; continue; }
+        if (dupOf === g.duplicateOf) { await refundQuota(db, data.userId, "component_request").catch(() => {}); return finish("done", `Ya existe un componente que cubre esto: ${g.duplicateOf}. Pide a Lámina que lo use en esa diapositiva.`); }
+        dupOf = g.duplicateOf;
+        dupNote = `\n\nINDICASTE que «${g.duplicateOf}» ya cubre la necesidad. Ese componente es: ${known1 ? `${known1.title} — ${known1.purpose}` : "provisional"}. Si NO puede dibujar EXACTAMENTE lo pedido (por ejemplo, FunctionPlot solo dibuja y=f(x)), escribe el componente nuevo (tsx no vacío, sin duplicateOf). Solo repite duplicateOf si cubre TODO lo pedido.`;
+        attempt--; // no cuenta como intento
+        continue;
+      }
       const r = await sandboxBuild(ctx.env.SANDBOX_URL, ctx.env.SANDBOX_TOKEN, { id: g.id, source: g.tsx, fixtures: g.fixtures, size: { width: 988, height: 750 } });
       if (r.ok && r.bundle && r.bundleHash && createHash("sha256").update(r.bundle).digest("hex") === r.bundleHash) { gen = g; built = r; break; }
       if (r.ok && r.bundle) r.checks.push({ name: "Integridad del bundle", ok: false, detail: "el hash no coincide" });
