@@ -13,13 +13,27 @@ const IMAGE_TIMEOUT_S = 15;
 
 export type IngestedImage = { data: Buffer; width: number; height: number; sha256: string; mime: "image/webp" };
 
+/** Máximo de imágenes decodificándose a la vez en el proceso (cada una puede ocupar ~160 MB con 40 Mpx): el resto espera su turno. */
+const MAX_CONCURRENT = 2;
+let active = 0;
+const waiters: (() => void)[] = [];
+async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (active >= MAX_CONCURRENT) await new Promise<void>((r) => waiters.push(r));
+  active++;
+  try { return await fn(); } finally { active--; waiters.shift()?.(); }
+}
+
 const bad = (msg: string, status = 422) => new LaminaError("extraction_failed", msg, status);
 
 /**
  * Re-codifica SIEMPRE a webp (sin EXIF ni cola de bytes: elimina polyglots), con tope de píxeles de entrada, de lado de salida y de tiempo.
  * El tipo real lo decide sharp, nunca el Content-Type. SVG se rechaza (puede ser activo).
  */
-export async function ingestImage(input: Buffer): Promise<IngestedImage> {
+export function ingestImage(input: Buffer): Promise<IngestedImage> {
+  return withSlot(() => ingestNow(input));
+}
+
+async function ingestNow(input: Buffer): Promise<IngestedImage> {
   if (!input.length) throw bad("La imagen está vacía.");
   if (input.length > IMAGE_MAX_BYTES) throw bad("La imagen supera el tamaño máximo.", 413);
   try {

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { LaminaError } from "@lamina/contracts";
 
 /** Resultado de una búsqueda de imágenes. `url` es la imagen a descargar (siempre pasa por la ingesta); nunca se enlaza en un deck. */
@@ -117,10 +118,10 @@ export class SearxngImageProvider implements ImageProvider {
     const res = await this.f(u, { signal: AbortSignal.timeout(15_000), headers: { accept: "application/json" } });
     if (!res.ok) throw new Error(`searxng-images ${res.status}`);
     const j = (await res.json()) as { results?: any[] };
-    return (j.results ?? []).filter((r) => isHttp(r.img_src)).slice(0, opts.max ?? 8).map((r, i) => {
+    return (j.results ?? []).filter((r) => isHttp(r.img_src)).slice(0, opts.max ?? 8).map((r) => {
       const [w, h] = typeof r.resolution === "string" ? r.resolution.split(/[x×]/).map((x: string) => Number(x.trim())) : [];
       return {
-        id: `searxng:${i}:${Buffer.from(r.img_src).toString("base64url").slice(-24)}`, thumbUrl: isHttp(r.thumbnail_src) ? r.thumbnail_src : r.img_src, url: r.img_src,
+        id: `searxng:${createHash("sha1").update(String(r.img_src)).digest("hex").slice(0, 20)}`, thumbUrl: isHttp(r.thumbnail_src) ? r.thumbnail_src : r.img_src, url: r.img_src,
         pageUrl: isHttp(r.url) ? r.url : r.img_src, width: num(w), height: num(h), provider: this.name, author: strip(r.author), title: strip(r.title),
       } satisfies ImageResult;
     });

@@ -49,7 +49,7 @@ export function harnessImageTools(ctx: Ctx, p: { id: string; ownerId: string }) 
   return {
     async search(query: string) {
       if (!ctx.images?.length) return [];
-      if (!(await tryConsumeQuota(ctx.db, p.ownerId, "image"))) return [];
+      if (!(await tryConsumeQuota(ctx.db, p.ownerId, "image"))) return "cuota" as const;
       const { results } = await searchImages(ctx.images, query, { max: 8 }).catch(() => ({ results: [] as ImageResult[] }));
       for (const r of results) last.set(r.id, r);
       return results.map((r) => ({ id: r.id, title: r.title, provider: r.provider, width: r.width, height: r.height }));

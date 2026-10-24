@@ -98,8 +98,9 @@ const creditOf = (m: z.infer<typeof UseBody>["meta"]) => [m.author ?? "Autor no 
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { p } = await gate((await params).id);
+    const { u, p } = await gate((await params).id);
     await editableWorkspace(p);
+    if (!(await tryConsumeQuota(getDb(), u.id, "image"))) throw new LaminaError("quota_exceeded", "Alcanzaste el límite diario de imágenes.", 429);
     if (Number(req.headers.get("content-length") ?? 0) > 9 * 1024 * 1024) throw new LaminaError("invalid_input", "La imagen supera 8 MB.", 413);
     const ct = req.headers.get("content-type") ?? "";
     if (ct.startsWith("multipart/form-data")) {

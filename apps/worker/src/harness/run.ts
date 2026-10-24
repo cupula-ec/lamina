@@ -23,7 +23,7 @@ export type HarnessEnv = {
   /** Objetivo en lenguaje natural (una orden del docente o «corrige los problemas»). */
   goal: string;
   /** Búsqueda/colocación de imágenes (solo si el flag v3_images está activo para la cuenta). */
-  images?: { search: (q: string) => Promise<{ id: string; title?: string; provider: string; width?: number; height?: number }[]>; use: (resultId: string, alt: string) => Promise<{ assetId: string; credit?: string } | null> };
+  images?: { search: (q: string) => Promise<"cuota" | { id: string; title?: string; provider: string; width?: number; height?: number }[]>; use: (resultId: string, alt: string) => Promise<{ assetId: string; credit?: string } | null> };
   /** Presupuesto duro por diapositiva (PLAN-v3 §5.2): pasos y tokens por llamada. */
   maxSteps?: number;
   maxTokensPerStep?: number;
@@ -113,6 +113,7 @@ export async function runHarness(env: HarnessEnv): Promise<HarnessResult> {
       case "search_images": {
         if (!env.images) return { obs: "Las imágenes no están disponibles para esta cuenta." };
         const r = await env.images.search((args as { query: string }).query);
+        if (r === "cuota") return { obs: "Se agotó la cuota diaria de imágenes de esta cuenta: no busques más; termina sin imagen." };
         return { obs: r.length ? json(r.slice(0, 6), 1500) : "Sin resultados." };
       }
       case "use_image": {
