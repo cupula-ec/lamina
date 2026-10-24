@@ -436,6 +436,24 @@ export const componentRequests = pgTable("component_requests", {
   createdAt: createdAt(),
 });
 
+/** Unidad de trabajo persistente de un job (V3 §5.1): su resultado se guarda al terminar, y un reinicio solo repite lo que no estaba `done`. */
+export const workUnits = pgTable("work_units", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  presentationId: uuid("presentation_id").notNull().references(() => presentations.id, { onDelete: "cascade" }),
+  jobId: text("job_id"),
+  /** Identifica la ejecución lógica (entradas + época de cancelación): un reintento del mismo job reanuda con la misma runKey. */
+  runKey: text("run_key").notNull(),
+  kind: text("kind").notNull(), // slide | component | block | image
+  ref: text("ref").notNull(),
+  state: text("state").notNull().default("pending"), // pending | running | done | failed | quota_wait
+  attempts: integer("attempts").notNull().default(0),
+  heartbeatAt: ts("heartbeat_at"),
+  error: text("error"),
+  result: jsonb("result"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("work_units_run_ref").on(t.presentationId, t.runKey, t.kind, t.ref), index("work_units_state_hb").on(t.state, t.heartbeatAt)]);
+
 /* ───────────── Observabilidad ───────────── */
 export const aiCalls = pgTable("ai_calls", {
   id: bigserial("id", { mode: "number" }).primaryKey(),

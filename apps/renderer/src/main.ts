@@ -134,7 +134,7 @@ async function afterRender(d: z.infer<typeof JOB_PAYLOADS.render>) {
   if (reverted) return void (await wf.designFinish(db, p.id, reverted));
   const failing = arts.some((a) => a.path && (!d.slideIds || d.slideIds.includes(a.slideId)) && (a.issues as { severity: string; ignored?: boolean }[]).some((i) => i.severity === "error" && !i.ignored));
   if (failing && d.attempt < MAX_REPAIR_ATTEMPTS) {
-    try { await enqueue(boss, "design.repair", { presentationId: p.id, userId: p.ownerId, deckVersionId: d.deckVersionId, attempt: d.attempt, slideIds: d.slideIds }, { base: `${d.deckVersionId}:${d.attempt}` }); return; }
+    try { await enqueue(boss, "design.repair", { presentationId: p.id, userId: p.ownerId, deckVersionId: d.deckVersionId, attempt: d.attempt, slideIds: d.slideIds }, { base: `${d.deckVersionId}:${d.attempt}`, priority: 10 }); return; }
     catch (e) {
       if ((e as { code?: string }).code === "job_in_progress") return; // la reparación ya está en cola/curso: no se cierra el diseño
       console.error("[renderer] no se pudo encolar la reparación:", (e as Error).message);

@@ -127,3 +127,18 @@ describe("reparación de JSON", () => {
     expect(repairJson("nada")).toBe("nada");
   });
 });
+
+describe("aborto del job", () => {
+  it("no envenena cooldowns ni prueba otros modelos cuando el job fue abortado", async () => {
+    const ctrl = new AbortController();
+    let calls = 0;
+    const hk = hooks();
+    const client = new AiClient({
+      provider: { chat: async () => { calls++; ctrl.abort(); throw new ProviderError("unavailable", "red/timeout: aborted"); } },
+      hooks: hk.h, chains: { content: ["a/m1:free", "b/m2:free"] }, abortSignal: () => ctrl.signal,
+    });
+    await expect(client.structured({ role: "content", task: "t", schema: S, system: "s", user: "u" })).rejects.toMatchObject({ name: "JobAbortedError" });
+    expect(calls).toBe(1);
+    expect(hk.calls).toHaveLength(0);
+  });
+});

@@ -219,3 +219,41 @@ describe("utilidades", () => {
     void LaminaError;
   });
 });
+
+describe("jobs durables (V3 bloque 1)", () => {
+  it("matar el worker a media generación y reanudar sin repetir las diapositivas ya hechas", async () => {
+    const { setFlag } = await import("@lamina/db");
+    await setFlag(h.db, "v3_durable_jobs", { mode: "all" });
+    const o = await user();
+    const p = await wf.createPresentation(h.db, o, { title: "t", topic: "La derivada", level: "U", objective: "o" });
+    await wf.beginContentGeneration(h.db, p.id, o, { name: "research", payload: {} });
+    await contentGenerate(ctx, { presentationId: p.id, baseVersionId: null });
+    const pr = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!;
+    const [cv] = await h.db.select().from(schema.contentVersions).where(eq(schema.contentVersions.id, pr.currentContentVersionId!));
+    await wf.approveContent(h.db, p.id, o, cv!.id, cv!.sha256);
+    await wf.beginDesign(h.db, p.id, o, { name: "design.generate", payload: {} });
+
+    const fake = makeFakeProvider();
+    let slideCalls = 0;
+    const counting = (dieAt: number): Ctx => ({
+      ...ctx,
+      ai: new AiClient({
+        hooks: makeHooks(h.db, 1000),
+        provider: { chat: async (r) => { if (r.task === "design.slide") { if (slideCalls >= dieAt) throw new Error("proceso muerto"); slideCalls++; } return fake.chat(r); } },
+      }),
+    });
+    const payload = { presentationId: p.id, contentVersionId: cv!.id, baseDeckVersionId: null };
+    await expect(designGenerate(counting(4), payload)).rejects.toThrow("proceso muerto");
+    expect(slideCalls).toBe(4);
+    const progress = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!.progress;
+    expect(progress).toMatch(/^4 de \d+ diapositivas listas$/);
+
+    slideCalls = 0;
+    await designGenerate(counting(Infinity), payload); // reintento: reanuda
+    const total = Number(progress!.match(/de (\d+)/)![1]);
+    expect(slideCalls).toBe(total - 4);
+    const after = (await h.db.select().from(schema.presentations).where(eq(schema.presentations.id, p.id)))[0]!;
+    expect(after.currentDeckVersionId).toBeTruthy();
+    expect(await h.db.select().from(schema.workUnits).where(eq(schema.workUnits.presentationId, p.id))).toHaveLength(0);
+  });
+});

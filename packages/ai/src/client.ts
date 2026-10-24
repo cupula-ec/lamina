@@ -104,10 +104,15 @@ export class AiClient {
       limiter?: RateLimiter;
       chains?: Partial<Record<Role, string[]>>;
       now?: () => number;
+      /** Señal de aborto del trabajo en curso: si está abortada se corta SIN envenenar los cooldowns de los modelos. */
+      abortSignal?: () => AbortSignal | undefined;
     },
   ) {}
 
   private now() { return this.deps.now?.() ?? Date.now(); }
+  private throwIfAborted(o?: { signal?: AbortSignal }) {
+    if (o?.signal?.aborted || this.deps.abortSignal?.()?.aborted) throw Object.assign(new Error("job abortado"), { name: "JobAbortedError" });
+  }
   chain(role: Role) { return this.deps.chains?.[role] ?? chainFor(role); }
 
   async structured<T>(o: StructuredOpts<T>): Promise<T> {
@@ -121,6 +126,7 @@ export class AiClient {
     let sawInvalid = false;
 
     for (const model of chain) {
+      this.throwIfAborted(o);
       const cd = this.cooldown.get(model) ?? 0;
       if (cd > this.now()) { earliest = Math.min(earliest, cd); continue; }
       if (limiter && !(await limiter.acquire())) { earliest = Math.min(earliest, this.now() + 30_000); continue; }
@@ -165,6 +171,7 @@ export class AiClient {
         } catch (e) {
           if (e instanceof LaminaError) throw e;
           if (!(e instanceof ProviderError)) throw e;
+          this.throwIfAborted(o); // el corte vino del job (expiración), no del modelo: no se registra ni se enfría
           await this.deps.hooks.onCall({
             role: o.role, model, presentationId: o.presentationId, latencyMs: this.now() - t0,
             result: e.kind === "rate" || e.kind === "quota" ? "quota" : "error", error: `${e.kind}: ${e.message}`.slice(0, 300),

@@ -4,8 +4,8 @@ import {
   ACCENT_IDS, ContentDraft, DeckDocument, ENGINE_VERSION, LAYOUT_IDS, LAYOUTS, Slide, THEME_IDS, formatStylePref, parseStylePref, proposeStyle, themesForPrompt,
   type DeckDocument as Deck, type Slide as SlideT, type SlideHint, type StyleChoice,
 } from "@lamina/contracts";
-import { chooseStyleSystem, designSlideSystem } from "@lamina/ai";
-import { buildBranding, consumeQuota, hashJson, schema, workflow as wf } from "@lamina/db";
+import { QuotaWaitError, chooseStyleSystem, designSlideSystem } from "@lamina/ai";
+import { buildBranding, consumeQuota, flagEnabled, hashJson, schema, throwIfAborted, units, workflow as wf } from "@lamina/db";
 import { enqueue } from "@lamina/jobs";
 import { catalogForPrompt, deckFromContent, sectionSlide, slidesFromHint, titleSlide, validateDeckAgainstCatalog, varietyProblem } from "@lamina/components";
 import type { Ctx } from "../ctx";
@@ -134,6 +134,23 @@ export async function designGenerate(
 
   const slides: SlideT[] = [];
   const keep = (id: string) => prevDeck?.slides.find((s) => s.id === id);
+
+  // Jobs durables (V3 §5.1, detrás de flag): cada diapositiva es una unidad persistente; un reintento/reinicio solo repite lo que no terminó.
+  const durable = await flagEnabled(ctx.db, "v3_durable_jobs", { userId: p.ownerId, presentationId: p.id });
+  const scope: units.UnitScope = { presentationId: p.id, runKey: units.runKeyOf(["design", data.contentVersionId, data.baseDeckVersionId, data.feedback ?? "", data.onlySlideIds ?? [], p.cancelEpoch]), kind: "slide" };
+  type UnitResult = { slides: SlideT[]; requested?: string };
+  const doneMap = durable ? await units.doneUnits(ctx.db, scope) : new Map<string, unknown>();
+  const wants = (h: { id: string }) => {
+    const ex = prevDeck?.slides.filter((x) => ownsHint(h.id, x.id)) ?? [];
+    return regenAll || ex.length === 0 || ex.some((x) => only.has(x.id)) || only.has(h.id);
+  };
+  const totalUnits = hints.filter((x) => wants(x.hint)).length;
+  let doneCount = doneMap.size;
+  const setProgress = (n: number) => ctx.db.update(schema.presentations).set({ progress: `${n} de ${totalUnits} diapositivas listas` }).where(eq(schema.presentations.id, p.id)).catch(() => {});
+  if (durable && totalUnits > 1) await setProgress(doneCount);
+  const hb = durable ? setInterval(() => void units.heartbeatUnits(ctx.db, scope).catch(() => {}), 20_000) : null;
+  hb?.unref();
+  try {
   slides.push(!regenAll && keep("title") ? keep("title")! : titleSlide(content.meta, author, branding));
 
   for (const [si, s] of content.sections.entries()) {
@@ -141,8 +158,11 @@ export async function designGenerate(
     for (const h of s.slidesHint) {
       const idx = hints.findIndex((x) => x.hint.id === h.id);
       const existing = prevDeck?.slides.filter((x) => ownsHint(h.id, x.id)) ?? [];
-      const wantsRegen = regenAll || existing.length === 0 || existing.some((x) => only.has(x.id)) || only.has(h.id);
-      if (!wantsRegen) { slides.push(...existing); continue; }
+      if (!wants(h)) { slides.push(...existing); continue; }
+      const stored = doneMap.get(h.id) as UnitResult | undefined;
+      if (stored) { slides.push(...stored.slides); if (stored.requested) requested.add(stored.requested); continue; }
+      throwIfAborted();
+      if (durable) await units.startUnit(ctx.db, scope, h.id);
 
       const prev = hints[idx - 1]?.hint.intent, next = hints[idx + 1]?.hint.intent;
       const current = existing[0];
@@ -168,16 +188,28 @@ export async function designGenerate(
           },
         });
         slides.push({ ...out.slide, id: h.id });
+        let askedFor: string | undefined;
         if (out.missingComponent && !requested.has(out.missingComponent.name)) {
           requested.add(out.missingComponent.name);
+          askedFor = out.missingComponent.name;
           await requestComponent(ctx, p.id, p.ownerId, out.missingComponent.name, out.missingComponent.purpose, h.id);
         }
+        if (durable) {
+          await units.finishUnit(ctx.db, scope, h.id, { slides: [{ ...out.slide, id: h.id }], requested: askedFor } satisfies UnitResult);
+          await setProgress(++doneCount);
+        }
       } catch (e) {
-        if (e instanceof LaminaError && e.code === "provider_failed") slides.push(...slidesFromHint(h, used, { closing: inLastSection })); // fallback estable
-        else throw e; // QuotaWaitError y demás: el wrapper decide
+        if (e instanceof LaminaError && e.code === "provider_failed") {
+          slides.push(...slidesFromHint(h, used, { closing: inLastSection })); // fallback estable
+          if (durable) await units.failUnit(ctx.db, scope, h.id, e.message); // queda marcada: se reintenta sola en una ejecución nueva
+        } else {
+          if (durable) await units.failUnit(ctx.db, scope, h.id, (e as Error).message, e instanceof QuotaWaitError ? "quota_wait" : "failed").catch(() => {});
+          throw e; // QuotaWaitError y demás: el wrapper decide
+        }
       }
     }
   }
+  } finally { if (hb) clearInterval(hb); }
 
   const deck: Deck = DeckDocument.parse({
     schemaVersion: 1, engineVersion: ENGINE_VERSION, themeId: style.themeId, accent: style.accent,
@@ -196,6 +228,7 @@ export async function designGenerate(
     deck: safe, sha256: hashJson(safe), contentVersionId: data.contentVersionId, parentId: data.baseDeckVersionId, componentPins: pins,
     note: data.feedback ? "Regenerado con comentarios" : "Diseño inicial",
   });
+  if (durable) await units.clearRun(ctx.db, { presentationId: p.id, runKey: scope.runKey }).catch(() => {}); // el resultado ya vive en la versión guardada
   // Render → detección → reparación puntual (design.repair) → design_review. Si no se puede encolar, se cierra sin reparar.
   await enqueue(ctx.boss, "render", { presentationId: p.id, deckVersionId: saved.id, then: "repair", attempt: 0 }, { base: `${saved.id}:0` })
     .catch(() => wf.designFinish(ctx.db, p.id, saved.id));
