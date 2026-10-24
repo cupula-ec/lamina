@@ -14,7 +14,7 @@ export const LabeledDiagram = defineComponent({
   schema: z.object({
     assetId: z.string().regex(UUID), alt: z.string().min(1).max(300),
     markers: z.array(z.object({ n: z.number().int().min(1).max(9), x: z.number().min(0).max(1), y: z.number().min(0).max(1), label: z.string().min(1).max(40) })).min(2).max(8),
-    src: z.string().max(400).regex(/^\/api\/assets\/[0-9a-f-]{36}(\?[A-Za-z0-9=&_-]+)?$/i).optional(),
+    src: z.string().max(400).regex(/^(\/api\/assets\/[0-9a-f-]{36}(\?[A-Za-z0-9=&_-]+)?|assets\/[A-Za-z0-9._-]{1,80})$/i).optional(),
   }),
   examples: [{ name: "celula", props: { assetId: "00000000-0000-4000-8000-000000000000", alt: "Célula animal al microscopio", markers: [{ n: 1, x: 0.5, y: 0.45, label: "Núcleo" }, { n: 2, x: 0.2, y: 0.3, label: "Membrana" }] } }],
   Component: ({ props }) => (

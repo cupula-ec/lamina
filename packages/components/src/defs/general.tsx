@@ -22,7 +22,7 @@ export const Image = defineComponent({
     /** Texto de crédito (autor · licencia · fuente); se muestra solo con showCredit. */
     credit: z.string().max(200).optional(),
     /** URL resuelta por el servidor al mostrar (firmada, con caducidad); no se guarda en el deck. */
-    src: z.string().max(400).regex(/^\/api\/assets\/[0-9a-f-]{36}(\?[A-Za-z0-9=&_-]+)?$/i).optional(),
+    src: z.string().max(400).regex(/^(\/api\/assets\/[0-9a-f-]{36}(\?[A-Za-z0-9=&_-]+)?|assets\/[A-Za-z0-9._-]{1,80})$/i).optional(),
   }),
   examples: [{ name: "figura", props: { assetId: "00000000-0000-4000-8000-000000000000", alt: "Célula animal vista al microscopio", caption: "Célula animal", fit: "cover", showCredit: false } }],
   Component: ({ props }) => (

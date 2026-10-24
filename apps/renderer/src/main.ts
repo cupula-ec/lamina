@@ -7,6 +7,7 @@ import { z } from "zod";
 import { DeckDocument, JOB_PAYLOADS } from "@lamina/contracts";
 import { createDb, hashJson, runContext, schema, workflow as wf } from "@lamina/db";
 import { createBoss, enqueue } from "@lamina/jobs";
+import { buildOfflineZip } from "./offline";
 
 const env = z.object({
   DATABASE_URL: z.string().url(),
@@ -103,6 +104,29 @@ export async function exportPdf(exportId: string) {
   } finally { await ctx.close(); }
 }
 
+/** Versión offline: ZIP con un index.html autocontenido (reproductor, estilos, fuentes y datos) y las imágenes en assets/. */
+export async function exportOffline(exportId: string) {
+  const [x] = await db.select().from(schema.exportsTable).where(eq(schema.exportsTable.id, exportId));
+  if (!x || x.status === "done" || !x.deckVersionId) return;
+  await db.update(schema.exportsTable).set({ status: "running", error: null }).where(eq(schema.exportsTable.id, exportId));
+  const dir = path.join(env.DATA_DIR, "presentations", x.presentationId, "exports");
+  await fs.mkdir(dir, { recursive: true });
+  const token = await newToken(x.deckVersionId);
+  const res = await fetch(`${env.WEB_INTERNAL_URL}/api/render/offline/${x.deckVersionId}?token=${token}`, { signal: AbortSignal.timeout(60_000) });
+  if (!res.ok) throw new Error(`datos del deck: ${res.status}`);
+  const { deck, prov } = (await res.json()) as { deck: { meta?: { title?: string } }; prov: unknown[] };
+  const fetchAsset = async (u: string) => {
+    const r = await fetch(`${env.WEB_INTERNAL_URL}${u}`, { signal: AbortSignal.timeout(30_000) });
+    if (!r.ok) return null;
+    return { body: new Uint8Array(await r.arrayBuffer()), type: (r.headers.get("content-type") ?? "").split(";")[0]!.trim() };
+  };
+  const { zip, missing } = await buildOfflineZip({ title: deck.meta?.title ?? "Presentación", deck, prov, fetchAsset });
+  if (missing) console.warn(`[renderer] export offline ${exportId}: ${missing} imagen(es) no se pudieron incluir`);
+  const file = path.join(dir, `${exportId}.zip`);
+  await fs.writeFile(file, zip, { mode: 0o600 });
+  await db.update(schema.exportsTable).set({ status: "done", path: file, bytes: zip.length, finishedAt: new Date() }).where(eq(schema.exportsTable.id, exportId));
+}
+
 const MAX_REPAIR_ATTEMPTS = 2;
 type Iss = { severity: string; ignored?: boolean };
 const errorsOf = (issues: unknown) => (issues as Iss[]).filter((i) => i.severity === "error" && !i.ignored).length;
@@ -196,6 +220,7 @@ await boss.work("export", { localConcurrency: 1 }, async (jobs) => {
     const d = JOB_PAYLOADS.export.parse(job.data);
     try {
       if (d.kind === "pdf") await exportPdf(d.exportId);
+      else if (d.kind === "offline") await exportOffline(d.exportId);
       else throw new Error(`export ${d.kind}: no disponible todavía`);
       console.log(`[renderer] export ok ${d.exportId}`);
     } catch (e) {
