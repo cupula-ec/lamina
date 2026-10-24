@@ -22,6 +22,10 @@ const Env = z.object({
   /** Token compartido web↔renderer para los endpoints /api/render/*. */
   RENDER_SERVICE_TOKEN: z.string().min(24).optional(),
   CHANGELOG_DIR: z.string().optional(),
+  /** Búsqueda de imágenes para reemplazar una imagen desde el editor (V3 §5.5). Todo opcional. */
+  SEARXNG_URL: z.string().url().optional(),
+  UNSPLASH_ACCESS_KEY: z.string().optional(),
+  PEXELS_API_KEY: z.string().optional(),
 });
 export type Env = z.infer<typeof Env>;
 

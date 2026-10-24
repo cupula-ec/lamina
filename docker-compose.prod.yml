@@ -50,6 +50,7 @@ services:
       DATABASE_URL: "postgres://lamina:${POSTGRES_PASSWORD}@postgres:5432/lamina"
       DATA_DIR: /data
       CHANGELOG_DIR: /repo/content/changelog
+      SEARXNG_URL: http://searxng:8080
     volumes: ["data:/data"]
     depends_on: { migrate: { condition: service_completed_successfully } }
     networks: [backend, egress]
