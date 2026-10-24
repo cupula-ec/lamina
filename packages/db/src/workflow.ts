@@ -67,7 +67,7 @@ async function withOwnerBranding(tx: Tx, p: Pick<Pres, "ownerId" | "subject" | "
 export async function createPresentation(
   db: Db,
   ownerId: string,
-  input: { title: string; topic: string; level: string; objective: string; language?: string; extraNotes?: string; subject?: string | null; period?: string | null; groupName?: string | null; themeId?: string | null; origin?: "web" | "mcp" },
+  input: { title: string; topic: string; level: string; objective: string; language?: string; extraNotes?: string; subject?: string | null; period?: string | null; groupName?: string | null; themeId?: string | null; origin?: "web" | "mcp"; area?: string | null; length?: string | null },
 ) {
   return db.transaction(async (tx) => {
     const [p] = await tx.insert(presentations).values({ ownerId, ...input, language: input.language ?? "es", stage: "draft" }).returning();

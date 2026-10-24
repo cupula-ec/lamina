@@ -5,7 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { requireUser } from "@/lib/session";
 import { CONSENT_TEXT } from "@/lib/consent";
 import { NewForm } from "./form";
-import { usageFor } from "@lamina/db";
+import { flagEnabled, usageFor } from "@lamina/db";
 import { getDb } from "@/lib/db";
 
 export const metadata = { title: "Nueva presentación" };
@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 export default async function NewPresentation() {
   const user = await requireUser();
   const quota = (await usageFor(getDb(), user.id)).presentation_new;
+  const db = getDb();
+  const features = { areas: await flagEnabled(db, "v3_areas", { userId: user.id }), length: await flagEnabled(db, "v3_pedagogy", { userId: user.id }) };
   return (
     <AppShell user={user}>
       <PageHeader back={{ href: "/dashboard", label: "Mis presentaciones" }} title="Nueva presentación" lead="Dos pasos cortos. Todo se puede ajustar después, y nada avanza sin tu aprobación." />
@@ -27,7 +29,7 @@ export default async function NewPresentation() {
           <p className="mt-1 text-sm text-ink-2">Pídele la presentación a Claude u otra IA conectada a tu cuenta. <span className="font-bold underline underline-offset-4">Conectar</span></p>
         </Link>
       </div>
-      <NewForm consentText={CONSENT_TEXT} quota={quota} />
+      <NewForm consentText={CONSENT_TEXT} quota={quota} features={features} />
     </AppShell>
   );
 }

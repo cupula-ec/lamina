@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { LaminaError } from "@lamina/contracts";
+import { AreaId, LaminaError, LengthId } from "@lamina/contracts";
 import { consumeQuota, hashJson, refundQuota, schema, sha256Hex, workflow as wf } from "@lamina/db";
 import { enqueue } from "@lamina/jobs";
 import { chunkText } from "@lamina/research";
@@ -12,6 +12,7 @@ import { getDb } from "@/lib/db";
 import { presentationDir } from "@/lib/cleanup";
 import { requireUserApi } from "@/lib/session";
 import { OCR_CONSENT_VERSION } from "@/lib/consent";
+import { guidanceNotes } from "@/lib/request-quality";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,6 +27,12 @@ const Fields = z.object({
   group: z.string().trim().max(80, "Grupo: máximo 80 caracteres").optional(),
   notes: z.string().max(20_000).optional(),
   urls: z.string().max(2000).optional(),
+  /** V3: opcionales; vacío = lo decide el sistema (área detectada, cantidad media). */
+  area: z.union([AreaId, z.literal("")]).optional(),
+  length: z.union([LengthId, z.literal("")]).optional(),
+  prior: z.string().trim().max(600).optional(),
+  examples: z.string().trim().max(600).optional(),
+  avoid: z.string().trim().max(600).optional(),
 });
 
 export async function POST(req: Request) {
@@ -37,7 +44,7 @@ export async function POST(req: Request) {
     const user = await requireUserApi();
     userId = user.id;
     const form = await req.formData();
-    const f = Fields.safeParse({ topic: form.get("topic") ?? "", level: form.get("level") ?? "", objective: form.get("objective") ?? "", subject: String(form.get("subject") ?? ""), period: String(form.get("period") ?? ""), group: String(form.get("group") ?? ""), notes: String(form.get("notes") ?? ""), urls: String(form.get("urls") ?? "") });
+    const f = Fields.safeParse({ topic: form.get("topic") ?? "", level: form.get("level") ?? "", objective: form.get("objective") ?? "", subject: String(form.get("subject") ?? ""), period: String(form.get("period") ?? ""), group: String(form.get("group") ?? ""), notes: String(form.get("notes") ?? ""), urls: String(form.get("urls") ?? ""), area: String(form.get("area") ?? ""), length: String(form.get("length") ?? ""), prior: String(form.get("prior") ?? ""), examples: String(form.get("examples") ?? ""), avoid: String(form.get("avoid") ?? "") });
     if (!f.success) throw new LaminaError("invalid_input", f.error.issues[0]!.message, 400);
     const urls = (f.data.urls ?? "").split(/\s+/).map((u) => u.trim()).filter(Boolean);
     if (urls.length > 5) throw new LaminaError("invalid_input", "Máximo 5 enlaces", 400);
@@ -53,7 +60,7 @@ export async function POST(req: Request) {
 
     await consumeQuota(db, user.id, "presentation_new");
     quotaTaken = true;
-    const p = await wf.createPresentation(db, user.id, { title: f.data.topic.slice(0, 200), topic: f.data.topic, level: f.data.level, objective: f.data.objective, subject: f.data.subject || null, period: f.data.period || null, groupName: f.data.group || null });
+    const p = await wf.createPresentation(db, user.id, { title: f.data.topic.slice(0, 200), topic: f.data.topic, level: f.data.level, objective: f.data.objective, subject: f.data.subject || null, period: f.data.period || null, groupName: f.data.group || null, area: f.data.area || null, length: f.data.length || null, extraNotes: guidanceNotes({ prior: f.data.prior ?? "", examples: f.data.examples ?? "", avoid: f.data.avoid ?? "" }) });
     presId = p.id;
 
     const notes = (f.data.notes ?? "").trim();

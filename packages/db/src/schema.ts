@@ -282,6 +282,9 @@ export const presentations = pgTable("presentations", {
   groupName: text("group_name"),
   /** Estilo elegido o propuesto (THEME_IDS); null = lo decide la IA al diseñar. */
   themeId: text("theme_id"),
+  /** V3: área de conocimiento (AREA_IDS) y cantidad de diapositivas (short|medium|long). null = comportamiento v2. */
+  area: text("area"),
+  length: text("length"),
   /** Cómo se creó: web (wizard) o mcp (IA externa conectada por el docente). */
   origin: text("origin").notNull().default("web"),
   stage: text("stage").notNull().default("draft"),

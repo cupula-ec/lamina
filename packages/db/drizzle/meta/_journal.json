@@ -57,6 +57,13 @@
       "when": 1792814622749,
       "tag": "0007_profile_v3",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792815084210,
+      "tag": "0008_presentation_area_length",
+      "breakpoints": true
     }
   ]
 }

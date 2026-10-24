@@ -11,3 +11,4 @@ export * from "./geometry";
 export * from "./jsonschema";
 export * from "./bare-math";
 export * from "./ops";
+export * from "./areas";
