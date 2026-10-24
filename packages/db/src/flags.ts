@@ -5,7 +5,7 @@ import { appSettings } from "./schema";
 /** Flags de V3 (PLAN-v3 §4). Todo flag nace apagado: sin configuración = comportamiento v2. */
 export const FLAG_NAMES = [
   "v3_durable_jobs", "v3_workspace", "v3_areas", "v3_pedagogy", "v3_images", "v3_motion", "v3_logo",
-  "v3_harness_repair", "v3_harness_chat", "v3_harness_design", "v3_mcp2", "v3_student_material", "v3_exports", "v3_research_consent",
+  "v3_editor", "v3_harness_repair", "v3_harness_chat", "v3_harness_design", "v3_mcp2", "v3_student_material", "v3_exports", "v3_research_consent",
 ] as const;
 export type FlagName = (typeof FLAG_NAMES)[number];
 

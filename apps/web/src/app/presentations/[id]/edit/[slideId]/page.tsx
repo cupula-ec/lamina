@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { workflow as wf } from "@lamina/db";
+import { flagEnabled, workflow as wf } from "@lamina/db";
 import type { Stage } from "@lamina/contracts";
 import { AppShell } from "@/components/AppShell";
 import { requireOwner } from "@/lib/guard";
 import { loadDeck, provisionalForDeck } from "@/lib/presentation-view";
 import { requireUser } from "@/lib/session";
 import { STAGE_LABEL } from "@/lib/stages";
+import { getDb } from "@/lib/db";
 import { SlideEditor } from "./editor";
+import { SlideEditorV3 } from "./editor-v3";
 
 export const metadata = { title: "Editar diapositiva" };
 export const dynamic = "force-dynamic";
@@ -27,6 +29,8 @@ export default async function EditSlidePage({ params }: { params: Promise<{ id: 
       </AppShell>
     );
   }
+  const ctx = { userId: user.id, presentationId: p.id };
+  const [v3, chatOn, imagesOn] = await Promise.all([flagEnabled(getDb(), "v3_editor", ctx), flagEnabled(getDb(), "v3_harness_chat", ctx), flagEnabled(getDb(), "v3_images", ctx)]);
   const headId = wf.headDeckVersionId(p);
   const dv = await loadDeck(headId ?? null);
   const index = dv ? dv.deck.slides.findIndex((s) => s.id === slideId) : -1;
@@ -38,7 +42,8 @@ export default async function EditSlidePage({ params }: { params: Promise<{ id: 
       <h1 className="mt-2 text-3xl font-bold">Editar diapositiva {index + 1} de {dv.deck.slides.length}</h1>
       <p className="text-ink-2">{p.title}{stage === "published" ? " · Publicada: los cambios se publican cuando tú lo decidas." : ""}</p>
       <div className="mt-6">
-        <SlideEditor presentationId={p.id} baseVersionId={dv.row.id} deck={dv.deck} slideIndex={index} prov={prov} stage={stage} backHref={back} />
+        {v3 ? <SlideEditorV3 presentationId={p.id} baseVersionId={dv.row.id} deck={dv.deck} slideIndex={index} prov={prov} stage={stage} backHref={back} chatOn={chatOn} imagesOn={imagesOn} />
+          : <SlideEditor presentationId={p.id} baseVersionId={dv.row.id} deck={dv.deck} slideIndex={index} prov={prov} stage={stage} backHref={back} />}
       </div>
     </AppShell>
   );

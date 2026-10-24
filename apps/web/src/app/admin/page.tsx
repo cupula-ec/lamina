@@ -24,6 +24,7 @@ const FLAG_INFO: Record<string, [string, string]> = {
   v3_images: ["Imágenes", "Búsqueda, ingesta y reemplazo de imágenes en las diapositivas."],
   v3_motion: ["Motion y carga", "Animaciones por código (entradas, curvas, magic-move) y pantalla de carga con la marca."],
   v3_logo: ["Logo persistente", "Logo en la esquina elegida de todas las diapositivas y portada con logo real."],
+  v3_editor: ["Editor simplificado", "Clic sobre la diapositiva para editar cada elemento, panel contextual, imágenes y modo avanzado plegado."],
   v3_harness_repair: ["IA con herramientas: corregir", "«Corregir automáticamente» con el harness (una diapositiva, todo o nada)."],
   v3_harness_chat: ["IA con herramientas: chat", "Chat con Lámina por diapositiva, con deshacer."],
   v3_harness_design: ["IA con herramientas: diseño", "Diseño slide a slide con el harness (reservado)."],

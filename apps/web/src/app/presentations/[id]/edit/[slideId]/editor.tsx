@@ -7,14 +7,14 @@ import { LAYOUTS, type DeckDocument, type Slide } from "@lamina/contracts";
 import { saveSlideEditAction } from "@/actions/presentations";
 import { makeResolver, type ProvisionalClient } from "@/lib/resolver";
 
-type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
+export type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 const LONG_KEYS = /^(md|text|explanation|problem|answer|statement|proofSketch|description|caption|note|body|subtitle)$/i;
 const LATEX_KEYS = /(^|_)(latex|tex)$/i;
 
 const label = (k: string) => k.replace(/([A-Z])/g, " $1").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 /** Editor genérico de las props de un componente a partir de la forma de sus valores; el servidor valida contra el esquema real. */
-function PropsEditor({ value, onChange, path = "" }: { value: Json; onChange: (v: Json) => void; path?: string }) {
+export function PropsEditor({ value, onChange, path = "" }: { value: Json; onChange: (v: Json) => void; path?: string }) {
   if (Array.isArray(value)) {
     return (
       <div className="space-y-2">
