@@ -3,16 +3,26 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run --passWithNoTests" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
   "dependencies": {
     "@lamina/components": "workspace:*",
     "@lamina/contracts": "workspace:*",
     "@lamina/db": "workspace:*",
+    "@lamina/research": "workspace:*",
     "@lamina/validation": "workspace:*",
     "@modelcontextprotocol/sdk": "1.32.1",
     "drizzle-orm": "^0.45.4",
     "zod": "^4.6.7"
   },
-  "devDependencies": { "@types/node": "^24.0.0", "typescript": "^5.9.0", "vitest": "^5.0.5" }
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.5"
+  }
 }

@@ -49,6 +49,12 @@ export const ComponentRequestPayload = z.object({
   purpose: z.string().max(800),
   suggestedName: z.string().max(64),
   slideId: z.string().optional(),
+  /** Componente escrito por una IA externa (MCP): pasa por las MISMAS comprobaciones que uno generado (astcheck, typecheck, sandbox, fixtures). */
+  provided: z.object({
+    id: z.string().regex(/^[A-Za-z][A-Za-z0-9]{2,40}$/), title: z.string().min(2).max(120), purpose: z.string().min(10).max(600),
+    useCases: z.array(z.string().max(200)).min(1).max(4), propsJsonSchema: z.record(z.string(), z.unknown()),
+    fixtures: z.array(z.record(z.string(), z.unknown())).min(1).max(3), tsx: z.string().max(40_000),
+  }).optional(),
 });
 export const PolishPayload = z.object({ presentationId: Uuid, userId: z.string(), deckVersionId: Uuid });
 export const RenderPayload = z

@@ -7,3 +7,5 @@ export { createTools, TOOL_INPUTS, TOOL_SCOPE } from "./tools";
 export { checkDeck, missingFormulas } from "./deck-check";
 export { checkContentDraft } from "./content-check";
 export { AUTHORING_GUIDE } from "./guide";
+export { createTools2, TOOL2_INPUTS, TOOL2_SCOPE } from "./tools2";
+export { AUTHORING_GUIDE_V2, INSTRUCTIONS_V2 } from "./guide";

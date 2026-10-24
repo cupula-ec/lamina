@@ -1,6 +1,7 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { LAYOUTS, THEMES, contentDraftJsonSchema, deckJsonSchema } from "@lamina/contracts";
+import { z } from "zod";
+import { LAYOUTS, THEMES, WorkspaceOp, contentDraftJsonSchema, deckJsonSchema } from "@lamina/contracts";
 import { consumeQuota } from "@lamina/db";
 import { McpToolError, toToolError } from "./errors";
 import { catalogDoc } from "./catalog";
@@ -8,6 +9,8 @@ import { AUTHORING_GUIDE } from "./guide";
 import { LIMITS } from "./limits";
 import { RateLimiter } from "./rate-limit";
 import { TOOL_INPUTS, TOOL_SCOPE, createTools } from "./tools";
+import { TOOL2_DESC, TOOL2_INPUTS, TOOL2_READ_ONLY, TOOL2_SCOPE, createTools2 } from "./tools2";
+import { AUTHORING_GUIDE_V2, INSTRUCTIONS_V2 } from "./guide";
 import type { McpDeps, McpPrincipal } from "./types";
 
 export const MCP_SERVER_NAME = "lamina";
@@ -30,13 +33,13 @@ const TOOL_DESC: Record<keyof typeof TOOL_INPUTS, string> = {
 const READ_ONLY = new Set(["list_presentations", "get_presentation", "validate_deck", "get_render_issues"]);
 
 const text = (v: unknown): CallToolResult => ({ content: [{ type: "text", text: JSON.stringify(v, null, 2) }], structuredContent: v as Record<string, unknown> });
-const fail = (e: McpToolError): CallToolResult => ({ isError: true, content: [{ type: "text", text: JSON.stringify({ error: { code: e.code, message: e.message, ...(e.details !== undefined ? { details: e.details } : {}) } }, null, 2) }] });
+const fail = (e: McpToolError): CallToolResult => ({ isError: true, content: [{ type: "text", text: JSON.stringify({ error: { code: e.code, message: e.message, ...(e.details !== undefined ? { details: e.details } : {}), ...(e.fix ? { fix: e.fix } : {}) } }, null, 2) }] });
 
 /** Servidor MCP de Lámina para un docente autenticado (un servidor por petición; sin estado). */
 export function createLaminaMcpServer(deps: McpDeps, who: McpPrincipal): McpServer {
   const limiter = deps.limiter ?? defaultLimiter;
   const tools = createTools(deps, who);
-  const server = new McpServer({ name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: MCP_SERVER_NAME, version: deps.v2 ? "2.0.0" : MCP_SERVER_VERSION }, { instructions: deps.v2 ? INSTRUCTIONS_V2 : INSTRUCTIONS });
 
   /** Cada llamada: alcance, límite por token y cuota diaria `mcp_call`. */
   async function gate(scope: "presentations:read" | "presentations:write") {
@@ -59,6 +62,22 @@ export function createLaminaMcpServer(deps: McpDeps, who: McpPrincipal): McpServ
     });
   }
 
+  if (deps.v2) {
+    const tools2 = createTools2(deps, who, tools);
+    for (const name of Object.keys(TOOL2_INPUTS) as (keyof typeof TOOL2_INPUTS)[]) {
+      server.registerTool(name, {
+        description: TOOL2_DESC[name],
+        inputSchema: TOOL2_INPUTS[name],
+        annotations: { readOnlyHint: TOOL2_READ_ONLY.has(name), destructiveHint: false, idempotentHint: TOOL2_READ_ONLY.has(name), openWorldHint: false },
+      }, async (args: unknown) => {
+        try {
+          await gate(TOOL2_SCOPE[name]);
+          return text(await (tools2[name] as (a: unknown) => Promise<unknown>)(args));
+        } catch (e) { return fail(toToolError(e)); }
+      });
+    }
+  }
+
   const json = (uri: URL, v: unknown) => ({ contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(v, null, 2) }] });
   const guarded = <T>(fn: () => Promise<T> | T) => async () => { await gate("presentations:read"); return fn(); };
   const res = (name: string, uri: string, description: string, body: () => unknown, mime = "application/json") =>
@@ -73,7 +92,8 @@ export function createLaminaMcpServer(deps: McpDeps, who: McpPrincipal): McpServ
   res("catalog", "lamina://catalog", "Catálogo de componentes: id, versión exacta, schema de props, usos, restricciones y ejemplos.", () => catalogDoc());
   res("layouts", "lamina://layouts", "Layouts disponibles con su propósito y slots (los obligatorios llevan required=true).", () => Object.values(LAYOUTS));
   res("themes", "lamina://themes", "Temas visuales (themeId) con área, modo, tono, fuentes y variantes de acento (a, b, c).", () => Object.values(THEMES));
-  res("guide-authoring", "lamina://guides/authoring", "Guía de autoría: flujo, reglas de LaTeX, límites y fidelidad matemática.", () => AUTHORING_GUIDE, "text/markdown");
+  res("guide-authoring", "lamina://guides/authoring", "Guía de autoría: flujo, reglas de LaTeX, límites y fidelidad matemática.", () => (deps.v2 ? AUTHORING_GUIDE_V2 : AUTHORING_GUIDE), "text/markdown");
+  if (deps.v2) res("schema-ops", "lamina://schemas/ops", "JSON Schema de las operaciones de apply_content_ops y apply_deck_ops.", () => z.toJSONSchema(WorkspaceOp, { unrepresentable: "any" }));
 
   server.registerResource("presentation", new ResourceTemplate("lamina://presentations/{id}", {
     list: async () => {

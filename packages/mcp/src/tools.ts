@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { ContentDraft, THEME_IDS, formatStylePref, type DeckDocument, type Stage } from "@lamina/contracts";
+import { AREA_IDS, ContentDraft, LENGTH_IDS, THEME_IDS, formatStylePref, type DeckDocument, type Stage } from "@lamina/contracts";
 import { consumeQuota, hashJson, refundQuota, schema, workflow as wf } from "@lamina/db";
 import { LIMITS } from "./limits";
 import { McpToolError } from "./errors";
@@ -20,6 +20,8 @@ export const TOOL_INPUTS = {
     subject: Short(160).optional(), period: Short(80).optional(), group: Short(80).optional(),
     themeId: z.enum(THEME_IDS).optional().describe("Estilo (lamina://themes); si falta, lo decide el docente o Lámina"),
     language: z.string().min(2).max(8).optional(),
+    area: z.enum(AREA_IDS).optional().describe("Área (math, programming, humanities, natsci, general); si falta se detecta"),
+    length: z.enum(LENGTH_IDS).optional().describe("Cantidad de diapositivas: short ≈ 8, medium ≈ 15, long ≈ 25"),
   },
   submit_content_draft: { id: Uuid, draft: Json.describe("ContentDraft (lamina://schemas/content-draft)"), baseVersionId: z.string().uuid().nullable().describe("Versión de contenido vigente que leíste; null si aún no hay"), note: Short(300).optional() },
   validate_deck: { deck: Json.describe("DeckDocument (lamina://schemas/deck)"), id: Uuid.optional().describe("Presentación: habilita la verificación de fidelidad contra el contenido aprobado y los componentes provisionales") },
@@ -69,6 +71,8 @@ export function createTools(deps: McpDeps, who: McpPrincipal) {
   }
 
   return {
+    /** Acceso a la presentación del docente (lo reutilizan las herramientas v2). */
+    owned,
     async list_presentations(a: { stage?: string; limit?: number }) {
       const rows = await db.select().from(schema.presentations).where(eq(schema.presentations.ownerId, who.userId)).orderBy(desc(schema.presentations.updatedAt)).limit(200);
       const out = rows.filter((p) => !a.stage || p.stage === a.stage).slice(0, a.limit ?? 25).map(row);
@@ -100,11 +104,11 @@ export function createTools(deps: McpDeps, who: McpPrincipal) {
       };
     },
 
-    async create_presentation(a: { topic: string; level: string; objective: string; title?: string; subject?: string; period?: string; group?: string; themeId?: (typeof THEME_IDS)[number]; language?: string }) {
+    async create_presentation(a: { topic: string; level: string; objective: string; title?: string; subject?: string; period?: string; group?: string; themeId?: (typeof THEME_IDS)[number]; language?: string; area?: (typeof AREA_IDS)[number]; length?: (typeof LENGTH_IDS)[number] }) {
       const p = await withQuota("presentation_new", () => wf.createPresentation(db, who.userId, {
         title: a.title ?? a.topic, topic: a.topic, level: a.level, objective: a.objective, language: a.language ?? "es",
         subject: a.subject ?? null, period: a.period ?? null, groupName: a.group ?? null,
-        themeId: a.themeId ? formatStylePref({ themeId: a.themeId, accent: "a" }) : null, origin: "mcp",
+        themeId: a.themeId ? formatStylePref({ themeId: a.themeId, accent: "a" }) : null, origin: "mcp", area: a.area ?? null, length: a.length ?? null,
       }));
       return { ...row(p), nextStep: nextStep("draft") };
     },
@@ -151,7 +155,7 @@ export function createTools(deps: McpDeps, who: McpPrincipal) {
         nextStep: "Lámina está dibujando las diapositivas. Consulta get_render_issues en unos segundos; el docente aprueba el diseño en Lámina.",
       });
       if (cur && cur.sha256 === sha256 && cur.authorKind === "mcp" && (cur.parentId ?? null) === (a.baseVersionId ?? null) && p.stage === "design_review") return out(cur, true);
-      const v = await withQuota("mcp_submit", () => wf.mcpDeckSubmitted(db, p.id, who.userId, { deck, sha256, baseVersionId: a.baseVersionId, componentPins: r.pins, note: a.note ?? "Enviado desde una IA externa (MCP)", maxVersions: LIMITS.maxDeckVersionsPerPresentation }));
+      const v = await withQuota("mcp_submit", () => wf.mcpDeckSubmitted(db, p.id, who.userId, { deck, sha256, baseVersionId: a.baseVersionId, componentPins: r.pins, note: a.note ?? "Enviado desde una IA externa (MCP)", maxVersions: deps.v2 ? 100_000 : LIMITS.maxDeckVersionsPerPresentation }));
       await deps.enqueueRender(p.id, v.id).catch((e) => console.error("[mcp] no se pudo encolar el render", (e as Error).message));
       return out(v, false);
     },

@@ -1,5 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { LIMITS, createLaminaMcpServer } from "@lamina/mcp";
+import { flagEnabled } from "@lamina/db";
+import { defaultImageProviders } from "@lamina/research";
 import { enqueue } from "@lamina/jobs";
 import { getAuth, mcpResource } from "@/lib/auth";
 import { getBoss } from "@/lib/boss";
@@ -49,8 +51,11 @@ async function handle(request: Request): Promise<Response> {
   }
   await touchConnection(db, principal.userId, principal.clientId).catch(() => {});
 
+  const v2 = await flagEnabled(db, "v3_mcp2", { userId: principal.userId });
   const server = createLaminaMcpServer({
-    db, appUrl: e.APP_URL.replace(/\/$/, ""),
+    db, appUrl: e.APP_URL.replace(/\/$/, ""), v2,
+    images: v2 ? { providers: defaultImageProviders({ searxngUrl: e.SEARXNG_URL, unsplashKey: e.UNSPLASH_ACCESS_KEY, pexelsKey: e.PEXELS_API_KEY }), dataDir: e.DATA_DIR } : undefined,
+    enqueueComponent: async (payload) => { await enqueue(await getBoss(), "component.request", payload as never, { base: payload.requestId }); },
     enqueueRender: async (presentationId, deckVersionId) => { await enqueue(await getBoss(), "render", { presentationId, deckVersionId }, { base: deckVersionId }); },
   }, principal);
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true, maxRequestBodySize: LIMITS.maxRequestBytes });

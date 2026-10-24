@@ -2,7 +2,7 @@ import { LaminaError } from "@lamina/contracts";
 
 /** Error de herramienta con código estable y mensaje accionable en español (la IA externa lo lee y corrige). */
 export class McpToolError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: unknown) {
+  constructor(public readonly code: string, message: string, public readonly details?: unknown, public readonly fix?: { tool: string; argsHint?: unknown }) {
     super(message);
     this.name = "McpToolError";
   }

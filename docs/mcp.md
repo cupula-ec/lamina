@@ -55,3 +55,20 @@ Reglas útiles: los `submit_*` piden `baseVersionId` (la versión vigente que le
 - Qué lee la IA lo procesa su proveedor según sus condiciones. Lámina no le envía tus archivos subidos.
 
 Decisión técnica y detalles: [ADR-013](adr/013-mcp.md).
+
+## MCP v2 (V3): la IA externa es la autora, Lámina es el motor
+
+Con el flag `v3_mcp2` del docente el servidor añade herramientas **incrementales** (las v1 siguen igual) y cambia las instrucciones: la IA escribe el contenido y arma el diseño ella misma; Lámina valida, dibuja, detecta problemas y guarda. No existe una IA de Lámina a la que pedirle cosas ni una app que «abrir».
+
+| Herramienta | Para qué |
+|---|---|
+| `start_here`, `next_step` | Rol, flujo y siguiente paso con argumentos de ejemplo por etapa |
+| `get_outline`, `get_content_section`, `apply_content_ops` | Leer y editar el contenido por partes (ops atómicas, `baseRev`, `opId`, `dryRun`) |
+| `list_slides`, `get_slide`, `apply_deck_ops` | Leer y editar el diseño por partes, con validación del catálogo y de LaTeX en lo que cambió |
+| `list_components`, `propose_component`, `get_component_status` | Catálogo por área; componentes nuevos (TSX) por el mismo camino que los generados, provisionales y solo para esa presentación |
+| `search_images`, `insert_image` | Imágenes libres: siempre se descargan, re-codifican y guardan en Lámina; `alt` obligatorio |
+| `render_slide`, `commit_checkpoint`, `get_links` | Confirmar lo pendiente como versión, dibujar y dar los enlaces al docente |
+
+- Las operaciones están en `lamina://schemas/ops`. Los errores traen `fix: { tool, argsHint }`.
+- Sin tope de 12 versiones: límite por tasa (60 llamadas/min) y cuota diaria `mcp_call`.
+- Tests de contrato: `packages/mcp/test/tools2.test.ts`.

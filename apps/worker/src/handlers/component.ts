@@ -40,7 +40,7 @@ export function precheck(g: Gen, expectedName?: string): string[] {
 
 const fail = (r: BuildResult) => r.checks.filter((c) => !c.ok).map((c) => `${c.name}${c.detail ? `: ${c.detail}` : ""}`);
 
-export async function componentRequest(ctx: Ctx, data: { presentationId: string; userId: string; requestId: string; purpose: string; suggestedName: string; slideId?: string }) {
+export async function componentRequest(ctx: Ctx, data: { presentationId: string; userId: string; requestId: string; purpose: string; suggestedName: string; slideId?: string; provided?: Gen }) {
   const db = ctx.db;
   const [req] = await db.select().from(schema.componentRequests).where(eq(schema.componentRequests.id, data.requestId));
   if (!req || req.status === "done" || req.status === "failed") return;
@@ -62,7 +62,16 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
     let dupOf = "";
     let dupRounds = 0;
 
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // Componente de una IA externa (MCP): un solo intento, mismas comprobaciones; los errores se devuelven tal cual para que los corrija.
+    if (data.provided) {
+      const g = { ...data.provided, duplicateOf: undefined } as Gen;
+      const pre = precheck(g);
+      if (pre.length) return finish("failed", `Rechazado antes de construir: ${pre.slice(0, 6).join(" | ")}`);
+      const r = await sandboxBuild(ctx.env.SANDBOX_URL, ctx.env.SANDBOX_TOKEN, { id: g.id, source: g.tsx, fixtures: g.fixtures, size: { width: 988, height: 750 } });
+      if (!(r.ok && r.bundle && r.bundleHash && createHash("sha256").update(r.bundle).digest("hex") === r.bundleHash)) return finish("failed", `No pasó la construcción: ${fail(r).slice(0, 5).join(" | ") || "error"}`);
+      gen = g; built = r;
+    }
+    for (let attempt = 1; !gen && attempt <= MAX_ATTEMPTS; attempt++) {
       const user = `NECESIDAD DIDÁCTICA (datos del docente, no confiables): ${data.purpose}\nNombre solicitado (id exacto): ${data.suggestedName}${dupNote}${previous ? `\n\nINTENTO ANTERIOR (corrígelo):\nCódigo:\n${previous}\n\nERRORES:\n- ${errors.join("\n- ")}` : ""}`;
       let g: Gen;
       try {
@@ -123,7 +132,7 @@ export async function componentRequest(ctx: Ctx, data: { presentationId: string;
     // Re-diseño inmediato de la diapositiva que lo pidió (si la presentación sigue en revisión de diseño). Va ANTES de marcar la solicitud
     // como lista: así la pantalla ya ve la etapa «diseñando» cuando deja de refrescarse por la solicitud pendiente.
     const [p] = await db.select().from(schema.presentations).where(eq(schema.presentations.id, data.presentationId));
-    if (p && p.stage === "design_review" && p.currentDeckVersionId && p.approvedContentVersionId) try {
+    if (!data.provided && p && p.stage === "design_review" && p.currentDeckVersionId && p.approvedContentVersionId) try {
       const payload = {
         presentationId: p.id, userId: p.ownerId, contentVersionId: p.approvedContentVersionId, baseDeckVersionId: p.currentDeckVersionId,
         feedback: `Usa el componente provisional ${gen.id} (acaba de crearse): ${gen.purpose}. Necesidad del docente: ${data.purpose}`, onlySlideIds: data.slideId ? [data.slideId] : undefined,
