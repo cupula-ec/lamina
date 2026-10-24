@@ -28,6 +28,7 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
   const p = await requireOwner(id, user.id).catch(() => null);
   if (!p) notFound();
   const stage = p.stage as Stage;
+  const richLoader = await flagEnabled(getDb(), "v3_motion", { userId: user.id, presentationId: p.id });
   const versions = await deckVersions(p.id);
 
   const shownId = /^[0-9a-f-]{36}$/i.test(sp.v ?? "") && versions.some((v) => v.id === sp.v) ? sp.v! : (["polishing"].includes(stage) ? p.approvedDeckVersionId : ["final_review", "published", "private_final"].includes(stage) ? p.finalDeckVersionId : p.currentDeckVersionId) ?? p.currentDeckVersionId;
@@ -46,7 +47,7 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
       <AutoRefresh active={waitingRender || activeReq} />
       <ProgressHeader p={p} stage={stage} lead={<>{p.level} · <Link href={`/presentations/${p.id}/preview/information`} className="underline underline-offset-4">Ver contenido</Link></>} />
       <div className="space-y-6">
-        {(["designing", "polishing", "quota_wait", "failed_recoverable"] as string[]).includes(stage) && <JobWatcher id={p.id} initial={{ stage, prevStage: p.prevStage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />}
+        {(["designing", "polishing", "quota_wait", "failed_recoverable"] as string[]).includes(stage) && <JobWatcher rich={richLoader} id={p.id} initial={{ stage, prevStage: p.prevStage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />}
         {!cur && !["designing", "quota_wait", "failed_recoverable"].includes(stage) && (
           <Callout tone="info" title="Aún no hay diseño">Aprueba el contenido y genera el diseño desde <Link className="font-bold underline" href={`/presentations/${p.id}/preview/information`}>Contenido</Link>.</Callout>
         )}

@@ -39,7 +39,7 @@ export async function renderDeck(deckVersionId: string) {
   const done = new Set(existing.filter((a) => a.path).map((a) => a.slideId)); // capturas ya copiadas (reparación puntual): no se repiten
   const dir = path.join(env.DATA_DIR, "presentations", dv.presentationId, "renders", deckVersionId);
   await fs.mkdir(dir, { recursive: true });
-  const ctx = await (await getBrowser()).newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, javaScriptEnabled: true, serviceWorkers: "block" });
+  const ctx = await (await getBrowser()).newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, javaScriptEnabled: true, serviceWorkers: "block", reducedMotion: "reduce" });
   try {
     for (const [i, slide] of deck.slides.entries()) {
       if (done.has(slide.id)) continue;
@@ -68,7 +68,7 @@ export async function renderDeck(deckVersionId: string) {
 export async function renderComponent(componentVersionId: string, presentationId: string) {
   const dir = path.join(env.DATA_DIR, "presentations", presentationId, "components");
   await fs.mkdir(dir, { recursive: true });
-  const ctx = await (await getBrowser()).newContext({ viewport: { width: 988, height: 750 }, deviceScaleFactor: 1, serviceWorkers: "block" });
+  const ctx = await (await getBrowser()).newContext({ viewport: { width: 988, height: 750 }, deviceScaleFactor: 1, serviceWorkers: "block", reducedMotion: "reduce" });
   try {
     const page = await ctx.newPage();
     const token = await newToken(componentVersionId);

@@ -4,7 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { JobWatcher } from "@/components/JobWatcher";
 import { ProgressHeader } from "@/components/ProgressHeader";
 import { Callout } from "@/components/ui/Callout";
-import { buildBranding, usageFor } from "@lamina/db";
+import { buildBranding, flagEnabled, usageFor } from "@lamina/db";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { requireOwner } from "@/lib/guard";
@@ -23,6 +23,7 @@ export default async function InformationPage({ params }: { params: Promise<{ id
   const p = await requireOwner(id, user.id).catch(() => null);
   if (!p) notFound();
   const stage = p.stage as Stage;
+  const richLoader = await flagEnabled(getDb(), "v3_motion", { userId: user.id, presentationId: p.id });
   const cur = await loadContent(p.currentContentVersionId);
   const versions = await contentVersions(p.id);
   const { sources, chunks } = await sourcesFor(p.id);
@@ -37,7 +38,7 @@ export default async function InformationPage({ params }: { params: Promise<{ id
       <ProgressHeader p={p} stage={stage} lead={`${p.level} · ${p.objective}`} />
       <div className="space-y-6">
         {(stage === "researching" || stage === "quota_wait" || stage === "failed_recoverable") && (
-          <JobWatcher id={p.id} initial={{ stage: p.stage, prevStage: p.prevStage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />
+          <JobWatcher rich={richLoader} id={p.id} initial={{ stage: p.stage, prevStage: p.prevStage, lastError: p.lastError, resumeAt: p.resumeAt?.toISOString() ?? null }} />
         )}
         {stage === "draft" && p.origin === "mcp" && <Callout tone="info" title="Creada desde tu IA conectada">Está esperando que la IA envíe el contenido; cuando lo haga aparecerá aquí para que lo revises y apruebes.</Callout>}
         {stage === "draft" && p.origin !== "mcp" && <Callout tone="warn" title="La presentación no ha arrancado">Si esta pantalla no avanza en un minuto, <Link href="/presentations/new" className="font-bold underline">vuelve a crearla</Link>.</Callout>}

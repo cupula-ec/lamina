@@ -80,3 +80,27 @@ textarea.field { min-height: 7rem; resize: vertical; }
 .prose-lamina p, .prose-lamina li { margin: .6rem 0; }
 .prose-lamina ul { list-style: disc; padding-left: 1.4rem; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* Pantalla de carga con la marca Lámina (V3 §5.6) */
+.lm-loader { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+.lm-loader-mark { width: 7.5rem; height: auto; flex: none; }
+.lm-loader-sheet { fill: var(--color-paper); stroke: var(--color-ink); stroke-width: 2.5; }
+.lm-loader-s1 { fill: var(--color-mark); }
+.lm-loader-lines path, .lm-loader-curve { fill: none; stroke: var(--color-ink); stroke-width: 2.5; stroke-linecap: round; }
+.lm-loader-curve { stroke: var(--color-blue); stroke-width: 3.5; }
+.lm-loader-title { font-weight: 700; font-size: 1.1rem; } .lm-loader-title span { font-weight: 400; color: var(--color-ink-2); }
+.lm-loader-steps { margin-top: .5rem; display: grid; gap: .15rem; font-size: .95rem; } .lm-loader-steps li[data-state="next"] { color: var(--color-ink-2); } .lm-loader-steps li[data-state="now"] { font-weight: 700; }
+.lm-loader-bar { position: relative; margin-top: .75rem; height: 1.6rem; width: min(26rem, 100%); border: 2px solid var(--color-ink); border-radius: 999px; overflow: hidden; background: #fff; }
+.lm-loader-bar i { position: absolute; inset: 0 auto 0 0; background: var(--color-mark); transition: width .6s ease; }
+.lm-loader-bar span { position: relative; display: block; text-align: center; font-size: .85rem; font-weight: 700; line-height: 1.4rem; }
+.lm-loader-tip { margin-top: .75rem; max-width: 56ch; font-size: .95rem; color: var(--color-ink-2); }
+@media (prefers-reduced-motion: no-preference) {
+  .lm-loader-sheet { animation: lm-lift 2.4s ease-in-out infinite alternate; } .lm-loader-s2 { animation-delay: .4s; }
+  .lm-loader-lines path { stroke-dasharray: 80; stroke-dashoffset: 80; animation: lm-line 2.4s ease-in-out infinite; }
+  .lm-loader-lines path:nth-child(2) { animation-delay: .25s; } .lm-loader-lines path:nth-child(3) { animation-delay: .5s; } .lm-loader-lines path:nth-child(4) { animation-delay: .75s; }
+  .lm-loader-curve { stroke-dasharray: 100; stroke-dashoffset: 100; animation: lm-line 2.4s ease-in-out .9s infinite; }
+  .lm-loader-tip { animation: lm-tipin .6s ease both; }
+}
+@keyframes lm-lift { to { translate: 3px -3px; } }
+@keyframes lm-line { 0% { stroke-dashoffset: 80; } 55%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -80; } }
+@keyframes lm-tipin { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
