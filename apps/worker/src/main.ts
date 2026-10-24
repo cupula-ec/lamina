@@ -12,6 +12,7 @@ import { designGenerate } from "./handlers/design";
 import { polish } from "./handlers/polish";
 import { designRepair } from "./handlers/repair";
 import { research } from "./handlers/research";
+import { slideChat } from "./handlers/chat";
 import { guarded, jobSignal } from "./run";
 
 const env = loadEnv();
@@ -40,6 +41,9 @@ await boss.work("design.repair", conc("design.repair", 1), async (jobs: { data: 
     // Con la señal del job: si pg-boss lo expira, la reparación se corta y libera la cola (antes seguía en segundo plano y bloqueaba al siguiente).
     await runContext.run({ presentationId: data.presentationId, epoch: cur?.epoch ?? 0, signal: await jobSignal(ctx, data.presentationId, cur?.ownerId, j.signal) }, () => designRepair(ctx, data));
   }
+});
+await boss.work("slide.chat", conc("slide.chat", 2), async (jobs: { data: any; signal?: AbortSignal }[]) => {
+  for (const j of jobs) await slideChat(ctx, JOB_PAYLOADS["slide.chat"].parse(j.data), j.signal);
 });
 await boss.work("polish", conc("polish", 1), guarded(ctx, "polish", polish as any) as any);
 const { registerComponentWorker } = await import("./handlers/component");

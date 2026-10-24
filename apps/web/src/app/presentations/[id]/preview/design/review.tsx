@@ -11,6 +11,7 @@ import {
 } from "@/actions/presentations";
 import { makeResolver, type ProvisionalClient } from "@/lib/resolver";
 import { PublishPanel } from "./publish";
+import { SlideChat } from "./slide-chat";
 import { QuotaNote, type QuotaUse } from "@/components/QuotaNote";
 import type { PolishReport, RepairReport } from "@/lib/presentation-view";
 
@@ -23,7 +24,7 @@ const VERSION_KIND: Record<string, string> = { polish: "pulido", repair: "correc
 const active = (iss: Issue[]) => iss.filter((i) => !i.ignored);
 
 export function DesignReview(props: {
-  presentationId: string; stage: string; visibility: string; hasUnpublishedChanges: boolean; deckVersionId: string; deckSha: string; deck: DeckDocument; isCurrent: boolean;
+  presentationId: string; chatOn?: boolean; stage: string; visibility: string; hasUnpublishedChanges: boolean; deckVersionId: string; deckSha: string; deck: DeckDocument; isCurrent: boolean;
   issues: Record<string, Issue[]>; rendered: string[]; waitingRender: boolean; quota?: { design_regen: QuotaUse; component_request: QuotaUse }; repairReport: RepairReport | null; polishReport?: PolishReport | null; prov: ProvisionalClient[]; requests: Req[]; versions: Version[]; appUrl: string; busy: boolean;
 }) {
   const { presentationId: id, stage, deck } = props;
@@ -116,6 +117,8 @@ export function DesignReview(props: {
             <Link className="btn btn-sm" href={`/presentations/${id}/view${stage === "published" && props.hasUnpublishedChanges ? "?draft=1" : ""}`} target="_blank">Probar en pantalla completa</Link>
           </div>
         </div>
+
+        {props.chatOn && reviewable && <SlideChat key={slide.id} presentationId={id} slideId={slide.id} slideNumber={sel + 1} />}
 
         <section className="sheet p-4" aria-labelledby="det">
           <h2 id="det" className="font-bold">Diapositiva {sel + 1}: detalles</h2>

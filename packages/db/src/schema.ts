@@ -524,6 +524,26 @@ export const assets = pgTable("assets", {
   createdAt: createdAt(),
 }, (t) => [index("assets_pres_idx").on(t.presentationId), index("assets_owner_idx").on(t.ownerId, t.createdAt)]);
 
+/** Pedidos de «chat con Lámina» sobre una diapositiva (V3 §5.8): lo que se pidió, qué hizo el harness y cómo deshacerlo. */
+export const chatRuns = pgTable("chat_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  presentationId: uuid("presentation_id").notNull().references(() => presentations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  slideId: text("slide_id").notNull(),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("pending"), // pending | running | done | noop | failed
+  summary: text("summary"),
+  error: text("error"),
+  baseDeckVersionId: uuid("base_deck_version_id"),
+  newDeckVersionId: uuid("new_deck_version_id"),
+  batchId: uuid("batch_id"),
+  undoneAt: ts("undone_at"),
+  steps: integer("steps"),
+  calls: integer("calls"),
+  createdAt: createdAt(),
+  finishedAt: ts("finished_at"),
+}, (t) => [index("chat_runs_pres_idx").on(t.presentationId, t.createdAt)]);
+
 /** Unidad de trabajo persistente de un job (V3 §5.1): su resultado se guarda al terminar, y un reinicio solo repite lo que no estaba `done`. */
 export const workUnits = pgTable("work_units", {
   id: uuid("id").primaryKey().defaultRandom(),

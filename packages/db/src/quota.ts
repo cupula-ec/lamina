@@ -3,7 +3,7 @@ import { LaminaError } from "@lamina/contracts";
 import type { Db } from "./client";
 import { usageCounters, userProfiles } from "./schema";
 
-export const QUOTA_KINDS = ["presentation_new", "content_regen", "design_regen", "component_request", "ocr_vision_page", "mcp_call", "mcp_submit", "export", "image"] as const;
+export const QUOTA_KINDS = ["presentation_new", "content_regen", "design_regen", "component_request", "ocr_vision_page", "mcp_call", "mcp_submit", "export", "image", "slide_chat"] as const;
 export type QuotaKind = (typeof QUOTA_KINDS)[number];
 
 export const DEFAULT_QUOTAS: Record<QuotaKind, number> = {
@@ -16,6 +16,7 @@ export const DEFAULT_QUOTAS: Record<QuotaKind, number> = {
   mcp_submit: 40,
   export: 20,
   image: 40,
+  slide_chat: 40,
 };
 export const DEFAULT_CONCURRENT_JOBS = 2;
 

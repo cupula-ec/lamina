@@ -18,6 +18,7 @@ const INFO: Record<QuotaKind, { label: string; what: string }> = {
   mcp_call: { label: "Consultas desde tu IA conectada", what: "Llamadas que hace Claude, ChatGPT u otra IA conectada por MCP." },
   mcp_submit: { label: "Envíos desde tu IA conectada", what: "Contenidos o diseños que tu IA envía a Lámina." },
   export: { label: "Exportaciones", what: "PDF y versión offline de tus presentaciones." },
+  slide_chat: { label: "Cambios con el chat de Lámina", what: "Cada pedido que le haces a Lámina sobre una diapositiva («hazla más visual», «agrega un ejemplo»…)." },
   image: { label: "Imágenes buscadas", what: "Cada imagen que Lámina busca y guarda para tus presentaciones." },
 };
 const STATIC_LIMITS: [string, string][] = [

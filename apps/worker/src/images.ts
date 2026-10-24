@@ -23,16 +23,40 @@ export async function resolveImage(ctx: Ctx, p: { id: string; ownerId: string },
     const pick = pickBestImage(results.filter((r) => !tried.has(r.id)));
     if (!pick) break;
     tried.add(pick.id);
-    try {
-      const img = await fetchAndIngestImage(pick.url);
-      await writeAssetFile(ctx.env.DATA_DIR, img);
-      const [dup] = await ctx.db.select().from(schema.assets).where(and(eq(schema.assets.presentationId, p.id), eq(schema.assets.sha256, img.sha256))).limit(1);
-      const row = dup ?? (await ctx.db.insert(schema.assets).values({
-        ownerId: p.ownerId, presentationId: p.id, sha256: img.sha256, mime: img.mime, width: img.width, height: img.height, bytes: img.data.length, origin: "search",
-        provider: pick.provider, pageUrl: pick.pageUrl.slice(0, 500), author: pick.author?.slice(0, 200), license: pick.license?.slice(0, 120), licenseUrl: pick.licenseUrl?.slice(0, 300), alt: req.alt.slice(0, 300),
-      }).returning())[0]!;
-      return { assetId: row.id, alt: req.alt, credit: creditOf(pick) };
-    } catch (e) { ctx.log(`images: descartada ${pick.provider} (${(e as Error).message})`); }
+    const saved = await saveResult(ctx, p, pick, req.alt);
+    if (saved) return saved;
   }
   return null;
+}
+
+/** Descarga (safeFetch), re-codifica y registra una imagen elegida; null si no pasó la ingesta. */
+export async function saveResult(ctx: Ctx, p: { id: string; ownerId: string }, pick: ImageResult, alt: string): Promise<ResolvedImage | null> {
+  try {
+    const img = await fetchAndIngestImage(pick.url);
+    await writeAssetFile(ctx.env.DATA_DIR, img);
+    const [dup] = await ctx.db.select().from(schema.assets).where(and(eq(schema.assets.presentationId, p.id), eq(schema.assets.sha256, img.sha256))).limit(1);
+    const row = dup ?? (await ctx.db.insert(schema.assets).values({
+      ownerId: p.ownerId, presentationId: p.id, sha256: img.sha256, mime: img.mime, width: img.width, height: img.height, bytes: img.data.length, origin: "search",
+      provider: pick.provider, pageUrl: pick.pageUrl.slice(0, 500), author: pick.author?.slice(0, 200), license: pick.license?.slice(0, 120), licenseUrl: pick.licenseUrl?.slice(0, 300), alt: alt.slice(0, 300),
+    }).returning())[0]!;
+    return { assetId: row.id, alt, credit: creditOf(pick) };
+  } catch (e) { ctx.log(`images: descartada ${pick.provider} (${(e as Error).message})`); return null; }
+}
+
+/** Herramientas de imágenes del harness: búsqueda (con cuota) y colocación de un resultado ya buscado. */
+export function harnessImageTools(ctx: Ctx, p: { id: string; ownerId: string }) {
+  const last = new Map<string, ImageResult>();
+  return {
+    async search(query: string) {
+      if (!ctx.images?.length) return [];
+      if (!(await tryConsumeQuota(ctx.db, p.ownerId, "image"))) return [];
+      const { results } = await searchImages(ctx.images, query, { max: 8 }).catch(() => ({ results: [] as ImageResult[] }));
+      for (const r of results) last.set(r.id, r);
+      return results.map((r) => ({ id: r.id, title: r.title, provider: r.provider, width: r.width, height: r.height }));
+    },
+    async use(resultId: string, alt: string) {
+      const pick = last.get(resultId);
+      return pick ? saveResult(ctx, p, pick, alt) : null;
+    },
+  };
 }

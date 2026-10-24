@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LaminaError, THEME_IDS } from "@lamina/contracts";
+import { LaminaError, THEMES, THEME_IDS } from "@lamina/contracts";
 import { chooseStyle, layoutsDoc, withBrandedCover } from "../src/handlers/design";
 import type { Ctx } from "../src/ctx";
 
@@ -12,7 +12,8 @@ describe("chooseStyle", () => {
     const s = await chooseStyle(ctxWith(async (o) => { seen = o; return o.schema.parse({ themeId: "fisica-aurora", accent: "b", rationale: "Aula de física." }); }), input);
     expect(s).toMatchObject({ themeId: "fisica-aurora", accent: "b", source: "ia" });
     expect(seen.role).toBe("design");
-    for (const id of THEME_IDS) expect(seen.system).toContain(id);
+    // Los temas V3 (flag v3_areas) no se ofrecen a la IA mientras el flag esté apagado.
+    for (const id of THEME_IDS) { if ((THEMES[id] as { v3?: boolean }).v3) expect(seen.system).not.toContain(id); else expect(seen.system).toContain(id); }
     expect(seen.user).toContain("Física I");
   });
   it("un tema inventado por la IA lo rechaza el esquema Zod (la IA reintenta o se usan reglas)", async () => {

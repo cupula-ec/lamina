@@ -56,7 +56,7 @@ export default async function DesignPage({ params, searchParams }: { params: Pro
         )}
         {cur && exportsOn && ["design_review", "final_review", "private_final", "published"].includes(stage) && <ExportPanel presentationId={p.id} kinds={["pdf", "offline"]} />}
         {cur && (
-          <DesignReview
+          <DesignReview chatOn={await flagEnabled(getDb(), "v3_harness_chat", { userId: user.id, presentationId: p.id })}
             presentationId={p.id}
             stage={stage}
             visibility={p.visibility}

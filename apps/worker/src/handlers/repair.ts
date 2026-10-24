@@ -9,6 +9,8 @@ import type { Ctx } from "../ctx";
 import { expectStage } from "../run";
 import { loadProvisional, lookupFor, manifestsFor } from "../catalog";
 import { layoutsDoc, missingFormulas, mustKeep, ownsHint } from "./design";
+import { runHarness } from "../harness";
+import { harnessImageTools } from "../images";
 
 /** Intentos de reparación (render → reparar → render…) antes de dejar el diseño al docente con los problemas marcados. */
 export const MAX_REPAIR_ATTEMPTS = 2;
@@ -76,6 +78,9 @@ export async function designRepair(ctx: Ctx, data: { presentationId: string; use
     const on = (await Promise.all((["v3_images", "v3_areas", "v3_pedagogy"] as const).map(async (f) => ((await flagEnabled(ctx.db, f, { userId: p.ownerId, presentationId: p.id })) ? f : null)))).filter((f): f is NonNullable<typeof f> => !!f);
     const system = repairSlideSystem(catalogForPrompt(manifestsFor(prov, on)), `${layoutsDoc()}\n\nMedidas de cada área:\n${sizesDoc()}`);
 
+    // V3 §5.2: el harness (herramientas pequeñas sobre UNA diapositiva) sustituye a la llamada única, solo con el flag.
+    const harnessOn = await flagEnabled(ctx.db, "v3_harness_repair", { userId: p.ownerId, presentationId: p.id });
+    const imagesOn = on.includes("v3_images");
     const fixed = new Map<string, SlideT>();
     for (const slide of deck.slides) {
       const iss = targets.get(slide.id);
@@ -86,6 +91,22 @@ export async function designRepair(ctx: Ctx, data: { presentationId: string; use
         if (quick) { fixed.set(slide.id, quick); continue; }
       }
       const hint = hints.find((h) => ownsHint(h.id, slide.id));
+      if (harnessOn) {
+        try {
+          const r = await runHarness({
+            ctx, presentationId: p.id, ownerId: p.ownerId, deck, slideId: slide.id, hint, manifests: manifestsFor(prov, on), lookup, signal: undefined,
+            goal: "Corrige los problemas visuales detectados al dibujar esta diapositiva conservando su mensaje y todas las fórmulas.",
+            issues: iss.map((i) => ({ slot: i.slot, kind: i.kind, severity: i.severity, message: i.message, detail: i.detail })),
+            images: imagesOn ? harnessImageTools(ctx, p) : undefined,
+          });
+          if (r.ok && r.ops.length) { const next: SlideT = { ...r.slide, id: slide.id, transition: slide.transition, notes: r.slide.notes || slide.notes }; if (hashJson(next) !== hashJson(slide)) fixed.set(slide.id, next); }
+          else ctx.log(`repair(harness): ${slide.id} sin cambios (${r.ok ? r.summary : r.reason})`, { id: p.id, steps: r.steps, calls: r.calls });
+        } catch (e) {
+          if (e instanceof QuotaWaitError) break;
+          ctx.log(`repair(harness): error en ${slide.id}`, { id: p.id, error: (e as Error).message });
+        }
+        continue;
+      }
       const geo = SLOT_GEOMETRY[slide.layout] ?? {};
       const problems = iss.map((i) => `- [${i.severity === "error" ? "ERROR" : "aviso"}] área "${i.slot ?? "—"}" (${geo[i.slot ?? ""] ? `${geo[i.slot!]!.w}×${geo[i.slot!]!.h} px` : "?"}): ${i.message}${i.detail ? ` (${i.detail})` : ""}`).join("\n");
       const user = `DIAPOSITIVA ACTUAL (JSON, id "${slide.id}", layout "${slide.layout}"):\n${JSON.stringify(slide)}\n\nPROBLEMAS DETECTADOS AL DIBUJARLA:\n${problems}\n\n${hint ? `FÓRMULAS Y EXPRESIONES QUE DEBEN CONSERVARSE TAL CUAL: ${JSON.stringify(mustKeep(hint))}\n\n` : ""}Devuelve { "slide": {...con id "${slide.id}"} } corregida.`;

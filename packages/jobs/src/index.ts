@@ -14,6 +14,7 @@ export const QUEUE_CONFIG: Record<JobName, { expireInSeconds: number; retryLimit
   polish: { expireInSeconds: 8 * 60, retryLimit: 2, policy: "exclusive" },
   render: { expireInSeconds: 5 * 60, retryLimit: 2, policy: "standard" },
   export: { expireInSeconds: 10 * 60, retryLimit: 1, policy: "standard" },
+  "slide.chat": { expireInSeconds: 8 * 60, retryLimit: 0, policy: "standard" },
 };
 
 /**

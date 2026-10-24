@@ -9,6 +9,7 @@ export const JOB_NAMES = [
   "polish",
   "render",
   "export",
+  "slide.chat",
 ] as const;
 export const JobName = z.enum(JOB_NAMES);
 export type JobName = z.infer<typeof JobName>;
@@ -61,6 +62,9 @@ export const RenderPayload = z
   })
   .refine((p) => !!p.deckVersionId !== !!p.componentVersionId, { message: "indica deckVersionId o componentVersionId" });
 
+/** Chat con Lámina sobre una diapositiva (V3 §5.8): el harness aplica los cambios y deja el resultado en chat_runs. */
+export const SlideChatPayload = z.object({ presentationId: Uuid, userId: z.string(), chatId: Uuid });
+
 /** Exportaciones (V3 §5.8): PDF de la presentación, versión offline (ZIP) y PDF del material del alumno. */
 export const EXPORT_KINDS = ["pdf", "offline", "student_pdf"] as const;
 export const ExportKind = z.enum(EXPORT_KINDS);
@@ -76,6 +80,7 @@ export const JOB_PAYLOADS = {
   polish: PolishPayload,
   render: RenderPayload,
   export: ExportPayload,
+  "slide.chat": SlideChatPayload,
 } as const;
 
 export const jobSingletonKey = (name: JobName, presentationId: string, base: string) => `${name}:${presentationId}:${base}`;
