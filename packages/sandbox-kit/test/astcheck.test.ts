@@ -93,3 +93,23 @@ export default function Component({ props, size }: { props: Props; size: { width
     expect(checkComponentSource(src)).toEqual([]);
   });
 });
+
+describe("revisión de seguridad: declaraciones ambientes y concatenación de índices", () => {
+  const bad: [string, string][] = [
+    ["declare const self", `declare const self: any; export default function C(){ const k = "fe" + "tch"; self[k]("/x"); return <div/>; }`],
+    ["declare function open", `declare function open(u: string): void; export default function C(){ open("x"); return <div/>; }`],
+    ["declare class Image", `declare class Image {}; export default function C(){ new Image(); return <div/>; }`],
+    ["declare global", `declare global { var top: any } export default function C(){ return <div>{String(top)}</div>; }`],
+    ["declare const location", `declare const location: any; export default function C(){ location.reload(); return <div/>; }`],
+    ["namespace", `namespace N { export const x = 1 } export default function C(){ return <div>{N.x}</div>; }`],
+    ["concatenación de identificadores como índice", `export default function C(){ const a = "constr", b = "uctor"; const F = ([] as any)[a + b]; return <div>{String(F)}</div>; }`],
+  ];
+  it.each(bad)("bloquea: %s", (_n, src) => expect(checkComponentSource(src).length).toBeGreaterThan(0));
+
+  const good: [string, string][] = [
+    ["alias importado", `import { scaleLinear as top } from "@lamina/sdk"; export default function C(){ return <div>{String(typeof top)}</div>; }`],
+    ["parámetro con nombre blando", `export default function C({ props }: { props: { open: boolean; origin: number } }){ const { open, origin } = props; return <div>{String(open)}{origin}</div>; }`],
+    ["índice con literal", `export default function C(){ const v = [1,2,3]; const i = 0; return <div>{v[i + 1]}{v[2 * i]}</div>; }`],
+  ];
+  it.each(good)("acepta: %s", (_n, src) => expect(checkComponentSource(src)).toEqual([]));
+});

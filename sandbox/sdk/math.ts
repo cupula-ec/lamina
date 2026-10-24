@@ -65,10 +65,10 @@ function compile(expr: string, vars: Record<string, 0 | 1>): Node {
     if (t.t === "op" && t.v === "(") { p++; const e = parseExpr(); eat(")"); return e; }
     if (t.t === "id") {
       p++;
-      if (t.v in vars) return vars[t.v] === 0 ? (x) => x : (_x, y) => y;
+      if (Object.hasOwn(vars, t.v)) return vars[t.v] === 0 ? (x) => x : (_x, y) => y;
       if (t.v === "pi") return () => Math.PI;
       if (t.v === "e") return () => Math.E;
-      const f1 = F1[t.v], f2 = F2[t.v];
+      const f1 = Object.hasOwn(F1, t.v) ? F1[t.v] : undefined, f2 = Object.hasOwn(F2, t.v) ? F2[t.v] : undefined;
       if (f1 || f2) {
         eat("(");
         const a = parseExpr();
@@ -153,7 +153,7 @@ export function polar(fr: (theta: number) => number, range: [number, number], n 
 const f2 = (v: number) => (Math.round(v * 100) / 100).toString();
 /** Polilínea SVG a partir de puntos ya en píxeles. */
 export function linePath(pts: Pt[]): string {
-  return pts.map((p, i) => `${i ? "L" : "M"}${f2(p[0])} ${f2(p[1])}`).join(" ");
+  return pts.filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1])).map((p, i) => `${i ? "L" : "M"}${f2(p[0])} ${f2(p[1])}`).join(" ");
 }
 /** Segmentos [x1, y1, x2, y2] → trazo SVG (aplica `map` a cada punto para pasar del dominio a píxeles). */
 export function segmentsPath(segs: Seg[], map: (x: number, y: number) => Pt = (x, y) => [x, y]): string {
@@ -167,6 +167,7 @@ export function ellipsePath(cx: number, cy: number, a: number, b: number, rot = 
 }
 /** Parábola y = x²/(4p) (vertical) o x = y²/(4p) (horizontal) con vértice (vx, vy); `extent` = alcance en el eje de la abertura. */
 export function parabolaPath(vx: number, vy: number, p: number, extent: number, orientation: "vertical" | "horizontal" = "vertical"): string {
+  if (!p || !Number.isFinite(p)) return "";
   const pts: Pt[] = [];
   const s = Math.sqrt(Math.abs(4 * p * extent)) || 1;
   for (let i = -48; i <= 48; i++) { const u = (s * i) / 48; const w = (u * u) / (4 * p); pts.push(orientation === "vertical" ? [vx + u, vy + w] : [vx + w, vy + u]); }
@@ -174,6 +175,7 @@ export function parabolaPath(vx: number, vy: number, p: number, extent: number, 
 }
 /** Las dos ramas de una hipérbola x²/a² − y²/b² = 1 (horizontal) o y²/a² − x²/b² = 1 (vertical) centrada en (cx, cy). */
 export function hyperbolaPaths(cx: number, cy: number, a: number, b: number, extent: number, orientation: "horizontal" | "vertical" = "horizontal"): [string, string] {
+  if (!a || !b) return ["", ""];
   const mk = (sign: 1 | -1) => {
     const pts: Pt[] = [];
     for (let i = -48; i <= 48; i++) { const t = (extent * i) / 48; const w = sign * a * Math.sqrt(1 + (t * t) / (b * b)); pts.push(orientation === "horizontal" ? [cx + w, cy + t] : [cx + t, cy + w]); }

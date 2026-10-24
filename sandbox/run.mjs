@@ -61,11 +61,15 @@ fs.writeFileSync(path.join(work, "Component.tsx"), source);
 const wrapper = `
 import React from "react";
 import { createRoot } from "react-dom/client";
+import "@lamina/sdk";
+import "/work/neutralize.js";
 import Component from "/work/Component.tsx";
-try { for (const P of [Function.prototype, Object.getPrototypeOf(async function(){}), Object.getPrototypeOf(function*(){})]) Object.defineProperty(P, "constructor", { value: undefined, configurable: false }); } catch (e) {}
 let root;
 window.__laminaMount = (el, props) => { root = root || createRoot(el); root.render(React.createElement(Component, { props, size: { width: el.clientWidth || ${size?.width ?? 988}, height: el.clientHeight || ${size?.height ?? 750} } })); };
 `;
+// Las librerías (React, d3, KaTeX) se evalúan primero; ANTES del código del componente se neutralizan los constructores de funciones
+// (los imports se izan: poner esto después del import del componente llegaría tarde para el código de nivel de módulo).
+fs.writeFileSync(path.join(work, "neutralize.js"), 'try { for (const P of [Function.prototype, Object.getPrototypeOf(async function(){}), Object.getPrototypeOf(function*(){})]) Object.defineProperty(P, "constructor", { value: undefined, configurable: false }); } catch (e) {}\n');
 let bundle;
 try {
   const r = await esbuild.build({

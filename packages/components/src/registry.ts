@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ComponentManifest, DeckDocument, type ComponentRef } from "@lamina/contracts";
+import { ComponentManifest, DeckDocument, type AreaId, type ComponentRef } from "@lamina/contracts";
 import type { Resolved, Resolver } from "@lamina/engine";
 import type { CatalogEntry } from "./define";
 import * as text from "./defs/text";
@@ -7,6 +7,7 @@ import * as visual from "./defs/visual";
 import * as misc from "./defs/misc";
 import * as rich from "./defs/rich";
 import * as general from "./defs/general";
+import * as mathExt from "./defs/math-ext";
 
 export const NATIVE_CATALOG: CatalogEntry[] = [
   text.Title, text.SectionHeader, text.BulletPoints, text.TwoColumn, text.Definition, text.FormulaHighlight, text.Derivation, text.WorkedExample,
@@ -14,6 +15,7 @@ export const NATIVE_CATALOG: CatalogEntry[] = [
   misc.UnitsCallout, misc.Quote, misc.Summary, misc.Checkpoint,
   rich.Callout, rich.StatCard, rich.StepsList, rich.ComparisonTable, rich.IconBullets, rich.SectionNumber, rich.AgendaItem,
   general.Image,
+  mathExt.ConicFigure, mathExt.ImplicitPlot, mathExt.ParametricPlot, mathExt.PolarPlot, mathExt.StatChart,
 ];
 
 const byId = new Map(NATIVE_CATALOG.map((c) => [c.def.id, c]));
@@ -84,8 +86,10 @@ export function deckValidatorFor(extra?: CatalogLookup) {
 }
 
 /** Documentación compacta del catálogo para el prompt de diseño. */
-export function catalogForPrompt(manifests: ComponentManifest[] = NATIVE_MANIFESTS): string {
-  return manifests
+export function catalogForPrompt(manifests: ComponentManifest[] = NATIVE_MANIFESTS, opts: { area?: AreaId } = {}): string {
+  // V3: con un área conocida, los nativos propios de otra área no se ofrecen (menos tokens y menos confusión). Los provisionales siempre.
+  const offered = opts.area ? manifests.filter((m) => { const a = byId.get(m.id)?.areas; return !a || a === "all" || a.includes(opts.area!); }) : manifests;
+  return offered
     .map((m) => {
       const props = JSON.stringify(m.propsJsonSchema);
       return `### ${m.id}@${m.version}${m.status === "provisional" ? " (provisional)" : ""}\nPropósito: ${m.purpose}\nUsos: ${m.useCases.join("; ")}\nRestricciones: ${m.constraints.join("; ") || "—"}\nSlots donde encaja: ${m.fitsSlots.join(", ")}\nSchema de props: ${props}\nEjemplo de props: ${JSON.stringify(m.examples[0]!.props)}`;

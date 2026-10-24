@@ -19,6 +19,16 @@ const FORBIDDEN_IDENTS = new Set([
  */
 const SOFT_IDENTS = new Set(["top", "parent", "frames", "self", "open", "origin", "replace", "assign", "location", "history", "alert", "confirm", "prompt", "Image", "Audio", "href", "cookie", "opener", "name"]);
 
+/** Declaración que EXISTE en tiempo de ejecución en este archivo (las ambientes y las de solo tipo desaparecen al compilar y el nombre vuelve a ser el global). */
+const RUNTIME_KINDS = new Set([ts.SyntaxKind.VariableDeclaration, ts.SyntaxKind.Parameter, ts.SyntaxKind.BindingElement, ts.SyntaxKind.FunctionDeclaration, ts.SyntaxKind.ClassDeclaration, ts.SyntaxKind.ImportSpecifier, ts.SyntaxKind.ImportClause, ts.SyntaxKind.NamespaceImport]);
+function isRuntimeDeclaration(d: ts.Declaration): boolean {
+  if (!RUNTIME_KINDS.has(d.kind)) return false;
+  if (d.flags & ts.NodeFlags.Ambient) return false;
+  if (ts.getCombinedModifierFlags(d) & ts.ModifierFlags.Ambient) return false;
+  if (ts.isFunctionDeclaration(d) && !d.body) return false;
+  return true;
+}
+
 function localResolver(sf: ts.SourceFile) {
   const host: ts.CompilerHost = {
     getSourceFile: (f) => (f === sf.fileName ? sf : undefined), getDefaultLibFileName: () => "lib.d.ts", writeFile: () => {}, getCurrentDirectory: () => "/",
@@ -28,16 +38,21 @@ function localResolver(sf: ts.SourceFile) {
   const checker = program.getTypeChecker();
   return (id: ts.Identifier): boolean => {
     const sym = ts.isShorthandPropertyAssignment(id.parent) && id.parent.name === id ? checker.getShorthandAssignmentValueSymbol(id.parent) : checker.getSymbolAtLocation(id);
-    return !!sym?.declarations?.length && sym.declarations.every((d) => d.getSourceFile() === sf);
+    return !!sym?.declarations?.length && sym.declarations.every(isRuntimeDeclaration);
   };
 }
 
-/** Clave de acceso por corchetes permitida: número, identificador o aritmética sin cadenas (`values[i + 1]`). */
+/** Clave de acceso por corchetes permitida: número, identificador o aritmética con un literal numérico (`values[i + 1]`, `v[2 * i]`). */
 function isSafeIndex(a: ts.Expression): boolean {
   if (ts.isNumericLiteral(a) || ts.isIdentifier(a)) return true;
   if (ts.isParenthesizedExpression(a)) return isSafeIndex(a.expression);
   if (ts.isPrefixUnaryExpression(a)) return isSafeIndex(a.operand);
-  if (ts.isBinaryExpression(a)) return [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken, ts.SyntaxKind.AsteriskToken, ts.SyntaxKind.SlashToken, ts.SyntaxKind.PercentToken].includes(a.operatorToken.kind) && isSafeIndex(a.left) && isSafeIndex(a.right);
+  if (ts.isBinaryExpression(a)) {
+    const arith = [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken, ts.SyntaxKind.AsteriskToken, ts.SyntaxKind.SlashToken, ts.SyntaxKind.PercentToken].includes(a.operatorToken.kind);
+    // `+` entre dos identificadores podría concatenar cadenas ("constr" + "uctor"): exige que un lado sea un literal numérico.
+    const hasNum = (e: ts.Expression): boolean => (ts.isParenthesizedExpression(e) ? hasNum(e.expression) : ts.isNumericLiteral(e));
+    return arith && isSafeIndex(a.left) && isSafeIndex(a.right) && (a.operatorToken.kind !== ts.SyntaxKind.PlusToken || hasNum(a.left) || hasNum(a.right));
+  }
   return false;
 }
 
@@ -57,7 +72,8 @@ export function checkComponentSource(source: string): AstIssue[] {
   const isLocal = (id: ts.Identifier) => (resolver ??= localResolver(sf))(id);
 
   const visit = (n: ts.Node): void => {
-    if (n.kind === ts.SyntaxKind.ThisKeyword) {
+    if ((ts.canHaveModifiers(n) && ts.getModifiers(n)?.some((m) => m.kind === ts.SyntaxKind.DeclareKeyword)) || ts.isModuleDeclaration(n)) bad(n, "`declare`, namespace y module no permitidos");
+    else if (n.kind === ts.SyntaxKind.ThisKeyword) {
       let p: ts.Node | undefined = n.parent, inClass = false;
       while (p) { if (ts.isClassLike(p)) { inClass = true; break; } p = p.parent; }
       if (!inClass) bad(n, "`this` no permitido (usa funciones puras con parámetros)");

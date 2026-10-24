@@ -43,3 +43,14 @@ describe("SDK: curvas", () => {
     expect(a).not.toBe(b);
   });
 });
+
+describe("SDK: robustez (revisión)", () => {
+  it("compileFn no acepta nombres del prototipo como variable ni función", () => {
+    for (const n of ["constructor", "toString", "__proto__", "hasOwnProperty"]) { expect(() => compileFn(n)).toThrow(); expect(() => compileFn2(n)).toThrow(); expect(() => compileFn(`${n}(x)`)).toThrow(); }
+  });
+  it("los trazos nunca contienen Infinity ni NaN", async () => {
+    const { parabolaPath, hyperbolaPaths, linePath } = await import("../../../sandbox/sdk/math");
+    const all = [parabolaPath(0, 0, 0, 5), ...hyperbolaPaths(0, 0, 2, 0, 5), linePath([[NaN, 1], [1, Infinity], [2, 3]])].join("");
+    expect(all).not.toMatch(/Infinity|NaN/);
+  });
+});

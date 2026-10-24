@@ -238,3 +238,23 @@ export function numericEquivalentEx(a: string, b: string, opts: { matrixCaps?: b
   if (perSize.every((r) => r === "different")) return { result: "different" };
   return { result: "unknown", reason: perSize.includes("unknown") ? "muestreo" : "dimensiones" };
 }
+
+/** f(x, y) para curvas implícitas (solo variables x e y). */
+export function compileFn2(expr: string): (x: number, y: number) => number {
+  const code = parseSafe(expr, new Set(["x", "y"])).compile();
+  return (x, y) => {
+    const v = code.evaluate({ x, y });
+    if (typeof v !== "number") throw new Error("la expresión no devuelve un número");
+    return v;
+  };
+}
+
+/** f(v) con una variable de nombre libre (t en paramétricas, theta en polares). */
+export function compileFnOf(expr: string, name: "t" | "theta"): Fn {
+  const code = parseSafe(expr, new Set([name])).compile();
+  return (v: number) => {
+    const r = code.evaluate({ [name]: v });
+    if (typeof r !== "number") throw new Error("la expresión no devuelve un número");
+    return r;
+  };
+}

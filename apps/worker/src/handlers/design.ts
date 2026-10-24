@@ -12,7 +12,7 @@ import type { Ctx } from "../ctx";
 import { expectStage } from "../run";
 import { resolveImage, type ResolvedImage } from "../images";
 import { loadProvisional, lookupFor, manifestsFor, type ProvisionalComponent } from "../catalog";
-import { LaminaError } from "@lamina/contracts";
+import { LaminaError, detectArea } from "@lamina/contracts";
 
 const SlideOut = z.object({
   slide: Slide,
@@ -125,7 +125,8 @@ export async function designGenerate(
   const prov = await loadProvisional(ctx, p.id);
   const lookup = lookupFor(prov);
   const v3Images = await flagEnabled(ctx.db, "v3_images", { userId: p.ownerId, presentationId: p.id });
-  const catalogDoc = catalogForPrompt(manifestsFor(prov, v3Images ? ["v3_images"] : []));
+  const v3Areas = await flagEnabled(ctx.db, "v3_areas", { userId: p.ownerId, presentationId: p.id });
+  const catalogDoc = catalogForPrompt(manifestsFor(prov, v3Images ? ["v3_images"] : []), v3Areas ? { area: detectArea({ explicit: p.area, subject: p.subject, topic: p.topic }) } : {});
   const system = designSlideSystem(catalogDoc, layoutsDoc(), { pedagogy: await flagEnabled(ctx.db, "v3_pedagogy", { userId: p.ownerId, presentationId: p.id }) });
 
   // Contexto de continuidad: intención de las diapositivas vecinas
