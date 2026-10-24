@@ -126,7 +126,8 @@ export async function designGenerate(
   const lookup = lookupFor(prov);
   const v3Images = await flagEnabled(ctx.db, "v3_images", { userId: p.ownerId, presentationId: p.id });
   const v3Areas = await flagEnabled(ctx.db, "v3_areas", { userId: p.ownerId, presentationId: p.id });
-  const catalogDoc = catalogForPrompt(manifestsFor(prov, v3Images ? ["v3_images"] : []), v3Areas ? { area: detectArea({ explicit: p.area, subject: p.subject, topic: p.topic }) } : {});
+  const v3PedCat = await flagEnabled(ctx.db, "v3_pedagogy", { userId: p.ownerId, presentationId: p.id });
+  const catalogDoc = catalogForPrompt(manifestsFor(prov, [...(v3Images ? ["v3_images"] : []), ...(v3Areas ? ["v3_areas"] : []), ...(v3PedCat ? ["v3_pedagogy"] : [])]), v3Areas ? { area: detectArea({ explicit: p.area, subject: p.subject, topic: p.topic }) } : {});
   const system = designSlideSystem(catalogDoc, layoutsDoc(), { pedagogy: await flagEnabled(ctx.db, "v3_pedagogy", { userId: p.ownerId, presentationId: p.id }) });
 
   // Contexto de continuidad: intención de las diapositivas vecinas

@@ -36,12 +36,12 @@ function blockRef(b: Block, images?: ImageMap): ComponentRef | null {
     case "table": return ref("Table", { headers: b.headers, rows: b.rows, caption: b.caption });
     case "definition": return ref("Definition", { kind: "definicion", name: b.term, statement: b.md });
     case "theorem": return ref("Definition", { kind: "teorema", name: b.name, statement: b.statement, note: b.proofSketch ? clip(b.proofSketch, 250) : undefined });
-    // Bloques pedagógicos v2: hasta que existan los componentes propios (bloque 6) se representan con los actuales.
-    case "motivation": return ref("Callout", { variant: "idea", title: clip(b.hook, 80), text: clip([b.intuition, b.everydayExample].filter(Boolean).join(" "), 420) });
-    case "exercise": return ref("Checkpoint", { question: clip(`${b.statement} ${b.guidingQuestion}`, 400), hint: clip(b.hints[0]!, 200), answer: clip(b.answer, 260), stepwise: true });
-    case "code": return ref("Callout", { variant: "nota", title: clip(`Código (${b.language})`, 80), text: clip(b.source, 420) });
-    case "activity": return ref("Callout", { variant: "exito", title: `Actividad · ${b.minutes} min`, text: clip(b.prompt, 420) });
-    case "closing": return ref("Summary", { heading: "Ideas clave", points: [...b.keyIdeas, ...(b.questions ?? []).slice(0, 1)].slice(0, 6).map((t) => clip(t, 200)) });
+    // Bloques pedagógicos v2 → componentes propios de V3 (los que ve la IA solo con sus flags; aquí se usan siempre, el contenido ya es v2).
+    case "motivation": return ref("Motivation", { hook: clip(b.hook, 120), intuition: clip(b.intuition, 300), ...(b.everydayExample ? { everydayExample: clip(b.everydayExample, 240) } : {}) });
+    case "exercise": return ref("Exercise", { statement: clip(b.statement, 420), guidingQuestion: clip(b.guidingQuestion, 160), hints: b.hints.slice(0, 3).map((h) => clip(h, 140)), steps: b.steps.slice(0, 8).map((st) => ({ do: clip(st.do, 130), why: clip(st.why, 130) })), answer: clip(b.answer, 200), stepwise: true });
+    case "code": return ref("CodeBlock", { code: clip(b.source, 1500), language: b.language.slice(0, 20), highlight: (b.highlightSteps?.[0]?.lines ?? []).slice(0, 12) });
+    case "activity": return ref("ClassActivity", { kind: b.kind, prompt: clip(b.prompt, 260), steps: [], minutes: b.minutes });
+    case "closing": return ref("ExitSlide", { keyIdeas: b.keyIdeas.slice(0, 5).map((t) => clip(t, 130)), questions: (b.questions ?? []).slice(0, 3).map((t) => clip(t, 160)), ...(b.exitTicket ? { exitTicket: clip(b.exitTicket, 160) } : {}), ...(b.nextClass ? { nextClass: clip(b.nextClass, 160) } : {}) });
     case "imageRequest": { const im = images?.get(b.id); return im ? ref("Image", { assetId: im.assetId, alt: clip(im.alt, 300), fit: "cover", showCredit: false, ...(im.credit ? { credit: im.credit } : {}) }) : null; }
     case "diagramSpec": {
       const tryRef = (id: string) => {
@@ -52,6 +52,16 @@ function blockRef(b: Block, images?: ImageMap): ComponentRef | null {
       return (b.kind === "vector" ? tryRef("VectorDiagram") : b.kind === "geometry" ? tryRef("GeometryFigure") : null) ?? ref("BulletPoints", { items: mdToItems(b.description, 4) });
     }
   }
+}
+
+/** Pasos de revelado de los componentes que se muestran progresivamente (Exercise: pistas + pasos + respuesta; Checkpoint: pista y respuesta). */
+function revealSteps(slots: Record<string, ComponentRef>): { reveal: string[] }[] {
+  for (const [name, r] of Object.entries(slots)) {
+    const p = r.props as { stepwise?: boolean; hints?: unknown[]; steps?: unknown[] };
+    if (r.componentId === "Exercise" && p.stepwise) return Array.from({ length: Math.min(16, (p.hints?.length ?? 0) + (p.steps?.length ?? 0) + 1) }, () => ({ reveal: [name] }));
+    if (r.componentId === "Checkpoint" && p.stepwise) return [{ reveal: [name] }, { reveal: [name] }];
+  }
+  return [];
 }
 
 const VISUAL = new Set(["graphSpec", "table", "diagramSpec", "imageRequest"]);
@@ -104,7 +114,7 @@ export function slidesFromHint(hint: SlideHint, prevLayouts: string[] = [], opts
     if (m.layout !== "title" && m.layout !== "section" && m.layout !== "cover-branded") slots.title = ref("SectionHeader", { title: gi === 0 ? clip(title, 100) : `${clip(title, 46)} (cont.)` });
     return {
       id: gi === 0 ? hint.id : `${hint.id}-${String.fromCharCode(98 + gi - 1)}`,
-      layout: m.layout, slots, notes: "", build: { steps: Object.entries(slots).some(([, r]) => r.componentId === "Checkpoint" && (r.props as { stepwise?: boolean }).stepwise) ? [{ reveal: ["main"] }, { reveal: ["main"] }] : [] }, transition: "fade" as const,
+      layout: m.layout, slots, notes: "", build: { steps: revealSteps(slots) }, transition: "fade" as const,
       rationale: "Diseño estable automático (sin IA).",
     } as Slide;
   });

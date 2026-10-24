@@ -72,8 +72,9 @@ export async function designRepair(ctx: Ctx, data: { presentationId: string; use
     const hints: SlideHint[] = cv ? ContentDraft.parse(cv.content).sections.flatMap((s) => s.slidesHint) : [];
     const prov = await loadProvisional(ctx, p.id);
     const lookup = lookupFor(prov);
-    const imgs = await flagEnabled(ctx.db, "v3_images", { userId: p.ownerId, presentationId: p.id });
-    const system = repairSlideSystem(catalogForPrompt(manifestsFor(prov, imgs ? ["v3_images"] : [])), `${layoutsDoc()}\n\nMedidas de cada área:\n${sizesDoc()}`);
+    // En una reparación el catálogo incluye todo lo V3 que la cuenta tiene activo (la diapositiva pudo usar esos componentes).
+    const on = (await Promise.all((["v3_images", "v3_areas", "v3_pedagogy"] as const).map(async (f) => ((await flagEnabled(ctx.db, f, { userId: p.ownerId, presentationId: p.id })) ? f : null)))).filter((f): f is NonNullable<typeof f> => !!f);
+    const system = repairSlideSystem(catalogForPrompt(manifestsFor(prov, on)), `${layoutsDoc()}\n\nMedidas de cada área:\n${sizesDoc()}`);
 
     const fixed = new Map<string, SlideT>();
     for (const slide of deck.slides) {

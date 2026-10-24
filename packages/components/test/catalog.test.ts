@@ -6,9 +6,9 @@ import { ENGINE_VERSION, LAYOUTS, type DeckDocument } from "@lamina/contracts";
 import { NATIVE_CATALOG, NATIVE_MANIFESTS, nativeResolver, validateDeckAgainstCatalog, catalogForPrompt } from "../src";
 
 describe("catálogo nativo", () => {
-  it("son 29 componentes (16 originales + 7 nuevos + Image + 5 de matemáticas ampliadas) con ids únicos, manifest válido y JSON Schema", () => {
-    expect(NATIVE_CATALOG).toHaveLength(29);
-    expect(new Set(NATIVE_CATALOG.map((c) => c.def.id)).size).toBe(29);
+  it("son 45 componentes (16 + 7 + Image + 5 matemáticas + 5 programación + 4 generales + 5 humanidades + 2 ciencias) con ids únicos, manifest válido y JSON Schema", () => {
+    expect(NATIVE_CATALOG).toHaveLength(45);
+    expect(new Set(NATIVE_CATALOG.map((c) => c.def.id)).size).toBe(45);
     for (const id of ["Callout", "StatCard", "StepsList", "ComparisonTable", "IconBullets", "SectionNumber", "AgendaItem"]) expect(NATIVE_CATALOG.some((c) => c.def.id === id)).toBe(true);
     for (const m of NATIVE_MANIFESTS) {
       expect(m.status).toBe("stable");

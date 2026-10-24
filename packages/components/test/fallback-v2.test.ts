@@ -19,8 +19,8 @@ describe("fallback con bloques pedagógicos v2", () => {
   it("produce un deck válido", () => expect(() => parseDeckAny(deck)).not.toThrow());
   it("el ejercicio oculta la respuesta tras pasos de revelado", () => {
     const s = deck.slides.find((x) => x.id === "h2")!;
-    expect(s.slots.main!.componentId).toBe("Checkpoint");
-    expect(s.build.steps.length).toBe(2);
+    expect(s.slots.main!.componentId).toBe("Exercise");
+    expect(s.build.steps.length).toBe(1 + 1 + 1); // 1 pista + 1 paso + respuesta
   });
   it("ignora imageRequest y cierra con el layout closing", () => {
     expect(deck.slides.some((x) => x.id === "h3")).toBe(false);

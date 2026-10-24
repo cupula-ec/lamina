@@ -14,14 +14,16 @@ const PolishOut = z.object({
   slides: z.array(z.object({
     id: z.string(),
     transition: Transition.optional(),
-    build: z.object({ steps: z.array(z.object({ reveal: z.array(z.string()).min(1) })).max(4) }).optional(),
+    build: z.object({ steps: z.array(z.object({ reveal: z.array(z.string()).min(1) })).max(16) }).optional(),
     stepwiseSlots: z.array(z.string()).max(3).optional(),
   })).max(80),
 });
 
-const STEPWISE = new Set(["Derivation", "WorkedExample", "Checkpoint"]);
+const STEPWISE = new Set(["Derivation", "WorkedExample", "Checkpoint", "Exercise", "CodeTrace"]);
 const stepsNeeded = (componentId: string, props: any): number =>
-  componentId === "Derivation" ? Math.min(props?.steps?.length ?? 1, 8) : componentId === "WorkedExample" ? Math.min((props?.steps?.length ?? 1) + 2, 8) : 2;
+  componentId === "Derivation" ? Math.min(props?.steps?.length ?? 1, 8) : componentId === "WorkedExample" ? Math.min((props?.steps?.length ?? 1) + 2, 8)
+    : componentId === "Exercise" ? Math.min((props?.hints?.length ?? 0) + (props?.steps?.length ?? 0) + 1, 16)
+    : componentId === "CodeTrace" ? Math.min(Math.max((props?.steps?.length ?? 2) - 1, 1), 16) : 2;
 
 /**
  * Validador de diff: el pulido solo puede cambiar `build`, `transition` y `props.stepwise` (de Derivation/WorkedExample/Checkpoint).
@@ -50,9 +52,12 @@ export function deterministicPolish(deck: Deck): Deck {
     const stepwiseSlot = slots.find(([, r]) => r.componentId === "Derivation" && ((r.props as any).steps?.length ?? 0) >= 3);
     const ex = slots.find(([, r]) => r.componentId === "WorkedExample");
     const cp = slots.find(([, r]) => r.componentId === "Checkpoint" && (r.props as any).answer);
+    // V3: estos componentes se revelan por pasos siempre (el enunciado antes que la solución, la traza línea a línea).
+    const guided = slots.find(([, r]) => r.componentId === "Exercise" || (r.componentId === "CodeTrace" && ((r.props as any).steps?.length ?? 0) >= 2));
     const props = (r: any, on: boolean) => ({ ...r, props: { ...r.props, stepwise: on } });
     const newSlots = { ...s.slots };
-    if (stepwiseSlot) { const [k, r] = stepwiseSlot; newSlots[k] = props(r, true); steps = Array.from({ length: stepsNeeded("Derivation", r.props) }, () => ({ reveal: [k] })); }
+    if (guided) { const [k, r] = guided; newSlots[k] = props(r, true); steps = Array.from({ length: stepsNeeded(r.componentId, r.props) }, () => ({ reveal: [k] })); }
+    else if (stepwiseSlot) { const [k, r] = stepwiseSlot; newSlots[k] = props(r, true); steps = Array.from({ length: stepsNeeded("Derivation", r.props) }, () => ({ reveal: [k] })); }
     else if (ex) { const [k, r] = ex; newSlots[k] = props(r, true); steps = Array.from({ length: stepsNeeded("WorkedExample", r.props) }, () => ({ reveal: [k] })); }
     else if (cp) { const [k, r] = cp; newSlots[k] = props(r, true); steps = [{ reveal: [k] }, { reveal: [k] }]; }
     else if (s.layout === "split-visual") steps = [{ reveal: ["visual"] }];
@@ -69,6 +74,7 @@ export function applySuggestions(base: Deck, out: z.infer<typeof PolishOut>): De
   const slides = base.slides.map((s) => {
     const sug = by.get(s.id);
     if (!sug) return s;
+    if (Object.values(s.slots).some((r) => r.componentId === "Exercise" || r.componentId === "CodeTrace")) return s; // el revelado guiado lo fija el pulido determinista
     const cand: Slide = { ...s, slots: { ...s.slots } };
     if (sug.transition) cand.transition = sug.transition;
     if (sug.build) {

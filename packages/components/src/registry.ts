@@ -8,6 +8,9 @@ import * as misc from "./defs/misc";
 import * as rich from "./defs/rich";
 import * as general from "./defs/general";
 import * as mathExt from "./defs/math-ext";
+import * as programming from "./defs/programming";
+import * as humanities from "./defs/humanities";
+import * as natsci from "./defs/natsci";
 
 export const NATIVE_CATALOG: CatalogEntry[] = [
   text.Title, text.SectionHeader, text.BulletPoints, text.TwoColumn, text.Definition, text.FormulaHighlight, text.Derivation, text.WorkedExample,
@@ -16,6 +19,10 @@ export const NATIVE_CATALOG: CatalogEntry[] = [
   rich.Callout, rich.StatCard, rich.StepsList, rich.ComparisonTable, rich.IconBullets, rich.SectionNumber, rich.AgendaItem,
   general.Image,
   mathExt.ConicFigure, mathExt.ImplicitPlot, mathExt.ParametricPlot, mathExt.PolarPlot, mathExt.StatChart,
+  programming.CodeBlock, programming.CodeTrace, programming.ConsoleOutput, programming.Flowchart, programming.DataStructure,
+  general.Exercise, general.ExitSlide, general.KeyIdea, general.Motivation,
+  humanities.Timeline, humanities.ConceptMap, humanities.QuoteSource, humanities.CaseStudy, humanities.ClassActivity,
+  natsci.LabeledDiagram, natsci.ProcessCycle,
 ];
 
 const byId = new Map(NATIVE_CATALOG.map((c) => [c.def.id, c]));
@@ -31,7 +38,13 @@ export function manifestOf(e: CatalogEntry): ComponentManifest {
 }
 export const NATIVE_MANIFESTS = NATIVE_CATALOG.map(manifestOf);
 /** Componentes de V3 que solo se ofrecen a la IA con su flag encendido (siguen siendo válidos y renderizables si ya están en un deck). */
-export const FLAG_GATED_COMPONENTS: Record<string, string> = { Image: "v3_images" };
+export const FLAG_GATED_COMPONENTS: Record<string, string> = {
+  Image: "v3_images",
+  CodeBlock: "v3_areas", CodeTrace: "v3_areas", ConsoleOutput: "v3_areas", Flowchart: "v3_areas", DataStructure: "v3_areas",
+  Exercise: "v3_pedagogy", ExitSlide: "v3_pedagogy", KeyIdea: "v3_pedagogy", Motivation: "v3_pedagogy",
+  Timeline: "v3_areas", ConceptMap: "v3_areas", QuoteSource: "v3_areas", CaseStudy: "v3_areas", ClassActivity: "v3_areas", LabeledDiagram: "v3_areas", ProcessCycle: "v3_areas",
+  ConicFigure: "v3_areas", ImplicitPlot: "v3_areas", ParametricPlot: "v3_areas", PolarPlot: "v3_areas", StatChart: "v3_areas",
+};
 export const manifestsWithout = (gated: string[]) => NATIVE_MANIFESTS.filter((m) => !gated.includes(m.id));
 
 /** Resolver nativo: solo catálogo estable (versión exacta). */
