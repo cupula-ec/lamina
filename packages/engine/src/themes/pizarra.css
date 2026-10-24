@@ -1,6 +1,6 @@
 /* Tema pizarra (oscuro). Contraste verificado en packages/engine/test/themes.test.ts */
 [data-theme="pizarra"] {
-  --lm-bg: #1e3a33; --lm-ink: #f4f1e8; --lm-muted: #c9d6ce; --lm-panel: #2a4a41; --lm-rule: #4c6d62;
+  --lm-bg: #1e3a33; --lm-ink: #f4f1e8; --lm-muted: #dae1d8; --lm-panel: #2a4a41; --lm-rule: #4c6d62;
   --lm-accent: #f5d76e; --lm-accent2: #9fe0c8; --lm-mark: #f5d76e; --lm-hl-ink: #10161d;
   --lm-answer: #17352a; --lm-answer-ink: #b6efc6; --lm-pen: #ffa594;
   --lm-plot1: #f5d76e; --lm-plot2: #9fe0c8; --lm-plot3: #ffa594; --lm-plot4: #9ccfff;

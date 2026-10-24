@@ -27,7 +27,8 @@
 | 3 | Hecho salvo panel admin con datos agregados y aviso no bloqueante en `/cuenta` | PDF detrás de `v3_exports` |
 | 4 | Hecho | `v3_areas` (prompts por área, consultas), `v3_pedagogy` (contenido v2, validación, cierre, diseño). Pendiente: `stepwise` por defecto en todos los componentes (hoy solo `Checkpoint` desde el fallback) |
 | 5 | Hecho el motor (proveedores, ingesta, `assets`, ruta firmada, `Image`, resolución en el diseño, cuota `image`, API de reemplazo `/api/presentations/[id]/images`) detrás de `v3_images` | Falta la UI del editor (va con el panel contextual del bloque 8) y la elección con visión free |
-| 6–10 | Pendientes | |
+| 6 | Hecho salvo que `propose_component`/MCP y el visor de avisos de color institucional llegan con sus bloques | Astcheck por ámbito (revisado), SDK con cónicas/implícitas, 28 componentes nuevos por área (flags `v3_areas`/`v3_pedagogy`/`v3_images`), temas por área e institucional-marca (OKLCH), AAA 7:1 en tinta y texto atenuado |
+| 7–10 | Pendientes | |
 
 ---
 

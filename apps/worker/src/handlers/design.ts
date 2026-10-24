@@ -32,13 +32,13 @@ export type ChosenStyle = StyleChoice & { rationale: string; source: "ia" | "reg
  * Paso previo al diseño: la IA (rol design) propone tema y acento según materia, nivel y objetivo; ante cualquier fallo
  * (modelo caído, cupo, respuesta inválida) se usa la propuesta determinista por palabras clave. Nunca bloquea el diseño.
  */
-export async function chooseStyle(ctx: Ctx, input: { presentationId: string; topic: string; level: string; objective: string; subject?: string | null }): Promise<ChosenStyle> {
-  const rules = proposeStyle({ subject: input.subject ?? undefined, topic: input.topic, level: input.level, objective: input.objective });
+export async function chooseStyle(ctx: Ctx, input: { presentationId: string; topic: string; level: string; objective: string; subject?: string | null; v3?: boolean }): Promise<ChosenStyle> {
+  const rules = proposeStyle({ subject: input.subject ?? undefined, topic: input.topic, level: input.level, objective: input.objective }, { v3: input.v3 });
   const fallback: ChosenStyle = { ...rules, rationale: "Propuesta por la materia y el tema de la clase.", source: "reglas" };
   try {
     const out = await ctx.ai.structured({
       role: "design", task: "design.style", schema: StyleOut, presentationId: input.presentationId, maxTokens: 400, temperature: 0.2,
-      system: chooseStyleSystem(themesForPrompt()),
+      system: chooseStyleSystem(themesForPrompt({ v3: input.v3 })),
       user: `DATOS DE LA CLASE:\n${JSON.stringify({ materia: input.subject ?? null, tema: input.topic, nivel: input.level, objetivo: input.objective })}\n\nSugerencia por reglas (cámbiala solo si hay una razón clara): ${rules.themeId}.\nDevuelve { "themeId", "accent", "rationale" }.`,
       fakeContext: { rules },
     });
@@ -119,7 +119,7 @@ export async function designGenerate(
   const chosen = prevDeck ? null : parseStylePref(p.themeId);
   const style: StyleChoice = prevDeck
     ? { themeId: prevDeck.themeId, accent: prevDeck.accent ?? "a" }
-    : chosen ?? await chooseStyle(ctx, { presentationId: p.id, topic: content.meta.topic, level: content.meta.level, objective: content.meta.objective, subject: p.subject });
+    : chosen ?? await chooseStyle(ctx, { presentationId: p.id, topic: content.meta.topic, level: content.meta.level, objective: content.meta.objective, subject: p.subject, v3: await flagEnabled(ctx.db, "v3_areas", { userId: p.ownerId, presentationId: p.id }) });
   if (!prevDeck && !chosen) await ctx.db.update(schema.presentations).set({ themeId: formatStylePref(style, true) }).where(eq(schema.presentations.id, p.id));
 
   const prov = await loadProvisional(ctx, p.id);

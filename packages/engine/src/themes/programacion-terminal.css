@@ -1,0 +1,14 @@
+/* Tema programacion-terminal (oscuro). Contraste verificado en packages/engine/test/themes.test.ts */
+[data-theme="programacion-terminal"] {
+  --lm-bg: #0d1117; --lm-ink: #e6edf3; --lm-muted: #c1ccd8; --lm-panel: #161b22; --lm-rule: #3a424d;
+  --lm-accent: #7ee787; --lm-accent2: #79c0ff; --lm-mark: #7ee787; --lm-hl-ink: #0d1117;
+  --lm-answer: #12301c; --lm-answer-ink: #9ff0a9; --lm-pen: #ffa198;
+  --lm-plot1: #7ee787; --lm-plot2: #79c0ff; --lm-plot3: #ffa198; --lm-plot4: #e3b341;
+  --lm-cp-bg: #2b2711; --lm-cp-ink: #f3ecd0; --lm-cp-border: #e3b341; --lm-cp-label: #f0c75e;
+  --lm-font-display: "Space Grotesk Variable", "Space Grotesk", Georgia, serif;
+  --lm-font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --lm-radius: 10px; --lm-shadow: none; --lm-title-weight: 600; --lm-title-tracking: -0.01em; --lm-card-border: 2px solid var(--lm-rule);
+  --lm-deco: var(--lm-accent); --lm-deco2: var(--lm-accent2); --lm-deco-opacity: .16; --lm-deco-bg-opacity: .06; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);
+}
+[data-theme="programacion-terminal"][data-accent="b"] { --lm-accent: #79c0ff; --lm-accent2: #7ee787; --lm-mark: #79c0ff; }
+[data-theme="programacion-terminal"][data-accent="c"] { --lm-accent: #e3b341; --lm-accent2: #79c0ff; --lm-mark: #e3b341; }

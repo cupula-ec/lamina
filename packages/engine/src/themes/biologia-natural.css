@@ -1,0 +1,14 @@
+/* Tema biologia-natural (claro). Contraste verificado en packages/engine/test/themes.test.ts */
+[data-theme="biologia-natural"] {
+  --lm-bg: #f3f8ee; --lm-ink: #12261a; --lm-muted: #2c4733; --lm-panel: #e0edd6; --lm-rule: #bcd3ab;
+  --lm-accent: #2f6b2a; --lm-accent2: #7a4a12; --lm-mark: #cfeaa0; --lm-hl-ink: #14181f;
+  --lm-answer: #d4ecd9; --lm-answer-ink: #134d22; --lm-pen: #a8431f;
+  --lm-plot1: #2f6b2a; --lm-plot2: #a8431f; --lm-plot3: #4b3a96; --lm-plot4: #1d5fa8;
+  --lm-cp-bg: #fbf0cf; --lm-cp-ink: #12261a; --lm-cp-border: #b8860b; --lm-cp-label: #7a4d00;
+  --lm-font-display: "Literata Variable", Literata", Georgia, serif;
+  --lm-font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --lm-radius: 26px; --lm-shadow: none; --lm-title-weight: 600; --lm-title-tracking: -0.015em; --lm-card-border: none;
+  --lm-deco: var(--lm-accent); --lm-deco2: var(--lm-accent2); --lm-deco-opacity: .18; --lm-deco-bg-opacity: .07; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);
+}
+[data-theme="biologia-natural"][data-accent="b"] { --lm-accent: #0b6b66; --lm-accent2: #7a4a12; --lm-mark: #b6ecd0; }
+[data-theme="biologia-natural"][data-accent="c"] { --lm-accent: #8a3a12; --lm-accent2: #2f6b2a; --lm-mark: #ffd9b0; }

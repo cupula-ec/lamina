@@ -34,7 +34,7 @@ const lum = (h: string) => { const [r, g, b] = rgb(h); return 0.2126 * lin(r) + 
 const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p) as [number, number]; return (x + 0.05) / (y + 0.05); };
 const blend = (fg: string, bg: string, alpha: number) => `#${rgb(bg).map((c, i) => Math.round(c * (1 - alpha) + rgb(fg)[i]! * alpha).toString(16).padStart(2, "0")).join("")}`;
 
-describe("temas: CSS y contraste AA", () => {
+describe("temas: CSS y contraste AAA en las slides", () => {
   it("cada tema del catálogo tiene su CSS y viceversa", () => {
     const files = fs.readdirSync(DIR).filter((f) => f.endsWith(".css")).map((f) => f.replace(/\.css$/, "")).sort();
     expect(files).toEqual([...THEME_IDS].sort());
@@ -44,12 +44,12 @@ describe("temas: CSS y contraste AA", () => {
 
   for (const id of THEME_IDS) {
     for (const acc of ACCENT_IDS) {
-      it(`${id} / acento ${acc}: texto, acentos y gráficas cumplen AA`, () => {
+      it(`${id} / acento ${acc}: texto, acentos y gráficas cumplen AAA (texto 7:1, texto grande 4.5:1)`, () => {
         const v = parseTheme(id)[acc]!;
         const c = (n: string) => hexOf(v, `--lm-${n}`);
         const checks: [string, number, number][] = [
           ["ink/bg", ratio(c("ink"), c("bg")), 7], ["ink/panel", ratio(c("ink"), c("panel")), 7],
-          ["muted/bg", ratio(c("muted"), c("bg")), 4.5], ["muted/panel", ratio(c("muted"), c("panel")), 4.5],
+          ["muted/bg", ratio(c("muted"), c("bg")), 7], ["muted/panel", ratio(c("muted"), c("panel")), 7],
           ["accent/bg", ratio(c("accent"), c("bg")), 4.5], ["accent/panel", ratio(c("accent"), c("panel")), 4.5],
           ["accent2/bg", ratio(c("accent2"), c("bg")), 4.5], ["accent2/panel", ratio(c("accent2"), c("panel")), 4.5],
           ["bg sobre accent2 (números de paso, cabeceras)", ratio(c("bg"), c("accent2")), 4.5], ["bg sobre accent (cabeceras)", ratio(c("bg"), c("accent")), 4.5],
@@ -69,7 +69,7 @@ describe("temas: CSS y contraste AA", () => {
           for (const col of ["--lm-deco", "--lm-deco2"]) {
             const under = blend(hexOf(v, col), bg, alpha);
             expect(ratio(hexOf(v, "--lm-ink"), under), `${label} ink`).toBeGreaterThanOrEqual(7);
-            expect(ratio(hexOf(v, "--lm-muted"), under), `${label} muted`).toBeGreaterThanOrEqual(4.5);
+            expect(ratio(hexOf(v, "--lm-muted"), under), `${label} muted (texto grande sobre decoración)`).toBeGreaterThanOrEqual(4.5);
           }
         }
       });
@@ -123,3 +123,31 @@ describe("color institucional (--lm-brand): contraste con el fondo del tema", ()
   });
 });
 
+
+import { BRAND_THEME_SURFACES, institutionalAccents } from "@lamina/contracts";
+describe("tema institucional automático", () => {
+  it("las superficies declaradas coinciden con el CSS del tema", () => {
+    const v = parseTheme("institucional-marca").a!;
+    expect(hexOf(v, "--lm-bg")).toBe(BRAND_THEME_SURFACES.bg);
+    expect(hexOf(v, "--lm-panel")).toBe(BRAND_THEME_SURFACES.panel);
+  });
+  it("cualquier color de marca queda con contraste ≥ 4.5:1 sobre fondo y panel", () => {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+    const hex = () => `#${Array.from({ length: 3 }, () => Math.floor(rnd() * 256).toString(16).padStart(2, "0")).join("")}`;
+    for (let i = 0; i < 300; i++) {
+      const r = institutionalAccents(hex(), i % 2 ? hex() : undefined)!;
+      for (const c of [r.accent, r.accent2]) {
+        expect(contrastRatio(c, BRAND_THEME_SURFACES.bg), c).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(c, BRAND_THEME_SURFACES.panel), c).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(BRAND_THEME_SURFACES.bg, c), c).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+  it("un color que ya contrasta no se toca y uno claro se oscurece con aviso", () => {
+    expect(institutionalAccents("#1f3a5f", "#6b1f2a")).toMatchObject({ accent: "#1f3a5f", accent2: "#6b1f2a", adjusted: false });
+    const y = institutionalAccents("#ffe14d")!;
+    expect(y.adjusted).toBe(true);
+    expect(institutionalAccents("rojo")).toBeNull();
+  });
+});

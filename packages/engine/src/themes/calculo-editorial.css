@@ -1,6 +1,6 @@
 /* Tema calculo-editorial (claro). Contraste verificado en packages/engine/test/themes.test.ts */
 [data-theme="calculo-editorial"] {
-  --lm-bg: #f7f0e2; --lm-ink: #231a12; --lm-muted: #584838; --lm-panel: #ede2cd; --lm-rule: #cdbb9c;
+  --lm-bg: #f7f0e2; --lm-ink: #231a12; --lm-muted: #534334; --lm-panel: #ede2cd; --lm-rule: #cdbb9c;
   --lm-accent: #8c2f1b; --lm-accent2: #2f5d46; --lm-mark: #f0cf7a; --lm-hl-ink: #14181f;
   --lm-answer: #e4ecd8; --lm-answer-ink: #2b4a22; --lm-pen: #a3281a;
   --lm-plot1: #1f3d6e; --lm-plot2: #a3281a; --lm-plot3: #6d3f86; --lm-plot4: #2f5d46;

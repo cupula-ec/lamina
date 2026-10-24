@@ -17,6 +17,11 @@ export const THEME_DECOR: Record<ThemeId, Partial<Record<DecorRole, DecorKind>>>
   "quimica-laboratorio": { cover: "hex-molecules", section: "hex-molecules", closing: "hex-molecules", interior: "hex-molecules" },
   "institucional-sobrio": { cover: "corner", section: "corner", closing: "corner", interior: "corner" },
   pizarra: { cover: "chalk", section: "chalk", closing: "chalk", interior: "chalk" },
+  "institucional-marca": { cover: "corner", section: "corner", closing: "corner", interior: "corner" },
+  "programacion-terminal": { cover: "axes-grid", section: "data-dots", closing: "axes-grid", interior: "corner" },
+  "humanidades-editorial": { cover: "corner", section: "corner", closing: "corner", interior: "corner" },
+  "biologia-natural": { cover: "hex-molecules", section: "waves", closing: "hex-molecules", interior: "corner" },
+  "educacion-calido": { cover: "corner", section: "chalk", closing: "corner", interior: "corner" },
 };
 
 /** Layouts sin decoración de fondo (llevan un visual a sangre o su propio fondo). */

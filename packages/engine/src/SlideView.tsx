@@ -1,7 +1,7 @@
 "use client";
 import { Component, createElement, useMemo, useState, type ReactNode } from "react";
 import type { AccentId, Branding, DeckDocument, LogoSpec, Slide } from "@lamina/contracts";
-import { DEFAULT_THEME_ID, LAYOUTS, brandColorFor, logoZone, withLogoZone, type LogoZone } from "@lamina/contracts";
+import { DEFAULT_THEME_ID, LAYOUTS, brandColorFor, institutionalAccents, logoZone, withLogoZone, type LogoZone } from "@lamina/contracts";
 import { CANVAS, adjustedBox } from "./geometry";
 import { isSlotVisible, revealCounts } from "./build";
 import { ErrorCard } from "./primitives";
@@ -113,9 +113,11 @@ export function SlideView({ slide, resolver, step = 0, themeId, accent, branding
   const spec = LAYOUTS[slide.layout];
   const theme = themeId ?? DEFAULT_THEME_ID;
   const brand = brandColorFor(theme, branding?.institution?.colors?.primary); // si no contrasta con el fondo del tema, se usa el acento del tema
+  // Tema institucional-marca: acentos derivados de los colores de la institución, ya ajustados en OKLCH para que contrasten (V3 §5.7).
+  const inst = theme === "institucional-marca" ? institutionalAccents(branding?.institution?.colors?.primary, branding?.institution?.colors?.secondary) : null;
   return createElement(
     "div",
-    { className: `lm-slide lm-layout-${slide.layout}`, "data-lm-slide": slide.id, "data-theme": theme, "data-accent": accent, style: { width: CANVAS.width, height: CANVAS.height, ...(brand ? { "--lm-brand": brand } : {}) } },
+    { className: `lm-slide lm-layout-${slide.layout}`, "data-lm-slide": slide.id, "data-theme": theme, "data-accent": accent, style: { width: CANVAS.width, height: CANVAS.height, ...(brand ? { "--lm-brand": brand } : {}), ...(inst ? { "--lm-accent": inst.accent, "--lm-accent2": inst.accent2 } : {}) } },
     createElement(SlideDecor, { themeId: theme, layout: slide.layout, seed: `${seed ?? ""}|${slide.id}` }),
     spec.slots.map((s) => {
       const ref = slide.slots[s.name];

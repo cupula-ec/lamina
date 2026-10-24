@@ -44,9 +44,9 @@ describe("layouts", () => {
 });
 
 describe("catálogo de temas", () => {
-  it("hay entre 8 y 10 temas con 3 acentos, y se conservan los dos originales", () => {
+  it("hay entre 8 y 14 temas con 3 acentos, y se conservan los dos originales", () => {
     expect(THEME_IDS.length).toBeGreaterThanOrEqual(8);
-    expect(THEME_IDS.length).toBeLessThanOrEqual(10);
+    expect(THEME_IDS.length).toBeLessThanOrEqual(14);
     expect(THEME_IDS).toContain("lamina-claro");
     expect(THEME_IDS).toContain("lamina-oscuro");
     for (const id of THEME_IDS) expect(THEMES[id].accents).toHaveLength(ACCENT_IDS.length);
@@ -57,7 +57,7 @@ describe("catálogo de temas", () => {
   });
   it("hay temas claros y oscuros y cada uno tiene descripción y tono", () => {
     expect(new Set(THEME_IDS.map((id) => THEMES[id].mode))).toEqual(new Set(["light", "dark"]));
-    for (const id of THEME_IDS) { expect(THEMES[id].mood.length).toBeGreaterThan(5); expect(themesForPrompt()).toContain(id); }
+    for (const id of THEME_IDS) { expect(THEMES[id].mood.length).toBeGreaterThan(5); expect(themesForPrompt({ v3: true })).toContain(id); }
   });
   it("proposeStyle elige por palabra clave y cae al tema base", () => {
     expect(proposeStyle({ topic: "La derivada y límites" }).themeId).toBe("calculo-editorial");
@@ -87,5 +87,20 @@ describe("catálogo de temas", () => {
     expect(isStyleProposal("pizarra:c")).toBe(false);
     expect(isStyleProposal("nope:a:ia")).toBe(false);
     expect(parseStylePref("pizarra:a:xx")).toBeNull();
+  });
+});
+
+describe("temas V3 por área", () => {
+  it("los temas v3 no se ofrecen a la IA ni se proponen sin el flag", () => {
+    expect(themesForPrompt()).not.toContain("programacion-terminal");
+    expect(themesForPrompt({ v3: true })).toContain("programacion-terminal");
+    expect(proposeStyle({ topic: "Algoritmos de ordenamiento", subject: "Programación" }).themeId).toBe(DEFAULT_THEME_ID);
+    expect(proposeStyle({ topic: "Algoritmos de ordenamiento", subject: "Programación" }, { v3: true }).themeId).toBe("programacion-terminal");
+  });
+  it("con v3, matemáticas y física conservan su tema y el resto elige el del área", () => {
+    expect(proposeStyle({ topic: "La derivada" }, { v3: true }).themeId).toBe("calculo-editorial");
+    expect(proposeStyle({ topic: "Fotosíntesis", subject: "Biología" }, { v3: true }).themeId).toBe("biologia-natural");
+    expect(proposeStyle({ topic: "Teorías del aprendizaje", subject: "Pedagogía" }, { v3: true }).themeId).toBe("educacion-calido");
+    expect(proposeStyle({ topic: "La Ilustración", subject: "Historia" }, { v3: true }).themeId).toBe("humanidades-editorial");
   });
 });

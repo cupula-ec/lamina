@@ -21,6 +21,11 @@
 @import "./themes/quimica-laboratorio.css";
 @import "./themes/institucional-sobrio.css";
 @import "./themes/pizarra.css";
+@import "./themes/institucional-marca.css";
+@import "./themes/programacion-terminal.css";
+@import "./themes/humanidades-editorial.css";
+@import "./themes/biologia-natural.css";
+@import "./themes/educacion-calido.css";
 
 @import "./base.css";
 @import "./layouts.css";

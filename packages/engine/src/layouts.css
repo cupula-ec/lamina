@@ -161,8 +161,8 @@
 [data-theme="estadistica-datos"] .lm-bullets:not(ol) > li::before { border-radius: 2px; }
 [data-theme="estadistica-datos"] .lm-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--lm-accent) 7%, var(--lm-bg)); }
 [data-theme="quimica-laboratorio"] .lm-step-n, [data-theme="quimica-laboratorio"] .lm-stepc-n, [data-theme="quimica-laboratorio"] .lm-agenda-n { clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%); border-radius: 0; }
-[data-theme="institucional-sobrio"] .lm-header-compact { border-bottom: 4px solid var(--lm-brand, var(--lm-accent)); }
-[data-theme="institucional-sobrio"] .lm-cover-foot { color: var(--lm-brand, var(--lm-accent)); }
-[data-theme="institucional-sobrio"] .lm-rule { background: var(--lm-brand, var(--lm-mark)); }
+[data-theme="institucional-sobrio"] .lm-header-compact, [data-theme="institucional-marca"] .lm-header-compact { border-bottom: 4px solid var(--lm-brand, var(--lm-accent)); }
+[data-theme="institucional-sobrio"] .lm-cover-foot, [data-theme="institucional-marca"] .lm-cover-foot { color: var(--lm-brand, var(--lm-accent)); }
+[data-theme="institucional-sobrio"] .lm-rule, [data-theme="institucional-marca"] .lm-rule { background: var(--lm-brand, var(--lm-mark)); }
 [data-theme="pizarra"] .lm-header-compact { border-bottom: 4px dashed var(--lm-rule); }
 [data-theme="pizarra"] .lm-formula-box { border-style: dashed; }

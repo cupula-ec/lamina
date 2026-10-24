@@ -1,0 +1,14 @@
+/* Tema educacion-calido (claro). Contraste verificado en packages/engine/test/themes.test.ts */
+[data-theme="educacion-calido"] {
+  --lm-bg: #fff7ec; --lm-ink: #2b2118; --lm-muted: #463629; --lm-panel: #f8e8d0; --lm-rule: #e0c9a6;
+  --lm-accent: #b3401a; --lm-accent2: #1b5e7a; --lm-mark: #ffd98a; --lm-hl-ink: #1b1b1b;
+  --lm-answer: #e1f0d8; --lm-answer-ink: #1c4a1c; --lm-pen: #9a3412;
+  --lm-plot1: #b3401a; --lm-plot2: #1b5e7a; --lm-plot3: #4b3a96; --lm-plot4: #3f6b1f;
+  --lm-cp-bg: #fbf0cf; --lm-cp-ink: #2b2118; --lm-cp-border: #b8860b; --lm-cp-label: #7a4d00;
+  --lm-font-display: "Fraunces Variable", Fraunces", Georgia, serif;
+  --lm-font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --lm-radius: 28px; --lm-shadow: none; --lm-title-weight: 600; --lm-title-tracking: -0.01em; --lm-card-border: 3px solid var(--lm-rule);
+  --lm-deco: var(--lm-accent); --lm-deco2: var(--lm-accent2); --lm-deco-opacity: .2; --lm-deco-bg-opacity: .07; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);
+}
+[data-theme="educacion-calido"][data-accent="b"] { --lm-accent: #1b5e7a; --lm-accent2: #b3401a; --lm-mark: #bfe3f3; }
+[data-theme="educacion-calido"][data-accent="c"] { --lm-accent: #3f6b1f; --lm-accent2: #b3401a; --lm-mark: #d2f0a4; }

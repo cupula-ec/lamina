@@ -1,6 +1,6 @@
 /* Tema quimica-laboratorio (claro). Contraste verificado en packages/engine/test/themes.test.ts */
 [data-theme="quimica-laboratorio"] {
-  --lm-bg: #f2f9f6; --lm-ink: #0b2b27; --lm-muted: #3d5a55; --lm-panel: #dcefe8; --lm-rule: #b4d6cb;
+  --lm-bg: #f2f9f6; --lm-ink: #0b2b27; --lm-muted: #32504b; --lm-panel: #dcefe8; --lm-rule: #b4d6cb;
   --lm-accent: #0b6b66; --lm-accent2: #1d5fa8; --lm-mark: #b6ecd0; --lm-hl-ink: #14181f;
   --lm-answer: #d4ecd9; --lm-answer-ink: #134d22; --lm-pen: #b0402a;
   --lm-plot1: #0b6b66; --lm-plot2: #b0402a; --lm-plot3: #5b3fa0; --lm-plot4: #1d5fa8;

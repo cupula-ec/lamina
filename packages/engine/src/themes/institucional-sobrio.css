@@ -1,6 +1,6 @@
 /* Tema institucional-sobrio (claro). Contraste verificado en packages/engine/test/themes.test.ts */
 [data-theme="institucional-sobrio"] {
-  --lm-bg: #f8f8f6; --lm-ink: #1a1d21; --lm-muted: #4f555d; --lm-panel: #ecece8; --lm-rule: #d2d3cf;
+  --lm-bg: #f8f8f6; --lm-ink: #1a1d21; --lm-muted: #474c53; --lm-panel: #ecece8; --lm-rule: #d2d3cf;
   --lm-accent: #1f3a5f; --lm-accent2: #515a65; --lm-mark: #e6dcb8; --lm-hl-ink: #14181f;
   --lm-answer: #e1eee4; --lm-answer-ink: #1d4a2c; --lm-pen: #a8331f;
   --lm-plot1: #1f3a5f; --lm-plot2: #a8331f; --lm-plot3: #5c6670; --lm-plot4: #2f6b52;

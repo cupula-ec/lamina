@@ -1,0 +1,14 @@
+/* Tema humanidades-editorial (claro). Contraste verificado en packages/engine/test/themes.test.ts */
+[data-theme="humanidades-editorial"] {
+  --lm-bg: #fbf6ee; --lm-ink: #2a1f1a; --lm-muted: #43342c; --lm-panel: #f0e6d6; --lm-rule: #d6c4a8;
+  --lm-accent: #8c2f39; --lm-accent2: #1f4e79; --lm-mark: #f3d98b; --lm-hl-ink: #1b1b1b;
+  --lm-answer: #e2efdc; --lm-answer-ink: #1d4d1f; --lm-pen: #a33a1f;
+  --lm-plot1: #8c2f39; --lm-plot2: #1f4e79; --lm-plot3: #2e6b3a; --lm-plot4: #7a4e00;
+  --lm-cp-bg: #fbf0cf; --lm-cp-ink: #2a1f1a; --lm-cp-border: #b8860b; --lm-cp-label: #7a4d00;
+  --lm-font-display: "Fraunces Variable", Fraunces", Georgia, serif;
+  --lm-font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --lm-radius: 6px; --lm-shadow: none; --lm-title-weight: 500; --lm-title-tracking: -0.01em; --lm-card-border: none;
+  --lm-deco: var(--lm-accent); --lm-deco2: var(--lm-accent2); --lm-deco-opacity: .18; --lm-deco-bg-opacity: .06; --lm-footer-display: flex; --lm-footer-ink: var(--lm-muted);
+}
+[data-theme="humanidades-editorial"][data-accent="b"] { --lm-accent: #1f4e79; --lm-accent2: #8c2f39; --lm-mark: #bcd9f3; }
+[data-theme="humanidades-editorial"][data-accent="c"] { --lm-accent: #2e6b3a; --lm-accent2: #8c2f39; --lm-mark: #cfeaa0; }

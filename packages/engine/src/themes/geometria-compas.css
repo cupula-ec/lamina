@@ -1,6 +1,6 @@
 /* Tema geometria-compas (claro). Contraste verificado en packages/engine/test/themes.test.ts */
 [data-theme="geometria-compas"] {
-  --lm-bg: #f4f1e8; --lm-ink: #14213d; --lm-muted: #464f60; --lm-panel: #e7e4d6; --lm-rule: #c7c8c4;
+  --lm-bg: #f4f1e8; --lm-ink: #14213d; --lm-muted: #3d475a; --lm-panel: #e7e4d6; --lm-rule: #c7c8c4;
   --lm-accent: #1d3a78; --lm-accent2: #a64a14; --lm-mark: #f2d27c; --lm-hl-ink: #14181f;
   --lm-answer: #dfeadd; --lm-answer-ink: #1f4a2a; --lm-pen: #b0301c;
   --lm-plot1: #1d3a78; --lm-plot2: #b4551d; --lm-plot3: #0f6b6b; --lm-plot4: #8a2f5a;
