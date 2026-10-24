@@ -9,7 +9,7 @@ for (const [net, prefix] of [
   ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24],
   ["224.0.0.0", 4], ["240.0.0.0", 4],
 ] as const) blocked.addSubnet(net, prefix, "ipv4");
-for (const [net, prefix] of [["::", 128], ["::1", 128], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8], ["2001:db8::", 32], ["64:ff9b::", 96]] as const)
+for (const [net, prefix] of [["::", 128], ["::1", 128], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8], ["2001:db8::", 32], ["64:ff9b::", 96], ["64:ff9b:1::", 48], ["2002::", 16], ["2001::", 32], ["fec0::", 10], ["::", 96]] as const)
   blocked.addSubnet(net, prefix, "ipv6");
 
 export function isBlockedIp(ip: string): boolean {

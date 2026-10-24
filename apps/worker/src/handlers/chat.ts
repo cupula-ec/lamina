@@ -29,8 +29,11 @@ export async function slideChat(ctx: Ctx, data: { presentationId: string; userId
     if (!p || p.ownerId !== data.userId) return void (await finish("failed", { error: "Presentación no encontrada." }));
     const headId = wf.headDeckVersionId(p);
     if (!wf.EDITABLE_STAGES.includes(p.stage as never) || !headId || !p.approvedContentVersionId) return void (await finish("failed", { error: "Ahora no se puede editar el diseño (espera a que termine el trabajo en curso)." }));
-    const [dv] = await db.select().from(schema.deckVersions).where(eq(schema.deckVersions.id, headId));
-    const deck = DeckDocument.parse(dv!.deck);
+    // El harness parte del espacio de trabajo (lo que realmente se va a modificar), no de la última versión: y si hay cambios sin confirmar
+    // (p. ej. de una IA externa) no se mezclan con este pedido ni se confirman a su nombre.
+    const ws = await workspace.getWorkspace(db, p.id, p.ownerId);
+    if (ws.dirty) return void (await finish("failed", { error: "Hay cambios sin confirmar en esta presentación (por ejemplo de tu IA conectada). Confírmalos o descártalos y vuelve a pedirlo." }));
+    const deck = DeckDocument.parse(ws.deck);
     if (!deck.slides.some((s) => s.id === run.slideId)) return void (await finish("failed", { error: "Esa diapositiva ya no existe." }));
     const [cv] = await db.select().from(schema.contentVersions).where(eq(schema.contentVersions.id, p.approvedContentVersionId));
     const hints: SlideHint[] = cv ? ContentDraft.parse(cv.content).sections.flatMap((s) => s.slidesHint) : [];
@@ -41,7 +44,6 @@ export async function slideChat(ctx: Ctx, data: { presentationId: string; userId
     const on = (await Promise.all((["v3_images", "v3_areas", "v3_pedagogy"] as const).map(async (f) => ((await flagEnabled(db, f, { userId: p.ownerId, presentationId: p.id })) ? f : null)))).filter((f): f is NonNullable<typeof f> => !!f);
     const lookup = lookupFor(prov);
 
-    const ws = await workspace.getWorkspace(db, p.id, p.ownerId);
     const r = await runHarness({
       ctx, presentationId: p.id, ownerId: p.ownerId, deck, slideId: run.slideId, hint, manifests: manifestsFor(prov, on), lookup, signal,
       goal: `Pedido del docente para esta diapositiva: «${run.message}». Cumple el pedido sin perder el contenido ni las fórmulas; si es ambiguo, haz lo más razonable.`,
@@ -53,7 +55,12 @@ export async function slideChat(ctx: Ctx, data: { presentationId: string; userId
 
     const applied = await workspace.applyOps(db, p.id, r.ops, "ia", { ownerId: p.ownerId, baseRev: ws.rev, label: short(`Chat: ${run.message}`), validateDeck: deckValidatorFor(lookup), allowV2: deck.schemaVersion === 2 });
     if (!applied.ok) return void (await finish("failed", { error: "El cambio no pasó las validaciones del diseño; no se aplicó nada.", summary: short(applied.issues.map((i) => i.message).join("; ")), steps: r.steps, calls: r.calls }));
-    const cp = await workspace.commitCheckpoint(db, p.id, p.ownerId, "ia", short(`Chat con Lámina: ${run.message}`));
+    let cp;
+    try { cp = await workspace.commitCheckpoint(db, p.id, p.ownerId, "ia", short(`Chat con Lámina: ${run.message}`)); }
+    catch (e) {
+      await workspace.undoBatch(db, p.id, applied.batchId!, "sistema", { ownerId: p.ownerId, label: "Deshacer (no se pudo confirmar)" }).catch(() => {});
+      throw e;
+    }
     const versionId = cp.deckVersionId;
     if (versionId) await enqueue(ctx.boss, "render", { presentationId: p.id, deckVersionId: versionId }, { base: versionId }).catch(() => {});
     await finish("done", { summary: short(r.summary), baseDeckVersionId: headId, newDeckVersionId: versionId, batchId: applied.batchId, steps: r.steps, calls: r.calls });

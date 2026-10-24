@@ -3,7 +3,7 @@ import { localizeAssets, offlineHtml } from "../src/offline";
 
 describe("exportación offline", () => {
   it("sustituye las imágenes internas por rutas relativas y no deja referencias al servidor", async () => {
-    const deck = { meta: { branding: { institution: { logoUrl: "/api/branding/institution/abc" }, personalLogoUrl: "/api/branding/personal/u1?exp=1&sig=x" } }, slides: [{ slots: { a: { props: { src: "/api/assets/11111111-1111-4111-8111-111111111111?exp=1&sig=y" } }, b: { props: { src: "/api/assets/11111111-1111-4111-8111-111111111111?exp=1&sig=y" } } } }] };
+    const deck = { meta: { branding: { institution: { logoUrl: "/api/branding/institution/11111111-1111-4111-8111-111111111111" }, personalLogoUrl: "/api/branding/personal/u1?exp=1&sig=x" } }, slides: [{ slots: { a: { props: { src: "/api/assets/11111111-1111-4111-8111-111111111111?exp=1&sig=y" } }, b: { props: { src: "/api/assets/11111111-1111-4111-8111-111111111111?exp=1&sig=y" } } } }] };
     const calls: string[] = [];
     const r = await localizeAssets(deck, async (u) => { calls.push(u); return { body: new Uint8Array([1, 2, 3]), type: u.includes("branding") ? "image/png" : "image/webp" }; });
     const json = JSON.stringify(r.deck);
@@ -13,9 +13,12 @@ describe("exportación offline", () => {
     expect(r.missing).toBe(0);
   });
   it("una imagen que no se puede descargar se cuenta y se quita", async () => {
-    const r = await localizeAssets({ x: "/api/assets/zzz" }, async () => null);
+    const r = await localizeAssets({ x: "/api/assets/11111111-1111-4111-8111-111111111111?exp=1&sig=ab" }, async () => null);
     expect(r.missing).toBe(1);
     expect((r.deck as { x: string }).x).toBe("");
+    // texto del docente que solo se parece a una ruta interna: no se toca ni se descarga
+    const t = await localizeAssets({ x: "/api/assets/../health", y: "/api/branding/otra" }, async () => { throw new Error("no debe descargar"); });
+    expect(t.deck).toEqual({ x: "/api/assets/../health", y: "/api/branding/otra" });
   });
   it("el HTML incrusta los datos sin poder cerrar el script ni inyectar etiquetas", () => {
     const html = offlineHtml({ js: "var a='</script><b>';", css: "body{}" }, { deck: { meta: { title: "</script><img src=x onerror=alert(1)>" } }, prov: [] });

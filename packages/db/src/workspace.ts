@@ -69,6 +69,9 @@ async function busySlides(tx: Tx, presentationId: string, slideIds: string[]): P
   return slideIds.filter((id) => rows.some((r) => id === r.ref || id.startsWith(`${r.ref}-`)));
 }
 
+const CONTENT_STAGES: string[] = ["draft", "content_review"];
+const DECK_STAGES: string[] = ["content_approved", "design_review", "designing", "final_review", "private_final", "published"];
+
 const kindOf = (op: WorkspaceOp): SlideDiff["change"] => (op.op === "add_slide" ? "added" : op.op === "remove_slide" ? "removed" : op.op === "move_slide" ? "moved" : "modified");
 const slideOf = (op: WorkspaceOp): string | null => ("slideId" in op ? op.slideId : op.op === "add_slide" ? op.slide.id : null);
 
@@ -96,7 +99,7 @@ export async function applyOps(db: Db, presentationId: string, rawOps: unknown[]
     const ws = await lockedWorkspace(tx, p);
 
     if (opts.opId) {
-      const prev = await tx.select().from(workspaceOps).where(and(eq(workspaceOps.workspaceId, ws.id), sql`${workspaceOps.opId} like ${opts.opId + ":%"}`)).orderBy(asc(workspaceOps.idx));
+      const prev = await tx.select().from(workspaceOps).where(and(eq(workspaceOps.workspaceId, ws.id), sql`starts_with(${workspaceOps.opId}, ${opts.opId + ":"})`)).orderBy(asc(workspaceOps.idx));
       if (prev.length) return { ok: true, issues: [], newRev: prev[0]!.rev, appliedOpIds: prev.map((r) => r.opId), batchId: prev[0]!.batchId, replayed: true, touchedSlideIds: [] };
     }
     if (opts.baseRev !== undefined && opts.baseRev !== ws.rev) {
@@ -105,6 +108,11 @@ export async function applyOps(db: Db, presentationId: string, rawOps: unknown[]
       for (const r of since) { const o = r.op as WorkspaceOp; const sid = slideOf(o); if (sid) seen.set(sid, { slideId: sid, change: kindOf(o) }); }
       return { ok: false, issues: [{ code: "stale_rev", message: `El espacio de trabajo avanzó (rev ${ws.rev}, tú partías de ${opts.baseRev}). Vuelve a leer y reintenta.` }], newRev: ws.rev, appliedOpIds: [], error: "stale_rev", diff: [...seen.values()] };
     }
+
+    // Etapa: el contenido solo se edita en draft/content_review y el diseño desde content_approved. Fuera de ahí `commitCheckpoint` no podría
+    // confirmarlo y el espacio de trabajo quedaría con cambios imposibles de confirmar (que bloquearían los siguientes).
+    const wrong = ops.map((o, opIndex) => ({ o, opIndex })).filter(({ o }) => (OP_TARGET(o) === "content" ? !CONTENT_STAGES.includes(p.stage) : !DECK_STAGES.includes(p.stage)));
+    if (wrong.length) return { ok: false, issues: wrong.map(({ o, opIndex }) => ({ opIndex, code: "wrong_stage", message: OP_TARGET(o) === "content" ? "El contenido ya está aprobado: ya no se edita desde aquí." : "Todavía no se puede editar el diseño: espera a que el docente apruebe el contenido." })), newRev: ws.rev, appliedOpIds: [] };
 
     const res = applyOpsPure({ deck: ws.deck ? parseDeckAny(ws.deck) : null, content: ws.content ? parseContentAny(ws.content) : null }, ops);
     if (!res.ok) return { ok: false, issues: res.issues, newRev: ws.rev, appliedOpIds: [] };
@@ -130,12 +138,20 @@ export async function applyOps(db: Db, presentationId: string, rawOps: unknown[]
 }
 
 /** Deshace un lote completo aplicando las inversas en orden inverso como un lote nuevo (deshacer el deshacer = rehacer). */
-export async function undoBatch(db: Db, presentationId: string, batchId: string, author: OpAuthor, opts: Pick<ApplyOpts, "ownerId" | "validateDeck" | "label"> = {}): Promise<ApplyResult> {
+export async function undoBatch(db: Db, presentationId: string, batchId: string, author: OpAuthor, opts: Pick<ApplyOpts, "ownerId" | "validateDeck" | "label"> & { force?: boolean } = {}): Promise<ApplyResult> {
   const ws = await getWorkspace(db, presentationId, opts.ownerId);
   const rows = await db.select().from(workspaceOps).where(and(eq(workspaceOps.workspaceId, ws.id), eq(workspaceOps.batchId, batchId))).orderBy(desc(workspaceOps.idx));
   if (!rows.length) return { ok: false, issues: [{ code: "not_found", message: "No existe ese lote de cambios" }], newRev: ws.rev, appliedOpIds: [] };
+  // No se pisa trabajo posterior: si otro lote tocó las mismas diapositivas después, deshacer sobrescribiría esa edición.
+  if (!opts.force) {
+    const mine = new Set(rows.map((r) => slideOf(r.op as WorkspaceOp)).filter((x): x is string => !!x));
+    const batchRev = rows[0]!.rev;
+    const later = await db.select().from(workspaceOps).where(and(eq(workspaceOps.workspaceId, ws.id), sql`${workspaceOps.rev} > ${batchRev}`));
+    const clash = [...new Set(later.filter((r) => r.batchId !== batchId).map((r) => slideOf(r.op as WorkspaceOp)).filter((x): x is string => !!x && mine.has(x)))];
+    if (clash.length) return { ok: false, issues: [{ code: "undo_conflict", message: `No se puede deshacer: después de ese cambio se editó ${clash.length > 1 ? "las diapositivas" : "la diapositiva"} ${clash.join(", ")}.` }], newRev: ws.rev, appliedOpIds: [] };
+  }
   // Las inversas solo revierten cambios ya aplicados (también los de esquema v2): no requieren el flag de escritura.
-  return applyOps(db, presentationId, rows.map((r) => r.inverse), author, { ...opts, allowV2: true, label: opts.label ?? "Deshacer" });
+  return applyOps(db, presentationId, rows.map((r) => r.inverse), author, { ownerId: opts.ownerId, validateDeck: opts.validateDeck, allowV2: true, label: opts.label ?? "Deshacer" });
 }
 
 /** Historial de lotes («qué cambió la IA»), el más reciente primero, con las diapositivas que tocó cada uno. */

@@ -79,6 +79,7 @@ export async function designRepair(ctx: Ctx, data: { presentationId: string; use
     const system = repairSlideSystem(catalogForPrompt(manifestsFor(prov, on)), `${layoutsDoc()}\n\nMedidas de cada área:\n${sizesDoc()}`);
 
     // V3 §5.2: el harness (herramientas pequeñas sobre UNA diapositiva) sustituye a la llamada única, solo con el flag.
+    const t0 = Date.now();
     const harnessOn = await flagEnabled(ctx.db, "v3_harness_repair", { userId: p.ownerId, presentationId: p.id });
     const imagesOn = on.includes("v3_images");
     const fixed = new Map<string, SlideT>();
@@ -91,7 +92,7 @@ export async function designRepair(ctx: Ctx, data: { presentationId: string; use
         if (quick) { fixed.set(slide.id, quick); continue; }
       }
       const hint = hints.find((h) => ownsHint(h.id, slide.id));
-      if (harnessOn) {
+      if (harnessOn && Date.now() - t0 < 8 * 60_000) { // presupuesto de tiempo global: el job caduca a los 15 min
         try {
           const r = await runHarness({
             ctx, presentationId: p.id, ownerId: p.ownerId, deck, slideId: slide.id, hint, manifests: manifestsFor(prov, on), lookup, signal: undefined,
@@ -100,6 +101,7 @@ export async function designRepair(ctx: Ctx, data: { presentationId: string; use
             images: imagesOn ? harnessImageTools(ctx, p) : undefined,
           });
           if (r.ok && r.ops.length) { const next: SlideT = { ...r.slide, id: slide.id, transition: slide.transition, notes: r.slide.notes || slide.notes }; if (hashJson(next) !== hashJson(slide)) fixed.set(slide.id, next); }
+          else if (!r.ok && r.reason === "sin cupo de IA ahora") break;
           else ctx.log(`repair(harness): ${slide.id} sin cambios (${r.ok ? r.summary : r.reason})`, { id: p.id, steps: r.steps, calls: r.calls });
         } catch (e) {
           if (e instanceof QuotaWaitError) break;

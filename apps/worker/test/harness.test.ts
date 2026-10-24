@@ -78,3 +78,16 @@ describe("harness de la IA (una diapositiva, herramientas pequeñas)", () => {
     if (r.ok) expect(r.ops).toHaveLength(0);
   });
 });
+
+describe("harness: componentes con flag apagado", () => {
+  it("no deja usar un componente que la cuenta no tiene (salvo los que la diapositiva ya traía)", async () => {
+    const first2 = deck.slides.find((s) => s.id === slideId)!;
+    const slot2 = Object.keys(first2.slots).find((k) => k !== "title")!;
+    const limited = NATIVE_MANIFESTS.filter((m) => m.id !== "Callout");
+    const callout = { componentId: "Callout", version: "1.0.0", props: { variant: "nota", text: "x" } };
+    const s = script([A("edit_slot", { slot: slot2, component: callout }), A("done", {}), A("validate")]);
+    const r = await runHarness(env(s.ctx, { manifests: limited, maxSteps: 3 }));
+    expect(r.ok).toBe(false);
+    expect(s.seen[2]).toContain("no está disponible para esta cuenta");
+  });
+});

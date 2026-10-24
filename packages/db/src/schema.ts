@@ -542,7 +542,7 @@ export const chatRuns = pgTable("chat_runs", {
   calls: integer("calls"),
   createdAt: createdAt(),
   finishedAt: ts("finished_at"),
-}, (t) => [index("chat_runs_pres_idx").on(t.presentationId, t.createdAt)]);
+}, (t) => [index("chat_runs_pres_idx").on(t.presentationId, t.createdAt), uniqueIndex("chat_runs_one_active").on(t.presentationId).where(sql`status in ('pending', 'running')`)]);
 
 /** Unidad de trabajo persistente de un job (V3 §5.1): su resultado se guarda al terminar, y un reinicio solo repite lo que no estaba `done`. */
 export const workUnits = pgTable("work_units", {

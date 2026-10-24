@@ -2,13 +2,14 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { LaminaError } from "@lamina/contracts";
-import { NATIVE_CATALOG, deckValidatorFor } from "@lamina/components";
+import { NATIVE_CATALOG, deckValidatorFor, jsonSchemaToZod } from "@lamina/components";
 import { flagEnabled, schema, tryConsumeQuota, workspace } from "@lamina/db";
 import { defaultImageProviders, fetchAndIngestImage, ingestImage, searchImages, writeAssetFile, type IngestedImage } from "@lamina/research";
 import { getDb } from "@/lib/db";
 import { env } from "@/lib/env";
 import { requireOwner } from "@/lib/guard";
 import { requireUserApi } from "@/lib/session";
+import { provisionalFor } from "@/lib/presentation-view";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -58,14 +59,34 @@ async function saveAsset(p: { id: string; ownerId: string }, img: IngestedImage,
   return row!;
 }
 
-/** Pone la imagen en el slot (como Image) y confirma el cambio como una versión nueva del diseño. */
+/** El diseño solo se toca en las etapas editables y sin cambios pendientes de otros (no se confirma trabajo ajeno ni se deja un lote a medias). */
+async function editableWorkspace(p: { id: string; ownerId: string; stage: string }) {
+  if (!["design_review", "final_review", "private_final", "published"].includes(p.stage)) throw new LaminaError("invalid_transition", "Ahora no se puede editar el diseño.", 409);
+  const w = await workspace.getWorkspace(getDb(), p.id, p.ownerId);
+  if (w.dirty) throw new LaminaError("invalid_transition", "Hay cambios sin confirmar en esta presentación (por ejemplo de tu IA conectada). Confírmalos o descártalos antes de cambiar la imagen.", 409);
+}
+
+/** Aplica un cambio y lo confirma como versión; si la confirmación falla, el lote se deshace (todo o nada). */
+async function applyAndCommit(p: { id: string; ownerId: string }, ops: unknown[], label: string) {
+  const db = getDb();
+  const r = await workspace.applyOps(db, p.id, ops, "docente", { ownerId: p.ownerId, validateDeck: await validatorFor(p.id), label });
+  if (!r.ok) throw new LaminaError("invalid_input", r.issues.map((i) => i.message).join("; ") || "No se pudo aplicar el cambio.", 409);
+  try { await workspace.commitCheckpoint(db, p.id, p.ownerId, "docente", label); }
+  catch (e) { await workspace.undoBatch(db, p.id, r.batchId!, "sistema", { ownerId: p.ownerId, force: true }).catch(() => {}); throw e; }
+}
+
+/** Pone la imagen en el slot (como Image) y confirma el cambio como versión nueva del diseño. */
 async function placeImage(p: { id: string; ownerId: string }, slideId: string, slot: string, assetId: string, alt: string, credit: string | undefined) {
   const image = NATIVE_CATALOG.find((c) => c.def.id === "Image")!;
   const ref = { componentId: "Image", version: image.def.version, props: { assetId, alt, fit: "cover", showCredit: false, ...(credit ? { credit } : {}) } };
-  const db = getDb();
-  const r = await workspace.applyOps(db, p.id, [{ op: "set_slot", slideId, slot, ref }], "docente", { ownerId: p.ownerId, validateDeck: deckValidatorFor(), label: "Imagen reemplazada" });
-  if (!r.ok) throw new LaminaError("invalid_input", r.issues.map((i) => i.message).join("; ") || "No se pudo aplicar el cambio.", 409);
-  await workspace.commitCheckpoint(db, p.id, p.ownerId, "docente", "Imagen reemplazada");
+  await applyAndCommit(p, [{ op: "set_slot", slideId, slot, ref }], "Imagen reemplazada");
+}
+
+/** Validador con los componentes provisionales de la presentación (una diapositiva que ya tiene uno no debe fallar al poner o quitar una imagen). */
+async function validatorFor(presentationId: string) {
+  const prov = await provisionalFor(presentationId);
+  const map = new Map(prov.map((c) => { let propsSchema; try { propsSchema = jsonSchemaToZod(c.propsJsonSchema); } catch { propsSchema = undefined; } return [`${c.id}@${c.version}`, { propsSchema, status: "provisional" }] as const; }));
+  return deckValidatorFor((ref) => map.get(`${ref.componentId}@${ref.version}`));
 }
 
 const creditOf = (m: z.infer<typeof UseBody>["meta"]) => [m.author ?? "Autor no indicado", m.license ?? "licencia no indicada", m.provider].filter(Boolean).join(" · ").slice(0, 200);
@@ -78,6 +99,8 @@ const creditOf = (m: z.infer<typeof UseBody>["meta"]) => [m.author ?? "Autor no 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { p } = await gate((await params).id);
+    await editableWorkspace(p);
+    if (Number(req.headers.get("content-length") ?? 0) > 9 * 1024 * 1024) throw new LaminaError("invalid_input", "La imagen supera 8 MB.", 413);
     const ct = req.headers.get("content-type") ?? "";
     if (ct.startsWith("multipart/form-data")) {
       const fd = await req.formData();
@@ -103,10 +126,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const { p } = await gate((await params).id);
     const body = RemoveBody.safeParse(await req.json().catch(() => null));
     if (!body.success) throw new LaminaError("invalid_input", "Datos no válidos.", 400);
-    const db = getDb();
-    const r = await workspace.applyOps(db, p.id, [{ op: "remove_slot", slideId: body.data.slideId, slot: body.data.slot }], "docente", { ownerId: p.ownerId, validateDeck: deckValidatorFor(), label: "Imagen quitada" });
-    if (!r.ok) throw new LaminaError("invalid_input", r.issues.map((i) => i.message).join("; ") || "No se pudo quitar la imagen.", 409);
-    await workspace.commitCheckpoint(db, p.id, p.ownerId, "docente", "Imagen quitada");
+    await editableWorkspace(p);
+    await applyAndCommit(p, [{ op: "remove_slot", slideId: body.data.slideId, slot: body.data.slot }], "Imagen quitada");
     return NextResponse.json({ ok: true });
   } catch (e) { return fail(e); }
 }

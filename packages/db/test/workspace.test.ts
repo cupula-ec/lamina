@@ -179,3 +179,35 @@ describe("workspace: base de datos", () => {
     expect(w2.slides[0]!.notes).toBe("n"); // lo posterior se conserva
   });
 });
+
+describe("workspace: etapa, opId y deshacer sin pisar (revisión)", () => {
+  it("rechaza editar el contenido ya aprobado (no deja cambios imposibles de confirmar)", async () => {
+    const { o, id } = await setup();
+    const r = await ws.applyOps(h.db, id, [{ op: "edit_section", sectionId: "s1", title: "Otro" }], "mcp", { ownerId: o });
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.issues[0]!.code).toBe("wrong_stage");
+  });
+  it("el opId se compara exacto: «_» y «%» no son comodines", async () => {
+    const { o, id } = await setup();
+    const op = (n: string): WorkspaceOp[] => [{ op: "set_notes", slideId: "a", notes: n }];
+    expect((await ws.applyOps(h.db, id, op("uno"), "docente", { ownerId: o, opId: "lote-1" })).ok).toBe(true);
+    const r = await ws.applyOps(h.db, id, op("dos"), "docente", { ownerId: o, opId: "lote_1" });
+    expect(r.ok && r.replayed).toBeFalsy();
+    const w = await ws.getWorkspace(h.db, id, o);
+    expect(parseDeckAny(w.deck).slides[0]!.notes).toBe("dos");
+  });
+  it("deshacer se rechaza si después se editó la misma diapositiva", async () => {
+    const { o, id } = await setup();
+    const a = await ws.applyOps(h.db, id, [{ op: "set_notes", slideId: "a", notes: "IA" }], "ia", { ownerId: o });
+    if (!a.ok) throw new Error("no aplicó");
+    await ws.applyOps(h.db, id, [{ op: "set_notes", slideId: "a", notes: "mano del docente" }], "docente", { ownerId: o });
+    const u = await ws.undoBatch(h.db, id, a.batchId!, "docente", { ownerId: o });
+    expect(u.ok).toBe(false);
+    expect(!u.ok && u.issues[0]!.code).toBe("undo_conflict");
+    expect(parseDeckAny((await ws.getWorkspace(h.db, id, o)).deck).slides[0]!.notes).toBe("mano del docente");
+    // sin conflicto sí se deshace
+    const b = await ws.applyOps(h.db, id, [{ op: "set_notes", slideId: "b", notes: "otra" }], "ia", { ownerId: o });
+    if (!b.ok) throw new Error("no aplicó");
+    expect((await ws.undoBatch(h.db, id, b.batchId!, "docente", { ownerId: o })).ok).toBe(true);
+  });
+});

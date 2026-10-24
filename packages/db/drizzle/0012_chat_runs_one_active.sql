@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "chat_runs_one_active" ON "chat_runs" USING btree ("presentation_id") WHERE status in ('pending', 'running');

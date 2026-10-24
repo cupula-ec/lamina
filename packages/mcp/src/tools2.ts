@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { AREA_IDS, AREA_PACKS, ContentDraft, DeckDocument, WorkspaceOp, type OpIssue, type Stage } from "@lamina/contracts";
 import { FLAG_GATED_COMPONENTS, NATIVE_CATALOG, NATIVE_MANIFESTS, deckValidatorFor } from "@lamina/components";
@@ -103,8 +103,12 @@ export function createTools2(deps: McpDeps, who: McpPrincipal, base: { owned(id:
   async function deckValidator(p: Pres) {
     const lookup = lookupFor(await loadProvisional(db, p.id));
     const catalog = deckValidatorFor(lookup);
+    const off = new Set<string>();
+    for (const [comp, flag] of Object.entries(FLAG_GATED_COMPONENTS)) if (!(await enabled(flag as FlagName, p))) off.add(comp);
+    const before = new Set((await ws(p)).deck ? (DeckDocument.parse((await ws(p)).deck).slides.flatMap((x) => Object.values(x.slots).map((r) => r.componentId))) : []);
     return (deck: DeckDocument, touched: string[]) => {
       const out: OpIssue[] = [...catalog(deck, touched)];
+      for (const s of deck.slides.filter((x) => touched.includes(x.id))) for (const r of Object.values(s.slots)) if (off.has(r.componentId) && !before.has(r.componentId)) out.push({ code: "catalog", slideId: s.id, message: `El componente ${r.componentId} todavía no está habilitado para tu cuenta.` });
       for (const s of deck.slides.filter((x) => touched.includes(x.id))) {
         const walk = (v: unknown, where: string) => {
           if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${where}[${i}]`));
@@ -157,7 +161,7 @@ export function createTools2(deps: McpDeps, who: McpPrincipal, base: { owned(id:
 
   return {
     async start_here() {
-      const rows = await db.select().from(schema.presentations).where(eq(schema.presentations.ownerId, who.userId)).orderBy(schema.presentations.updatedAt).limit(10);
+      const rows = await db.select().from(schema.presentations).where(eq(schema.presentations.ownerId, who.userId)).orderBy(desc(schema.presentations.updatedAt)).limit(10);
       return {
         role: "TÚ eres la autora del contenido Y del diseño. Lámina es el motor: valida, dibuja, detecta problemas y guarda. Lámina NO tiene una IA a la que puedas pedirle cosas, no hay una app que «abrir» y no existe un «prompt de diseño» que enviar: construyes el diseño tú, slide por slide, con las herramientas.",
         rules: [
@@ -251,6 +255,7 @@ export function createTools2(deps: McpDeps, who: McpPrincipal, base: { owned(id:
     async search_images(a: { id: string; query: string }) {
       await base.owned(a.id);
       if (!deps.images?.providers.length) throw new McpToolError("not_available", "La búsqueda de imágenes no está disponible en este servidor.");
+      if (!(await enabled("v3_images"))) throw new McpToolError("feature_off", "Las imágenes todavía no están habilitadas para tu cuenta.");
       if (!(await tryConsumeQuota(db, who.userId, "image"))) throw new McpToolError("quota_exceeded", "Alcanzaste el límite diario de búsquedas de imágenes.");
       const { results } = await searchImages(deps.images.providers, a.query, { max: 8 });
       return { results: results.map((r) => ({ title: r.title, provider: r.provider, width: r.width, height: r.height, author: r.author, license: r.license, ref: b64({ url: r.url, provider: r.provider, pageUrl: r.pageUrl, author: r.author ?? "", license: r.license ?? "", licenseUrl: r.licenseUrl ?? "" }) })), nextStep: "Elige un resultado y llama a insert_image con su ref, el slideId, el slot y un alt descriptivo." };
@@ -258,6 +263,8 @@ export function createTools2(deps: McpDeps, who: McpPrincipal, base: { owned(id:
     async insert_image(a: { id: string; ref?: string; url?: string; slideId: string; slot: string; alt: string }) {
       const p = await base.owned(a.id);
       if (!deps.images) throw new McpToolError("not_available", "Las imágenes no están disponibles en este servidor.");
+      if (!(await enabled("v3_images", p))) throw new McpToolError("feature_off", "Las imágenes todavía no están habilitadas para tu cuenta.");
+      if (!(await tryConsumeQuota(db, who.userId, "image"))) throw new McpToolError("quota_exceeded", "Alcanzaste el límite diario de imágenes.");
       if (!a.ref === !a.url) throw new McpToolError("invalid_input", "Indica exactamente uno: ref (de search_images) o url.");
       const meta = a.ref ? unb64(a.ref) : { url: a.url!, provider: "mcp", pageUrl: a.url!, author: "", license: "", licenseUrl: "" };
       const img = await fetchAndIngestImage(String(meta.url));
@@ -266,7 +273,7 @@ export function createTools2(deps: McpDeps, who: McpPrincipal, base: { owned(id:
       const row = dup ?? (await db.insert(schema.assets).values({ ownerId: who.userId, presentationId: p.id, sha256: img.sha256, mime: img.mime, width: img.width, height: img.height, bytes: img.data.length, origin: "mcp", provider: String(meta.provider).slice(0, 40), pageUrl: String(meta.pageUrl ?? "").slice(0, 500), author: meta.author ? String(meta.author).slice(0, 200) : undefined, license: meta.license ? String(meta.license).slice(0, 120) : undefined, licenseUrl: meta.licenseUrl ? String(meta.licenseUrl).slice(0, 300) : undefined, alt: a.alt }).returning())[0]!;
       const credit = [meta.author || "Autor no indicado", meta.license || "licencia no indicada", meta.provider].filter(Boolean).join(" · ").slice(0, 200);
       const image = NATIVE_CATALOG.find((c) => c.def.id === "Image")!;
-      return applyKind("deck", { id: p.id, ops: [{ op: "set_slot", slideId: a.slideId, slot: a.slot, ref: { componentId: "Image", version: image.def.version, props: { assetId: row.id, alt: a.alt, fit: "cover", showCredit: false, credit } } }], opId: `img-${row.id.slice(0, 8)}-${a.slideId}-${a.slot}`.slice(0, 64) });
+      return applyKind("deck", { id: p.id, ops: [{ op: "set_slot", slideId: a.slideId, slot: a.slot, ref: { componentId: "Image", version: image.def.version, props: { assetId: row.id, alt: a.alt, fit: "cover", showCredit: false, credit } } }] });
     },
     async render_slide(a: { id: string; slideId: string }) {
       const p = await base.owned(a.id);

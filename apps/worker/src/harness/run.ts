@@ -1,6 +1,6 @@
 import { QuotaWaitError } from "@lamina/ai";
 import { LaminaError, type ContentDraft, type DeckDocument, type Slide, type SlideHint, type WorkspaceOp } from "@lamina/contracts";
-import { applyOpsPure, hashJson } from "@lamina/db";
+import { applyOpsPure } from "@lamina/db";
 import { catalogForPrompt, validateDeckAgainstCatalog, type CatalogLookup } from "@lamina/components";
 import type { ComponentManifest } from "@lamina/contracts";
 import type { Ctx } from "../ctx";
@@ -61,7 +61,6 @@ export async function runHarness(env: HarnessEnv): Promise<HarnessResult> {
   const transcript: string[] = [];
   let calls = 0;
   let step = 0;
-  let validatedHash = "";
 
   const slideOf = (d: DeckDocument, id = env.slideId) => d.slides.find((s) => s.id === id);
   const neighbors = (d: DeckDocument) => { const i = d.slides.findIndex((s) => s.id === env.slideId); return [d.slides[i - 1], d.slides[i + 1]].filter(Boolean).map((s) => ({ id: s!.id, layout: s!.layout, slots: Object.fromEntries(Object.entries(s!.slots).map(([k, r]) => [k, r.componentId])) })); };
@@ -72,9 +71,14 @@ export async function runHarness(env: HarnessEnv): Promise<HarnessResult> {
     ops.push(op);
     return null;
   };
+  // Solo componentes que la cuenta puede usar (los gated por flag apagado quedan fuera), salvo los que la diapositiva ya traía.
+  const offered = new Set(env.manifests.map((m) => m.id));
+  const original = new Set(Object.values(slideOf(env.deck)?.slots ?? {}).map((r) => r.componentId));
   const check = (): string[] => {
     const sl = slideOf(working);
     if (!sl) return ["la diapositiva ya no existe"];
+    const notOffered = Object.values(sl.slots).filter((r) => !offered.has(r.componentId) && !original.has(r.componentId)).map((r) => r.componentId);
+    if (notOffered.length) return [`El componente ${[...new Set(notOffered)].join(", ")} no está disponible para esta cuenta: usa solo los de list_components.`];
     const v = validateDeckAgainstCatalog(working, env.lookup);
     const errs = v.ok ? [] : v.errors.filter((e) => e.startsWith(`slide ${env.slideId}/`) || !e.startsWith("slide "));
     if (env.hint) { const miss = missingFormulas(env.hint, sl); if (miss.length) errs.push(`Faltan fórmulas/expresiones del contenido que deben copiarse tal cual: ${miss.slice(0, 4).join(" | ")}`); }
@@ -121,7 +125,6 @@ export async function runHarness(env: HarnessEnv): Promise<HarnessResult> {
       }
       case "validate": {
         const errs = check();
-        validatedHash = errs.length ? "" : hashJson(slideOf(working));
         return { obs: errs.length ? `NO VÁLIDA:\n- ${errs.slice(0, 6).join("\n- ")}` : "VÁLIDA: ya puedes llamar a done." };
       }
       case "done": {
@@ -154,7 +157,6 @@ export async function runHarness(env: HarnessEnv): Promise<HarnessResult> {
     transcript.push(`[${step}] ${tool}(${clip(JSON.stringify(parsed.data), 300)}) → ${clip(res.obs, 700)}`);
     if (res.done !== undefined) {
       const final = slideOf(working)!;
-      void validatedHash;
       return { ok: true, ops, slide: final, summary: res.done, steps: step, calls };
     }
   }

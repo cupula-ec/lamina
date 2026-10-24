@@ -44,7 +44,9 @@ export function buildPlayer(): Promise<{ js: string; css: string }> {
 }
 
 const EXT: Record<string, string> = { "image/webp": "webp", "image/png": "png", "image/jpeg": "jpg", "image/svg+xml": "svg" };
-const INTERNAL = /^\/api\/(assets|branding)\//;
+/** Solo las URLs internas con su forma exacta (las firma el servidor); cualquier otro texto del deck, aunque empiece igual, no se toca. */
+const UUID_RE = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+const INTERNAL = new RegExp(`^/api/(?:assets/${UUID_RE}(?:\\?[A-Za-z0-9=&_-]{1,200})?|branding/institution/${UUID_RE}(?:\\?[A-Za-z0-9=&_-]{1,200})?|branding/personal/[A-Za-z0-9_-]{1,64}(?:\\?[A-Za-z0-9=&_-]{1,200})?)$`);
 
 /**
  * Descarga cada imagen interna del deck (con la URL firmada que trae) y la sustituye por una ruta relativa `assets/<n>.<ext>`.

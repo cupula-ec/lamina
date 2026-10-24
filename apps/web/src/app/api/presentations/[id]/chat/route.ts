@@ -1,9 +1,9 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { LaminaError } from "@lamina/contracts";
 import { consumeQuota, flagEnabled, refundQuota, schema } from "@lamina/db";
-import { enqueue } from "@lamina/jobs";
+import { enqueue, expireSeconds } from "@lamina/jobs";
 import { getBoss } from "@/lib/boss";
 import { getDb } from "@/lib/db";
 import { requireOwner } from "@/lib/guard";
@@ -46,11 +46,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const body = Body.safeParse(await req.json().catch(() => null));
     if (!body.success) throw new LaminaError("invalid_input", "Escribe qué quieres cambiar (3 a 500 caracteres).", 400);
     if (!["design_review", "final_review", "private_final", "published"].includes(p.stage)) throw new LaminaError("invalid_transition", "Ahora no se puede editar el diseño.", 409);
+    // Un pedido que el worker no terminó (reinicio, timeout) no bloquea para siempre: pasado el tiempo máximo del job se marca como fallido.
+    await db.update(schema.chatRuns).set({ status: "failed", error: "El pedido tardó demasiado y se canceló.", finishedAt: new Date() })
+      .where(and(eq(schema.chatRuns.presentationId, p.id), inArray(schema.chatRuns.status, ["pending", "running"]), lt(schema.chatRuns.createdAt, new Date(Date.now() - (expireSeconds("slide.chat") + 120) * 1000))));
     const busy = await db.select({ id: schema.chatRuns.id }).from(schema.chatRuns).where(and(eq(schema.chatRuns.presentationId, p.id), inArray(schema.chatRuns.status, ["pending", "running"]))).limit(1);
     if (busy.length) throw new LaminaError("job_in_progress", "Lámina todavía está trabajando en tu pedido anterior.", 409);
     await consumeQuota(db, u.id, "slide_chat");
     taken = u.id;
-    const [row] = await db.insert(schema.chatRuns).values({ presentationId: p.id, userId: u.id, slideId: body.data.slideId, message: body.data.message }).returning({ id: schema.chatRuns.id });
+    // El índice único parcial (un pedido activo por presentación) cierra la carrera entre dos pedidos simultáneos.
+    const [row] = await db.insert(schema.chatRuns).values({ presentationId: p.id, userId: u.id, slideId: body.data.slideId, message: body.data.message }).returning({ id: schema.chatRuns.id })
+      .catch((e: { code?: string; cause?: { code?: string } }) => { if (e?.code === "23505" || e?.cause?.code === "23505") throw new LaminaError("job_in_progress", "Lámina todavía está trabajando en tu pedido anterior.", 409); throw e; });
     try { await enqueue(await getBoss(), "slide.chat", { presentationId: p.id, userId: u.id, chatId: row!.id }, { base: row!.id }); }
     catch (e) { await db.update(schema.chatRuns).set({ status: "failed", error: "No se pudo encolar", finishedAt: new Date() }).where(eq(schema.chatRuns.id, row!.id)); throw e; }
     return NextResponse.json({ id: row!.id }, { status: 202 });

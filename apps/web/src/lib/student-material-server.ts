@@ -1,11 +1,11 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { ContentDraft } from "@lamina/contracts";
 import { schema } from "@lamina/db";
 import { getDb } from "./db";
 import { buildStudentMaterial } from "./student-material";
 
 /** Material del alumno de una presentación (contenido aprobado) con los créditos de las imágenes usadas en el diseño dado. */
-export async function loadMaterial(p: { id: string; approvedContentVersionId: string | null }, deckVersionId: string | null) {
+export async function loadMaterial(p: { id: string; ownerId: string; approvedContentVersionId: string | null }, deckVersionId: string | null) {
   if (!p.approvedContentVersionId) return null;
   const db = getDb();
   const [cv] = await db.select().from(schema.contentVersions).where(eq(schema.contentVersions.id, p.approvedContentVersionId));
@@ -17,7 +17,7 @@ export async function loadMaterial(p: { id: string; approvedContentVersionId: st
     for (const s of (dv?.deck as { slides?: { slots?: Record<string, { componentId?: string; props?: { assetId?: string } }> }[] } | undefined)?.slides ?? [])
       for (const r of Object.values(s.slots ?? {})) if ((r.componentId === "Image" || r.componentId === "LabeledDiagram") && r.props?.assetId) ids.add(r.props.assetId);
   }
-  const assets = ids.size ? await db.select().from(schema.assets).where(inArray(schema.assets.id, [...ids])) : [];
+  const assets = ids.size ? await db.select().from(schema.assets).where(and(inArray(schema.assets.id, [...ids]), eq(schema.assets.ownerId, p.ownerId))) : [];
   const credits = assets.filter((a) => a.provider && a.provider !== "upload").map((a) => [a.alt, [a.author ?? "Autor no indicado", a.license ?? "licencia no indicada", a.provider].join(" · "), a.pageUrl].filter(Boolean).join(" — "));
   return { material: buildStudentMaterial(content, { credits }), updatedAt: cv.createdAt };
 }
