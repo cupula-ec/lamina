@@ -21,5 +21,5 @@ export function loadChangelog(): ChangelogEntry[] {
     if (!meta.date || !meta.title) continue;
     out.push({ date: meta.date, title: meta.title, body: m[2]!.trim(), file: f });
   }
-  return out.sort((a, b) => b.date.localeCompare(a.date));
+  return out.sort((a, b) => b.date.localeCompare(a.date) || b.file.localeCompare(a.file, undefined, { numeric: true }));
 }
