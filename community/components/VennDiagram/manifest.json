@@ -1,0 +1,92 @@
+{
+  "id": "VennDiagram",
+  "scope": "global",
+  "title": "Venn Diagram",
+  "status": "stable",
+  "purpose": "Render a two‑set Venn diagram with labeled region counts (only A, only B, intersection, neither) for immediate visual interpretation of set relationships.",
+  "runtime": "sandboxed",
+  "version": "1.0.0",
+  "examples": [
+    {
+      "name": "ejemplo1",
+      "props": {
+        "setA": "Estudiantes con laptop",
+        "setB": "Estudiantes con tablet",
+        "onlyA": 12,
+        "onlyB": 8,
+        "neither": 3,
+        "intersection": 5
+      }
+    },
+    {
+      "name": "ejemplo2",
+      "props": {
+        "setA": "Usuarios de Android",
+        "setB": "Usuarios de iOS",
+        "onlyA": 45,
+        "onlyB": 30,
+        "neither": 15,
+        "intersection": 10
+      }
+    }
+  ],
+  "useCases": [
+    "Illustrate survey results with two categorical questions",
+    "Show overlap of student groups in a classroom activity",
+    "Compare features of two products in a decision‑making slide",
+    "Teach basic set theory concepts with concrete numbers"
+  ],
+  "fitsSlots": [
+    "visual",
+    "main",
+    "right",
+    "left",
+    "text"
+  ],
+  "bundleHash": "2d9d69759a315d474e7b6d08f18b013c57c6cbe39d0618237178d22017d2ddfc",
+  "constraints": [],
+  "schemaVersion": 1,
+  "propsJsonSchema": {
+    "type": "object",
+    "required": [
+      "setA",
+      "setB",
+      "onlyA",
+      "onlyB",
+      "intersection",
+      "neither"
+    ],
+    "properties": {
+      "setA": {
+        "type": "string",
+        "maxLength": 30,
+        "description": "Label for the left set"
+      },
+      "setB": {
+        "type": "string",
+        "maxLength": 30,
+        "description": "Label for the right set"
+      },
+      "onlyA": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Count of elements only in set A"
+      },
+      "onlyB": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Count of elements only in set B"
+      },
+      "neither": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Count of elements in neither set"
+      },
+      "intersection": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Count of elements in both sets"
+      }
+    }
+  }
+}

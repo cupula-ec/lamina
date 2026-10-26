@@ -1,0 +1,22 @@
+[
+  {
+    "name": "ejemplo1",
+    "props": {
+      "modo": "cuatro",
+      "titulo": "Las cuatro cónicas"
+    }
+  },
+  {
+    "name": "ejemplo2",
+    "props": {
+      "modo": "elipse",
+      "titulo": "La elipse"
+    }
+  },
+  {
+    "name": "ejemplo3",
+    "props": {
+      "modo": "hiperbola"
+    }
+  }
+]

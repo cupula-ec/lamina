@@ -1,0 +1,24 @@
+[
+  {
+    "name": "ejemplo1",
+    "props": {
+      "setA": "Estudiantes con laptop",
+      "setB": "Estudiantes con tablet",
+      "onlyA": 12,
+      "onlyB": 8,
+      "neither": 3,
+      "intersection": 5
+    }
+  },
+  {
+    "name": "ejemplo2",
+    "props": {
+      "setA": "Usuarios de Android",
+      "setB": "Usuarios de iOS",
+      "onlyA": 45,
+      "onlyB": 30,
+      "neither": 15,
+      "intersection": 10
+    }
+  }
+]

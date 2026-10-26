@@ -1,0 +1,68 @@
+{
+  "id": "ConicSection3D",
+  "scope": "global",
+  "title": "Secciones cónicas en 3D",
+  "status": "stable",
+  "purpose": "Ilustración 3D de un cono de doble hoja cortado por un plano: muestra la circunferencia, la elipse, la parábola y la hipérbola (las cuatro a la vez o una sola a pantalla completa).",
+  "runtime": "sandboxed",
+  "version": "1.0.0",
+  "examples": [
+    {
+      "name": "ejemplo1",
+      "props": {
+        "modo": "cuatro",
+        "titulo": "Las cuatro cónicas"
+      }
+    },
+    {
+      "name": "ejemplo2",
+      "props": {
+        "modo": "elipse",
+        "titulo": "La elipse"
+      }
+    },
+    {
+      "name": "ejemplo3",
+      "props": {
+        "modo": "hiperbola"
+      }
+    }
+  ],
+  "useCases": [
+    "Mostrar cómo el ángulo del plano determina la cónica",
+    "Comparar las cuatro cónicas",
+    "Presentar una cónica concreta"
+  ],
+  "fitsSlots": [
+    "visual",
+    "main",
+    "right",
+    "left",
+    "text"
+  ],
+  "bundleHash": "d1214aa078cf88b8f86016cdfbbbe7e624c61f42e5ca0d2d339745e061a0dc8f",
+  "constraints": [],
+  "schemaVersion": 1,
+  "propsJsonSchema": {
+    "type": "object",
+    "required": [
+      "modo"
+    ],
+    "properties": {
+      "modo": {
+        "enum": [
+          "cuatro",
+          "circunferencia",
+          "elipse",
+          "parabola",
+          "hiperbola"
+        ],
+        "type": "string"
+      },
+      "titulo": {
+        "type": "string",
+        "maxLength": 80
+      }
+    }
+  }
+}
