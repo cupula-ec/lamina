@@ -23,7 +23,7 @@ interface Props {
   highlightPath?: string[];
 }
 
-type Laid = { node: NodeData; depth: number; cross: number; branch?: BranchData; parent?: Laid; leaf: boolean };
+type Laid = { node: NodeData; depth: number; cross: number; branch?: BranchData; from?: Laid; leaf: boolean };
 
 const CHAR = 0.56; // ancho medio de un carácter, relativo al tamaño de fuente
 
@@ -47,8 +47,8 @@ export default function ProbabilityTree({ props, size }: { props: Props; size: {
   const items: Laid[] = [];
   let leafIndex = 0;
   let maxDepth = 0;
-  const visit = (node: NodeData, depth: number, branch?: BranchData, parent?: Laid, seen: Set<NodeData> = new Set()): Laid => {
-    const me: Laid = { node, depth, cross: 0, branch, parent, leaf: true };
+  const visit = (node: NodeData, depth: number, branch?: BranchData, from?: Laid, seen: Set<NodeData> = new Set()): Laid => {
+    const me: Laid = { node, depth, cross: 0, branch, from, leaf: true };
     items.push(me);
     maxDepth = Math.max(maxDepth, depth);
     const kids = depth < 8 && !seen.has(node) ? node.branches ?? [] : [];
@@ -59,7 +59,8 @@ export default function ProbabilityTree({ props, size }: { props: Props; size: {
     me.leaf = false;
     const next = new Set(seen).add(node);
     const laid = kids.map((b) => visit(b.child, depth + 1, b, me, next));
-    me.cross = (laid[0]!.cross + laid[laid.length - 1]!.cross) / 2;
+    const cs = laid.map((l) => l.cross);
+    me.cross = (Math.min(...cs) + Math.max(...cs)) / 2;
     return me;
   };
   visit(root, 0);
@@ -91,9 +92,9 @@ export default function ProbabilityTree({ props, size }: { props: Props; size: {
   items.forEach((it, idx) => {
     const p = pos(it);
     const on = hl.has(it.node.id);
-    if (it.parent) {
-      const q = pos(it.parent);
-      const onEdge = on && hl.has(it.parent.node.id);
+    if (it.from) {
+      const q = pos(it.from);
+      const onEdge = on && hl.has(it.from.node.id);
       edges.push(
         <line key={`e${idx}`} x1={q.x} y1={q.y} x2={p.x} y2={p.y}
           stroke={onEdge ? 'var(--lm-accent)' : 'var(--lm-ink)'} strokeWidth={onEdge ? 5 : 2.5} strokeLinecap="round" opacity={onEdge || hl.size === 0 ? 1 : 0.55} />
