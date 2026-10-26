@@ -1,0 +1,212 @@
+{
+  "id": "ProbabilityTree",
+  "scope": "global",
+  "title": "Árbol de Probabilidades",
+  "status": "stable",
+  "purpose": "Visualiza secuencias de eventos con probabilidades condicionadas en cada rama, ideal para problemas de extracción sin reemplazo y aplicación de la regla multiplicativa.",
+  "runtime": "sandboxed",
+  "version": "1.0.0",
+  "examples": [
+    {
+      "name": "ejemplo1",
+      "props": {
+        "root": {
+          "id": "start",
+          "label": "Inicio",
+          "branches": [
+            {
+              "child": {
+                "id": "R1",
+                "label": "1ª: Rojo",
+                "branches": [
+                  {
+                    "child": {
+                      "id": "RR",
+                      "label": "Rojo, Rojo",
+                      "probability": 0.3
+                    },
+                    "label": "Rojo (2/4)",
+                    "probability": 0.5
+                  },
+                  {
+                    "child": {
+                      "id": "RA",
+                      "label": "Rojo, Azul",
+                      "probability": 0.3
+                    },
+                    "label": "Azul (2/4)",
+                    "probability": 0.5
+                  }
+                ],
+                "probability": 0.6
+              },
+              "label": "Rojo (3/5)",
+              "probability": 0.6
+            },
+            {
+              "child": {
+                "id": "A1",
+                "label": "1ª: Azul",
+                "branches": [
+                  {
+                    "child": {
+                      "id": "AR",
+                      "label": "Azul, Rojo",
+                      "probability": 0.3
+                    },
+                    "label": "Rojo (3/4)",
+                    "probability": 0.75
+                  },
+                  {
+                    "child": {
+                      "id": "AA",
+                      "label": "Azul, Azul",
+                      "probability": 0.1
+                    },
+                    "label": "Azul (1/4)",
+                    "probability": 0.25
+                  }
+                ],
+                "probability": 0.4
+              },
+              "label": "Azul (2/5)",
+              "probability": 0.4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "ejemplo2",
+      "props": {
+        "root": {
+          "id": "start",
+          "label": "Inicio",
+          "branches": [
+            {
+              "child": {
+                "id": "C1",
+                "label": "1er: Cara",
+                "branches": [
+                  {
+                    "child": {
+                      "id": "CC",
+                      "label": "Cara, Cara",
+                      "probability": 0.25
+                    },
+                    "label": "Cara (1/2)",
+                    "probability": 0.5
+                  },
+                  {
+                    "child": {
+                      "id": "CX",
+                      "label": "Cara, Cruz",
+                      "probability": 0.25
+                    },
+                    "label": "Cruz (1/2)",
+                    "probability": 0.5
+                  }
+                ],
+                "probability": 0.5
+              },
+              "label": "Cara (1/2)",
+              "probability": 0.5
+            },
+            {
+              "child": {
+                "id": "X1",
+                "label": "1er: Cruz",
+                "branches": [
+                  {
+                    "child": {
+                      "id": "XC",
+                      "label": "Cruz, Cara",
+                      "probability": 0.25
+                    },
+                    "label": "Cara (1/2)",
+                    "probability": 0.5
+                  },
+                  {
+                    "child": {
+                      "id": "XX",
+                      "label": "Cruz, Cruz",
+                      "probability": 0.25
+                    },
+                    "label": "Cruz (1/2)",
+                    "probability": 0.5
+                  }
+                ],
+                "probability": 0.5
+              },
+              "label": "Cruz (1/2)",
+              "probability": 0.5
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "useCases": [
+    "Extracción de bolas de una urna sin reemplazo",
+    "Cadenas de Markov de dos o tres pasos",
+    "Decisiones secuenciales con incertidumbre",
+    "Regla de Bayes con árbol inverso"
+  ],
+  "fitsSlots": [
+    "visual",
+    "main",
+    "right",
+    "left",
+    "text"
+  ],
+  "bundleHash": "03c621fa83684a94718cd09830d84347c911d9caf6106227cf9261c3ab36bdf9",
+  "constraints": [],
+  "schemaVersion": 1,
+  "propsJsonSchema": {
+    "type": "object",
+    "required": [
+      "root"
+    ],
+    "properties": {
+      "root": {
+        "type": "object",
+        "description": "Nodo raíz {id, label, branches:[{label?, probability?, child:{...}}]}. En hojas, 'probability' es la probabilidad conjunta (se muestra como P = …). Las ramas se ajustan solas al tamaño del lienzo."
+      },
+      "fontSize": {
+        "type": "number",
+        "default": 24,
+        "maximum": 40,
+        "minimum": 16
+      },
+      "nodeRadius": {
+        "type": "number",
+        "default": 14,
+        "maximum": 30,
+        "minimum": 8
+      },
+      "showLabels": {
+        "type": "boolean",
+        "default": true
+      },
+      "orientation": {
+        "enum": [
+          "horizontal",
+          "vertical"
+        ],
+        "type": "string",
+        "default": "horizontal"
+      },
+      "highlightPath": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "IDs de nodos a resaltar"
+      },
+      "showProbabilities": {
+        "type": "boolean",
+        "default": true
+      }
+    }
+  }
+}
