@@ -8,7 +8,7 @@ interface NodeData {
 }
 
 interface BranchData {
-  label: string;
+  label?: string;
   probability?: number;
   child: NodeData;
 }
@@ -19,201 +19,131 @@ interface Props {
   showProbabilities?: boolean;
   showLabels?: boolean;
   nodeRadius?: number;
-  branchLength?: number;
   fontSize?: number;
   highlightPath?: string[];
 }
 
-export default function ProbabilityTree({
-  props,
-  size
-}: {
-  props: Props;
-  size: { width: number; height: number };
-}) {
+type Laid = { node: NodeData; depth: number; cross: number; branch?: BranchData; parent?: Laid; leaf: boolean };
+
+const CHAR = 0.56; // ancho medio de un carácter, relativo al tamaño de fuente
+
+const fmt = (p: number) => (Math.round(p * 1000) / 1000).toString();
+
+export default function ProbabilityTree({ props, size }: { props: Props; size: { width: number; height: number } }) {
   const {
     root,
     orientation = 'horizontal',
     showProbabilities = true,
     showLabels = true,
-    nodeRadius = 28,
-    branchLength = 220,
-    fontSize = 26,
+    nodeRadius = 14,
+    fontSize = 24,
     highlightPath = []
   } = props;
-
   const { width, height } = size;
+  const horizontal = orientation === 'horizontal';
+  const hl = new Set(highlightPath);
 
-  // Compute positions recursively
-  const positions = new Map<string, { x: number; y: number }>();
-  const maxDepth = getMaxDepth(root);
-  const depthCount = new Map<number, number>();
-
-  function getMaxDepth(node: NodeData, depth = 0): number {
-    if (!node.branches || node.branches.length === 0) return depth;
-    return Math.max(...node.branches.map(b => getMaxDepth(b.child, depth + 1)));
-  }
-
-  function layout(node: NodeData, depth = 0, index = 0, parentPos?: { x: number; y: number }) {
-    const horizontal = orientation === 'horizontal';
-    const spacing = horizontal ? branchLength : branchLength;
-    const start = horizontal ? nodeRadius * 2 : height / 2 - (maxDepth * spacing) / 2;
-    let x, y;
-    if (horizontal) {
-      x = nodeRadius * 2 + depth * spacing;
-      // vertical distribution
-      const totalAtDepth = countNodesAtDepth(root, depth);
-      const offset = (height - nodeRadius * 4) / (totalAtDepth + 1);
-      y = nodeRadius * 2 + (index + 1) * offset;
-    } else {
-      y = nodeRadius * 2 + depth * spacing;
-      const totalAtDepth = countNodesAtDepth(root, depth);
-      const offset = (width - nodeRadius * 4) / (totalAtDepth + 1);
-      x = nodeRadius * 2 + (index + 1) * offset;
+  // 1) Estructura: hojas repartidas por igual en el eje transversal; cada padre centrado sobre sus hijos.
+  const items: Laid[] = [];
+  let leafIndex = 0;
+  let maxDepth = 0;
+  const visit = (node: NodeData, depth: number, branch?: BranchData, parent?: Laid, seen: Set<NodeData> = new Set()): Laid => {
+    const me: Laid = { node, depth, cross: 0, branch, parent, leaf: true };
+    items.push(me);
+    maxDepth = Math.max(maxDepth, depth);
+    const kids = depth < 8 && !seen.has(node) ? node.branches ?? [] : [];
+    if (kids.length === 0) {
+      me.cross = leafIndex++;
+      return me;
     }
-    positions.set(node.id, { x, y });
-    if (node.branches) {
-      node.branches.forEach((branch, i) => {
-        layout(branch.child, depth + 1, i, { x, y });
-      });
-    }
-  }
+    me.leaf = false;
+    const next = new Set(seen).add(node);
+    const laid = kids.map((b) => visit(b.child, depth + 1, b, me, next));
+    me.cross = (laid[0]!.cross + laid[laid.length - 1]!.cross) / 2;
+    return me;
+  };
+  visit(root, 0);
+  const leaves = Math.max(1, leafIndex);
 
-  function countNodesAtDepth(node: NodeData, targetDepth: number, currentDepth = 0): number {
-    if (currentDepth === targetDepth) return 1;
-    if (!node.branches) return 0;
-    return node.branches.reduce((sum, b) => sum + countNodesAtDepth(b.child, targetDepth, currentDepth + 1), 0);
-  }
+  // 2) Geometría: se ajusta al tamaño disponible (nada de longitudes fijas que se salgan del lienzo).
+  const labelFs = fontSize;
+  const smallFs = fontSize * 0.78;
+  const leafTexts = items.filter((i) => i.leaf);
+  const leafW = Math.max(0, ...leafTexts.map((i) => (showLabels ? i.node.label.length * labelFs * CHAR : 0)));
+  const pad = 24;
+  const r = nodeRadius;
+  const mainStart = pad + r;
+  const mainEnd = horizontal ? width - pad - r - (showLabels ? leafW + r + 12 : 0) : height - pad - r - (showLabels ? labelFs * 2.6 : 0);
+  const crossStart = pad + r + (horizontal ? 0 : leafW / 2);
+  const crossEnd = (horizontal ? height : width) - pad - r - (horizontal ? 0 : leafW / 2);
+  const mainStep = maxDepth === 0 ? 0 : Math.max(10, (mainEnd - mainStart) / maxDepth);
+  const crossStep = leaves === 1 ? 0 : (crossEnd - crossStart) / (leaves - 1);
+  const pos = (i: Laid) => {
+    const m = mainStart + i.depth * mainStep;
+    const c = leaves === 1 ? (crossStart + crossEnd) / 2 : crossStart + i.cross * crossStep;
+    return horizontal ? { x: m, y: c } : { x: c, y: m };
+  };
 
-  // Run layout
-  layout(root);
+  const edges: React.ReactNode[] = [];
+  const edgeTexts: React.ReactNode[] = [];
+  const nodes: React.ReactNode[] = [];
 
-  // Draw branches and nodes
-  const branchElements: React.ReactNode[] = [];
-  const nodeElements: React.ReactNode[] = [];
-  const labelElements: React.ReactNode[] = [];
-  const probElements: React.ReactNode[] = [];
-
-  function draw(node: NodeData, parentPos?: { x: number; y: number }, branchLabel?: string, branchProb?: number) {
-    const pos = positions.get(node.id)!;
-    const highlighted = highlightPath.includes(node.id);
-    // Branch line
-    if (parentPos) {
-      branchElements.push(
-        <line
-          key={`branch-${node.id}`}
-          x1={parentPos.x}
-          y1={parentPos.y}
-          x2={pos.x}
-          y2={pos.y}
-          stroke={highlighted ? 'var(--lm-accent)' : 'var(--lm-ink)'}
-          strokeWidth={highlighted ? 3 : 2}
-          strokeLinecap="round"
-        />
+  items.forEach((it, idx) => {
+    const p = pos(it);
+    const on = hl.has(it.node.id);
+    if (it.parent) {
+      const q = pos(it.parent);
+      const onEdge = on && hl.has(it.parent.node.id);
+      edges.push(
+        <line key={`e${idx}`} x1={q.x} y1={q.y} x2={p.x} y2={p.y}
+          stroke={onEdge ? 'var(--lm-accent)' : 'var(--lm-ink)'} strokeWidth={onEdge ? 5 : 2.5} strokeLinecap="round" opacity={onEdge || hl.size === 0 ? 1 : 0.55} />
       );
-      // Branch label and probability
-      const midX = (parentPos.x + pos.x) / 2;
-      const midY = (parentPos.y + pos.y) / 2;
-      if (showLabels && branchLabel) {
-        labelElements.push(
-          <text
-            key={`label-${node.id}`}
-            x={midX}
-            y={midY - 8}
-            textAnchor="middle"
-            fontSize={fontSize * 0.8}
-            fill="var(--lm-ink)"
-            fontFamily="var(--lm-font-body)"
-          >
-            {branchLabel}
-          </text>
-        );
-      }
-      if (showProbabilities && branchProb !== undefined) {
-        probElements.push(
-          <text
-            key={`prob-${node.id}`}
-            x={midX}
-            y={midY + 12}
-            textAnchor="middle"
-            fontSize={fontSize * 0.7}
-            fill="var(--lm-accent)"
-            fontFamily="var(--lm-font-body)"
-          >
-            {branchProb.toFixed(2)}
-          </text>
+      const parts: string[] = [];
+      if (showLabels && it.branch?.label) parts.push(it.branch.label);
+      if (showProbabilities && it.branch?.probability !== undefined) parts.push(`p = ${fmt(it.branch.probability)}`);
+      if (parts.length) {
+        const mx = (q.x + p.x) / 2;
+        const my = (q.y + p.y) / 2;
+        const text = parts.join(' · ');
+        const w = text.length * smallFs * CHAR + 14;
+        // etiqueta sobre la rama: en horizontal, arriba de la línea; en vertical, al costado
+        const tx = horizontal ? mx : mx + (p.x >= q.x ? 1 : -1) * (w / 2 + 6);
+        const ty = horizontal ? my - smallFs * 0.9 : my;
+        edgeTexts.push(
+          <g key={`t${idx}`}>
+            <rect x={tx - w / 2} y={ty - smallFs * 0.85} width={w} height={smallFs * 1.4} rx={6} fill="var(--lm-bg)" opacity={0.92} />
+            <text x={tx} y={ty + smallFs * 0.25} textAnchor="middle" fontSize={smallFs} fill="var(--lm-ink)" style={{ fontFamily: 'var(--lm-font-body)' }}>{text}</text>
+          </g>
         );
       }
     }
-    // Node circle
-    nodeElements.push(
-      <circle
-        key={`node-${node.id}`}
-        cx={pos.x}
-        cy={pos.y}
-        r={nodeRadius}
-        fill={highlighted ? 'var(--lm-accent)' : 'var(--lm-bg)'}
-        stroke={highlighted ? 'var(--lm-accent2)' : 'var(--lm-ink)'}
-        strokeWidth={highlighted ? 3 : 2}
-      />
-    );
-    // Node label
+    nodes.push(<circle key={`n${idx}`} cx={p.x} cy={p.y} r={it.leaf ? r : r * 0.8} fill={on ? 'var(--lm-accent)' : it.leaf ? 'var(--lm-plot1)' : 'var(--lm-bg)'} stroke={on ? 'var(--lm-accent2)' : 'var(--lm-ink)'} strokeWidth={2.5} />);
     if (showLabels) {
-      nodeElements.push(
-        <text
-          key={`node-label-${node.id}`}
-          x={pos.x}
-          y={pos.y + fontSize / 3}
-          textAnchor="middle"
-          fontSize={fontSize}
-          fill={highlighted ? 'var(--lm-bg)' : 'var(--lm-ink)'}
-          fontFamily="var(--lm-font-display)"
-        >
-          {node.label}
+      // hoja: etiqueta a la derecha (o debajo); nodo interno: encima del punto
+      const lx = it.leaf ? (horizontal ? p.x + r + 12 : p.x) : p.x;
+      const ly = it.leaf ? (horizontal ? p.y + labelFs * 0.1 : p.y + r + labelFs * 1.1) : p.y - r - 10;
+      nodes.push(
+        <text key={`l${idx}`} x={lx} y={ly} textAnchor={it.leaf && horizontal ? 'start' : 'middle'} fontSize={labelFs} fontWeight={on ? 700 : 500} fill="var(--lm-ink)" style={{ fontFamily: 'var(--lm-font-display)' }}>
+          {it.node.label}
         </text>
       );
     }
-    // Node probability
-    if (showProbabilities && node.probability !== undefined) {
-      nodeElements.push(
-        <text
-          key={`node-prob-${node.id}`}
-          x={pos.x}
-          y={pos.y + nodeRadius + fontSize}
-          textAnchor="middle"
-          fontSize={fontSize * 0.7}
-          fill="var(--lm-accent)"
-          fontFamily="var(--lm-font-body)"
-        >
-          {node.probability.toFixed(2)}
+    if (showProbabilities && it.node.probability !== undefined && it.leaf) {
+      const lx = horizontal ? p.x + r + 12 : p.x;
+      const ly = horizontal ? p.y + labelFs * 0.1 + smallFs * 1.2 : p.y + r + labelFs * 1.1 + smallFs * 1.2;
+      nodes.push(
+        <text key={`p${idx}`} x={lx} y={ly} textAnchor={horizontal ? 'start' : 'middle'} fontSize={smallFs} fill="var(--lm-accent)" fontWeight={600} style={{ fontFamily: 'var(--lm-font-body)' }}>
+          P = {fmt(it.node.probability)}
         </text>
       );
     }
-    if (node.branches) {
-      node.branches.forEach(b => draw(b.child, pos, b.label, b.probability));
-    }
-  }
-
-  draw(root);
+  });
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} style={{ background: 'var(--lm-bg)', fontFamily: 'var(--lm-font-body)' }}>
-      <defs>
-        <marker
-          id="arrowhead"
-          markerWidth={10}
-          markerHeight={7}
-          refX={nodeRadius}
-          refY={3.5}
-          orient="auto"
-        >
-          <polygon points="0 0, 10 3.5, 0 7" fill="var(--lm-ink)" />
-        </marker>
-      </defs>
-      <g>{branchElements}</g>
-      <g>{labelElements}</g>
-      <g>{probElements}</g>
-      <g>{nodeElements}</g>
+    <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label={`Árbol de probabilidades: ${root.label}`} style={{ background: 'var(--lm-bg)', fontFamily: 'var(--lm-font-body)' }}>
+      <g>{edges}</g>
+      <g>{edgeTexts}</g>
+      <g>{nodes}</g>
     </svg>
   );
 }

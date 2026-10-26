@@ -170,19 +170,19 @@
     "properties": {
       "root": {
         "type": "object",
-        "description": "Nodo raíz del árbol (estructura libre, se renderiza recursivamente)"
+        "description": "Nodo raíz {id, label, branches:[{label?, probability?, child:{...}}]}. En hojas, 'probability' es la probabilidad conjunta (se muestra como P = …). Las ramas se ajustan solas al tamaño del lienzo."
       },
       "fontSize": {
         "type": "number",
-        "default": 26,
+        "default": 24,
         "maximum": 40,
-        "minimum": 22
+        "minimum": 16
       },
       "nodeRadius": {
         "type": "number",
-        "default": 28,
-        "maximum": 60,
-        "minimum": 15
+        "default": 14,
+        "maximum": 30,
+        "minimum": 8
       },
       "showLabels": {
         "type": "boolean",
@@ -195,12 +195,6 @@
         ],
         "type": "string",
         "default": "horizontal"
-      },
-      "branchLength": {
-        "type": "number",
-        "default": 220,
-        "maximum": 400,
-        "minimum": 100
       },
       "highlightPath": {
         "type": "array",
