@@ -55,7 +55,7 @@ jobs:
           DATA_DIR=$PWD/data
           RENDER_SERVICE_TOKEN=ci-render-token-ci-render-token-0123
           EOF
-          pnpm --filter @lamina/db migrate
+          DATABASE_URL=postgres://lamina:lamina@127.0.0.1:55432/lamina pnpm --filter @lamina/db migrate
           (cd apps/web && DATABASE_URL=postgres://lamina:lamina@127.0.0.1:55432/lamina BETTER_AUTH_SECRET=ci-secret-ci-secret-ci-secret-0123456789 pnpm exec tsx scripts/create-user.ts docente@test.ec "Docente Prueba" ClaveDocente123)
           (cd apps/web && DATABASE_URL=postgres://lamina:lamina@127.0.0.1:55432/lamina BETTER_AUTH_SECRET=ci-secret-ci-secret-ci-secret-0123456789 pnpm exec tsx scripts/create-user.ts esteban.morocho@cupula.com.ec "Esteban Morocho" ClaveAdmin12345 admin)
           ./scripts/dev-up.sh
