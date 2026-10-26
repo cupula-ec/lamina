@@ -21,6 +21,7 @@
     "@lamina/jobs": "workspace:*",
     "@lamina/mcp": "workspace:*",
     "@lamina/research": "workspace:*",
+    "@lamina/sandbox-kit": "workspace:*",
     "@lamina/validation": "workspace:*",
     "@modelcontextprotocol/sdk": "1.32.1",
     "better-auth": "^1.7.11",

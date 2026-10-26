@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { schema } from "@lamina/db";
 import { getDb } from "@/lib/db";
-import { ComponentActions } from "./component-actions";
+import { ComponentActions, SyncComponentButton } from "./component-actions";
 
 export async function ComponentsPanel() {
   const db = getDb();
@@ -28,6 +28,7 @@ export async function ComponentsPanel() {
                 {c.prUrl && <p className="mt-1 text-sm">PR: <a className="underline" href={c.prUrl} target="_blank" rel="noreferrer noopener">{c.prUrl}</a></p>}
               </div>
               {c.status === "provisional" && <ComponentActions id={c.id} />}
+              {c.status === "stable" && c.prUrl && <SyncComponentButton id={c.id} />}
             </div>
             {v && (
               <div className="mt-4 grid gap-4 lg:grid-cols-2">

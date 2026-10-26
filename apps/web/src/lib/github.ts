@@ -34,3 +34,18 @@ export async function openComponentPr(opts: { id: string; version: string; files
   });
   return pr.html_url as string;
 }
+
+/** Lee los archivos de `community/components/<id>/` en la rama main (con token si existe; el repo puede ser público). */
+export async function fetchCommunityComponent(id: string): Promise<Record<"component.tsx" | "manifest.json" | "fixtures.json", string>> {
+  const token = process.env.GITHUB_TOKEN;
+  const out: Record<string, string> = {};
+  for (const name of ["component.tsx", "manifest.json", "fixtures.json"]) {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/community/components/${encodeURIComponent(id)}/${name}?ref=main`, {
+      headers: { accept: "application/vnd.github.raw+json", "x-github-api-version": "2022-11-28", "user-agent": "lamina-bot", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) throw new Error(`GitHub ${res.status} leyendo community/components/${id}/${name}`);
+    out[name] = await res.text();
+  }
+  return out as Record<"component.tsx" | "manifest.json" | "fixtures.json", string>;
+}
