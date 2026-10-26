@@ -111,6 +111,9 @@ export const ConicFigure = defineComponent({
       const all = curves[0]!;
       bounds = { xMin: Math.min(h - ap * 2, ...all.map((q) => q[0])) - ap, xMax: Math.max(h + ap * 2, ...all.map((q) => q[0])) + ap, yMin: Math.min(k - ap * 2, ...all.map((q) => q[1])) - ap, yMax: Math.max(k + ap * 2, ...all.map((q) => q[1])) + ap };
     }
+    // Las líneas verticales/horizontales (ejes, directriz) no deben pasar del encuadre: su caja sobresalía de la diapositiva aunque el svg las recortara.
+    const clampX = (x: number) => Math.min(bounds.xMax, Math.max(bounds.xMin, x)), clampY = (y: number) => Math.min(bounds.yMax, Math.max(bounds.yMin, y));
+    for (const l of lines) if (l.p1[0] === l.p2[0] || l.p1[1] === l.p2[1]) { l.p1 = [clampX(l.p1[0]), clampY(l.p1[1])]; l.p2 = [clampX(l.p2[0]), clampY(l.p2[1])]; }
     return (
       <figure className="lm-plot">
         <Frame b={bounds} W={W} H={H} label={props.caption ?? `Cónica: ${props.kind}`}>
