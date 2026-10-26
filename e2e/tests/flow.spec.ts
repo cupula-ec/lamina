@@ -37,7 +37,7 @@ test("flujo completo: crear → contenido → diseño → pulido → publicar �
   // Aprobación → diseño
   await page.getByRole("button", { name: "Aprobar contenido" }).click();
   await expect(page.getByText("Contenido aprobado").first()).toBeVisible();
-  await page.getByRole("button", { name: "Generar el diseño" }).click();
+  await page.getByRole("button", { name: "Continuar al diseño" }).click();
   await expect(page).toHaveURL(/preview\/design/);
   await designReady(page, 180_000);
   // revisión automática del renderer

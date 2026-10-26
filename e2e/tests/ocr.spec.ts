@@ -16,7 +16,7 @@ test("PDF escaneado: consentimiento de visión aparte, OCR con fuente marcada y 
 
   // sin PDF no se ofrece el consentimiento de visión
   await expect(page.getByLabel(/Permito enviar imágenes de páginas con fórmulas/)).toHaveCount(0);
-  await page.getByLabel(/Archivos: PDF/).setInputFiles(path.join(FX, "escaneado-es.pdf"));
+  await page.getByLabel("Elegir archivos").setInputFiles(path.join(FX, "escaneado-es.pdf"));
   const vis = page.getByLabel(/Permito enviar imágenes de páginas con fórmulas/);
   await expect(vis).toBeVisible();
   await expect(vis).not.toBeChecked();

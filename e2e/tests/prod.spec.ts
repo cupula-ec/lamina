@@ -26,7 +26,7 @@ test("recorrido real: tema de Cálculo + URL → contenido → diseño → pulid
   await page.getByRole("button", { name: "Guardar cambios" }).click();
   await expect(page.getByText("Cambios guardados como una nueva versión.")).toBeVisible();
   await page.getByRole("button", { name: "Aprobar contenido" }).click();
-  await page.getByRole("button", { name: "Generar el diseño" }).click();
+  await page.getByRole("button", { name: "Continuar al diseño" }).click();
   await designReady(page, 20 * 60_000);
   await expect(page.getByText(DESIGN_SUMMARY)).toBeVisible({ timeout: 5 * 60_000 });
   await page.screenshot({ path: "test-results/prod-2-diseno.png", fullPage: true });

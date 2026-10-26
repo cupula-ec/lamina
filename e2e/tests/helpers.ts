@@ -41,7 +41,7 @@ export async function createToDesignReview(page: Page, topic = "La derivada y su
   const id = page.url().match(/presentations\/([0-9a-f-]+)\//)![1]!;
   await expect(page.getByRole("button", { name: "Aprobar contenido" })).toBeVisible({ timeout: 150_000 });
   await page.getByRole("button", { name: "Aprobar contenido" }).click();
-  await page.getByRole("button", { name: "Generar el diseño" }).click();
+  await page.getByRole("button", { name: "Continuar al diseño" }).click();
   await designReady(page);
   await expect(page.getByText(DESIGN_SUMMARY)).toBeVisible({ timeout: 180_000 });
   return id;
