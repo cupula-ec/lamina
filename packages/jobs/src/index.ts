@@ -45,7 +45,7 @@ export async function createBoss(connectionString: string): Promise<Boss> {
 export async function enqueue<N extends JobName>(boss: Boss, name: N, payload: z.input<(typeof JOB_PAYLOADS)[N]>, opts: { base?: string; startAfter?: Date; priority?: number } = {}) {
   const data = (JOB_PAYLOADS[name] as z.ZodType).parse(payload) as { presentationId: string };
   const key = jobSingletonKey(name, data.presentationId, opts.base ?? "0");
-  const id = await boss.send(name, data, { singletonKey: key, startAfter: opts.startAfter, priority: opts.priority });
+  const id = await boss.send(name, data, { singletonKey: key, ...(opts.startAfter ? { startAfter: opts.startAfter } : {}), ...(opts.priority !== undefined ? { priority: opts.priority } : {}) });
   if (!id) throw new LaminaError("job_in_progress", "Ya hay un trabajo en curso para esta etapa", 409);
   return id;
 }

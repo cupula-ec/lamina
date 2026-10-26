@@ -60,3 +60,6 @@ Apagar el flag y volver a la imagen anterior (`docker compose ... up -d <servici
 | Fecha | Qué | Script | Motivo |
 |---|---|---|---|
 | 2026-10-23 | `expire_seconds` subido a mano en la fila de un job | `update pgboss.job set expire_seconds=...` | Incidente: no surtió efecto, el timeout real sale de `QUEUE_CONFIG` (ahora configurable por env) |
+
+### 2026-10-26 — v3.0.1 (despliegue solo `web`)
+Incidente: «No se pudo encolar el trabajo». `enqueue` pasaba `priority: undefined` a pg-boss 12.38 (`AssertionError: priority must be an integer`). Corregido en `packages/jobs`; sin cambios en BD. Presentaciones afectadas: pulsar Reintentar.

@@ -22,6 +22,7 @@ const touch = (id: string) => { revalidatePath(`/presentations/${id}`, "layout")
 async function kick(id: string, name: "content.generate" | "design.generate" | "design.repair" | "polish", payload: Record<string, unknown>, base: string) {
   try { await enqueue(await getBoss(), name, payload as never, { base }); }
   catch (e) {
+    console.error("[enqueue]", name, e);
     await wf.failJob(getDb(), id, "No se pudo encolar el trabajo. Reintenta.");
     throw e;
   }
@@ -279,7 +280,7 @@ export async function retryAction(input: { id: string }) {
     const id = Id.parse(input.id);
     const { pending } = await wf.resumeFromWait(getDb(), id, u.id);
     try { await enqueue(await getBoss(), pending.name as never, pending.payload as never, { base: `retry-${Date.now()}` }); }
-    catch (e) { await wf.failJob(getDb(), id, "No se pudo encolar el trabajo. Reintenta."); throw e; }
+    catch (e) { console.error("[enqueue]", pending.name, e); await wf.failJob(getDb(), id, "No se pudo encolar el trabajo. Reintenta."); throw e; }
     touch(id);
   });
 }
