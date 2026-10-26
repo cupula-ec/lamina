@@ -10,6 +10,6 @@ const password = pw ?? `Temp-${Math.random().toString(36).slice(2, 10)}!x`;
 const res = await adminCreate.run({ allowed: true }, () =>
   getAuth().api.createUser({ body: { email, password, name, role: (role ?? "teacher") as "admin" } }),
 );
-await getDb().update(schema.userProfiles).set({ mustChangePassword: false, consentAt: new Date(), consentVersion: "dev", quotaOverrides: { presentation_new: 200, content_regen: 200, design_regen: 200, component_request: 200 } }).where(eq(schema.userProfiles.userId, res.user.id));
+await getDb().update(schema.userProfiles).set({ mustChangePassword: false, consentAt: new Date(), consentVersion: "dev", onboardedAt: new Date(), quotaOverrides: { presentation_new: 200, content_regen: 200, design_regen: 200, component_request: 200 } }).where(eq(schema.userProfiles.userId, res.user.id));
 console.log(`creado ${email} clave: ${password}`);
 process.exit(0);
